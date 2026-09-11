@@ -1,0 +1,21 @@
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .reportActions {
+    display: none;
+  }
+
+  .sheet {
+    min-height: 257mm;
+    padding: 18mm;
+    break-after: page;
+    border: 0;
+    background: #fff;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+  }
+}

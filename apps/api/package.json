@@ -1,0 +1,29 @@
+{
+  "name": "@papamo/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "test": "vitest run --config vitest.config.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@papamo/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.33",
+    "jose": "^6.1.0",
+    "ulid": "^3.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.20.1",
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "drizzle-kit": "^0.31.10",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.118.0"
+  }
+}

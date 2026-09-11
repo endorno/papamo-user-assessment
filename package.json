@@ -1,0 +1,32 @@
+{
+  "name": "papamo-user-assessment-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "へやすぽ コーチ向けアセスメント・レポートツール",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @papamo/api --filter @papamo/web run dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.32.0",
+    "globals": "^16.3.0",
+    "typescript": "^5.9.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}

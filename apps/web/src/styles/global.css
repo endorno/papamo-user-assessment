@@ -1,0 +1,44 @@
+:root {
+  --ink: #1e2b27;
+  --ink2: #4a5c56;
+  --mute: #7e8e88;
+  --line: #d9e1dd;
+  --line2: #edf1ef;
+  --paper: #f3f6f4;
+  --card: #ffffff;
+  --green: #2f7d6e;
+  --green-soft: #e3f1ec;
+  --green-ink: #1d5a4e;
+  --orange: #d9803d;
+  --red: #c4534a;
+  --r: 10px;
+  --r-lg: 16px;
+  font-size: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  line-height: 1.65;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

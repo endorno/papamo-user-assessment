@@ -1,0 +1,164 @@
+.page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.card {
+  width: min(420px, 100%);
+  padding: 36px 32px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--green);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--green-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.description {
+  margin: 14px 0 0;
+  color: var(--ink2);
+  text-wrap: pretty;
+}
+
+.primaryButton {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 24px;
+  padding: 12px 20px;
+  border: 1px solid var(--green);
+  border-radius: var(--r);
+  background: var(--green);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.primaryButton:hover:not(:disabled) {
+  border-color: var(--green-ink);
+  background: var(--green-ink);
+}
+
+.primaryButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.primaryButton:focus-visible,
+.form input:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.notice {
+  margin: 22px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink2);
+  font-size: 0.82rem;
+  text-wrap: pretty;
+}
+
+.error {
+  margin: 14px 0 0;
+  color: var(--red);
+  font-size: 0.9rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.form label {
+  color: var(--ink2);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.form input {
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: #fff;
+  color: var(--ink);
+}
+
+.form select {
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: #fff;
+  color: var(--ink);
+}
+
+.form select:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.codeBox {
+  display: grid;
+  gap: 6px;
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: var(--r);
+  background: var(--green-soft);
+  color: var(--green-ink);
+}
+
+.codeBox span {
+  font-size: 0.82rem;
+}
+
+.codeBox strong {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+}
+
+.backLink {
+  display: inline-block;
+  margin-top: 20px;
+  color: var(--green);
+  font-size: 0.9rem;
+  font-weight: 700;
+}

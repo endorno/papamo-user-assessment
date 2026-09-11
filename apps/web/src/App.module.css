@@ -1,0 +1,354 @@
+.app {
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.topbar {
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.topbarInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1080px, 100%);
+  min-height: 60px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.environment {
+  color: var(--mute);
+  font-size: 0.85rem;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink2);
+  font-size: 0.9rem;
+}
+
+.account button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink2);
+}
+
+.account button:hover {
+  background: var(--line2);
+}
+
+.account button:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.accountLink {
+  color: var(--green);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.accountLink:focus-visible,
+.childCard:focus-visible,
+.primaryButton:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.main {
+  display: grid;
+  place-items: center;
+  width: min(1080px, 100%);
+  min-height: calc(100dvh - 61px);
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.card {
+  width: min(620px, 100%);
+  padding: 36px 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: 0 6px 24px rgb(30 43 39 / 6%);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--green-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.description {
+  margin: 16px 0 0;
+  color: var(--ink2);
+  text-wrap: pretty;
+}
+
+.error {
+  margin: 16px 0 0;
+  color: var(--red);
+  font-size: 0.9rem;
+}
+
+.childList {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.childCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.childCard:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.childCard strong,
+.childCard small {
+  display: block;
+}
+
+.childCard small {
+  color: var(--mute);
+  font-size: 0.82rem;
+}
+
+.childState {
+  color: var(--ink2);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.emptyState {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  color: var(--ink2);
+}
+
+.importPanel {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line2);
+}
+
+.importPanel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.importPanel p {
+  margin: 6px 0 0;
+  color: var(--mute);
+  font-size: 0.85rem;
+}
+
+.importForm {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.importForm input {
+  min-width: 0;
+  flex: 1;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.importForm input:focus-visible,
+.archiveToggle:focus-visible,
+.restoreButton:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.formMessage {
+  color: var(--ink2) !important;
+}
+
+.archiveSection {
+  margin-top: 24px;
+}
+
+.archiveToggle {
+  min-height: 44px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--green-ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.archivedCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.archivedCard .childCard {
+  flex: 1;
+}
+
+.restoreButton {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--green-ink);
+  font-weight: 700;
+}
+
+.muted {
+  color: var(--mute);
+}
+
+.emptyState .primaryButton {
+  display: inline-flex;
+  width: auto;
+  margin-top: 8px;
+  color: #fff;
+  text-decoration: none;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.primaryButton {
+  min-height: 48px;
+  padding: 12px 22px;
+  border: 1px solid var(--green);
+  border-radius: var(--r);
+  background: var(--green);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--green-ink);
+  border-color: var(--green-ink);
+}
+
+.primaryButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.primaryButton:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin: 20px 0 0;
+  color: var(--ink2);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--mute);
+}
+
+.statusDot--checking {
+  background: var(--orange);
+}
+
+.statusDot--ok {
+  background: var(--green);
+}
+
+.statusDot--error {
+  background: var(--red);
+}
+
+@media (max-width: 560px) {
+  .topbarInner {
+    padding: 0 16px;
+  }
+
+  .main {
+    min-height: calc(100dvh - 61px);
+    padding: 24px 16px;
+  }
+
+  .card {
+    padding: 28px 22px;
+  }
+
+  .importForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
