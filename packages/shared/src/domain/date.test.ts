@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { addMonthsClamped, daysBetween, nextDueDate, todayInJst } from './date';
+import { addMonthsClamped, daysBetween, monthsBetween, nextDueDate, todayInJst } from './date';
 
 describe('日付計算', () => {
   it('JST の日付を返す', () => {
@@ -15,5 +15,12 @@ describe('日付計算', () => {
 
   it('日付だけの差分を求める', () => {
     expect(daysBetween('2026-09-01', '2026-09-15')).toBe(14);
+  });
+
+  it('入会からの経過月数を月末の繰り上がりなしで数える', () => {
+    expect(monthsBetween('2026-03-15', '2026-09-14')).toBe(5);
+    expect(monthsBetween('2026-03-15', '2026-09-15')).toBe(6);
+    expect(monthsBetween('2026-01-31', '2026-02-28')).toBe(1);
+    expect(monthsBetween('2026-09-01', '2026-09-01')).toBe(0);
   });
 });

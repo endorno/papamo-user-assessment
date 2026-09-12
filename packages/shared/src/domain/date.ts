@@ -67,3 +67,11 @@ export function isValidDateString(value: string): boolean {
     return false;
   }
 }
+
+// 入会からの経過月数。月末は addMonthsClamped と同じ規則で丸める。
+export function monthsBetween(from: string, to: string): number {
+  const [fromYear, fromMonth] = dateParts(from);
+  const [toYear, toMonth] = dateParts(to);
+  const naive = (toYear - fromYear) * 12 + (toMonth - fromMonth);
+  return addMonthsClamped(from, naive) <= to ? naive : naive - 1;
+}
