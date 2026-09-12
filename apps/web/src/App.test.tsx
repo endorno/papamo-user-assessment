@@ -38,6 +38,7 @@ const draftChild = {
   ...baseChild,
   state: { key: 'draft' as const, label: 'アセスメント入力中（2/6）', filled: 2, total: 6, order: 0 as const },
   latestAssessment: {
+    id: 'assessment-1',
     seqNo: 1,
     status: 'draft' as const,
     assessedOn: '2026-09-03',
@@ -53,6 +54,7 @@ const settledChild = {
   honorific: 'chan' as const,
   state: { key: 'ok' as const, label: '次回 2026-12-01 予定', dueDate: '2026-12-01', order: 2 as const },
   latestAssessment: {
+    id: 'assessment-2',
     seqNo: 2,
     status: 'done' as const,
     assessedOn: '2026-09-01',

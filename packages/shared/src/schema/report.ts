@@ -53,5 +53,10 @@ export const reportContentSchema = z.object({
 });
 
 export const reportResponseSchema = z.object({
+  // レポート画面が子どもページへ戻れるよう、本文とは別に所属を返す。
+  childId: z.string(),
+  assessmentId: z.string(),
   report: reportContentSchema,
 });
+
+export type ReportResponse = z.infer<typeof reportResponseSchema>;

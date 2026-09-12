@@ -31,6 +31,7 @@ export const childListStateSchema = z.discriminatedUnion('key', [
 ]);
 
 export const latestAssessmentViewSchema = z.object({
+  id: z.string(),
   seqNo: z.number().int().positive(),
   status: z.enum(['draft', 'done']),
   assessedOn: z.string(),

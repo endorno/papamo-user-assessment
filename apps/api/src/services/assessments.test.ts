@@ -99,10 +99,11 @@ describe('アセスメントサービス', () => {
       data: editableDraft,
       updatedAt: created.updatedAt,
     });
-    const report = await completeAssessment(testEnv, created.id, coach);
+    const completedResult = await completeAssessment(testEnv, created.id, coach);
 
-    expect(report.kind).toBe('first');
-    expect(await getReport(testEnv, created.id, coach.id)).toMatchObject({ kind: 'first' });
+    expect(completedResult.report.kind).toBe('first');
+    expect(completedResult.childId).toBe(child.id);
+    expect(await getReport(testEnv, created.id, coach.id)).toMatchObject({ report: { kind: 'first' } });
     const completed = await getAssessment(testEnv, created.id, coach.id);
     expect(completed.data.goals).toEqual(child.goals);
     const detail = await getChildForCoach(testEnv, child.id, coach.id);
@@ -243,10 +244,9 @@ describe('アセスメントサービス', () => {
       updatedAt: completed.updatedAt,
     });
 
-    const report = await getReport(testEnv, assessment.id, coach.id) as {
-      levels: { key: string; lv: number }[];
-    };
+    const { report, childId } = await getReport(testEnv, assessment.id, coach.id);
     expect(report.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
+    expect(childId).toBe(child.id);
     const revisions = await testEnv.DB.prepare(`
       SELECT assessments.revision AS assessment_revision,
              reports.assessment_revision AS report_revision

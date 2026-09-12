@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 
@@ -51,15 +51,19 @@ function parseGoals(value: string): string[] {
   }
 }
 
+type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number };
+
 function assessmentProgressFrom(row: {
+  id: string;
   seqNo: number;
   status: string;
   assessedOn: string;
   unlockExt: boolean;
   data: string;
-}): AssessmentProgress & { seqNo: number } {
+}): ChildAssessmentProgress {
   const data = assessmentDataDraftSchema.parse(JSON.parse(row.data));
   return {
+    id: row.id,
     seqNo: row.seqNo,
     status: row.status as 'draft' | 'done',
     assessedOn: row.assessedOn,
@@ -75,7 +79,7 @@ function serializeChild(
   row: typeof children.$inferSelect,
   role: ChildRole,
   includeOwnerShareCode: boolean,
-  assessmentsForChild: (AssessmentProgress & { seqNo: number })[] = [],
+  assessmentsForChild: ChildAssessmentProgress[] = [],
   today = todayInJst(),
 ): ChildView {
   const gradeCode = row.gradeCode as GradeCode;
@@ -100,6 +104,7 @@ function serializeChild(
     state: stateOf({ archivedAt: row.archivedAt, assessments: assessmentsForChild }, today),
     latestAssessment: latestAssessment
       ? {
+          id: latestAssessment.id,
           seqNo: latestAssessment.seqNo,
           status: latestAssessment.status,
           assessedOn: latestAssessment.assessedOn,
@@ -129,6 +134,11 @@ export async function childById(env: Env, childId: string) {
   return dbFor(env).select().from(children).where(eq(children.id, childId)).get();
 }
 
+// 期限が近い（超過が大きい）子どもを先に出す。due 以外は同順として名前順に委ねる。
+function daysLeftOf(child: ChildView): number {
+  return child.state?.key === 'due' ? child.state.daysLeft : 0;
+}
+
 export async function listChildren(env: Env, coachId: string, archived: boolean) {
   const db = dbFor(env);
   const rows = await db
@@ -148,9 +158,11 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
     return [];
   }
 
-  const visibleChildIds = new Set(rows.map(({ child }) => child.id));
+  // 一覧に要るのは「入力中の回」と「直近の完了回」だけ。過去の全記録は読まない。
+  const visibleChildIds = rows.map(({ child }) => child.id);
   const assessmentRows = await db
     .select({
+      id: assessments.id,
       childId: assessments.childId,
       seqNo: assessments.seqNo,
       status: assessments.status,
@@ -159,14 +171,20 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
       data: assessments.data,
     })
     .from(assessments)
-    .innerJoin(childCoaches, and(
-      eq(childCoaches.childId, assessments.childId),
-      eq(childCoaches.coachId, coachId),
+    .where(and(
+      inArray(assessments.childId, visibleChildIds),
+      or(
+        eq(assessments.status, 'draft'),
+        eq(
+          assessments.seqNo,
+          sql`(SELECT MAX(latest.seq_no) FROM ${assessments} AS latest
+               WHERE latest.child_id = ${assessments.childId} AND latest.status = 'done')`,
+        ),
+      ),
     ))
     .all();
-  const assessmentsByChild = new Map<string, (AssessmentProgress & { seqNo: number })[]>();
+  const assessmentsByChild = new Map<string, ChildAssessmentProgress[]>();
   for (const assessment of assessmentRows) {
-    if (!visibleChildIds.has(assessment.childId)) continue;
     const grouped = assessmentsByChild.get(assessment.childId) ?? [];
     grouped.push(assessmentProgressFrom(assessment));
     assessmentsByChild.set(assessment.childId, grouped);
@@ -180,7 +198,10 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
   ));
   result.sort((first, second) => {
     const byState = (first.state?.order ?? 99) - (second.state?.order ?? 99);
-    return byState || first.name.localeCompare(second.name, 'ja');
+    if (byState) return byState;
+    const byUrgency = daysLeftOf(first) - daysLeftOf(second);
+    if (byUrgency) return byUrgency;
+    return first.name.localeCompare(second.name, 'ja');
   });
   return result;
 }

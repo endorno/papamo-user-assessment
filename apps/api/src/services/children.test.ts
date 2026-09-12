@@ -13,7 +13,7 @@ import {
   requireMembership,
   setArchiveState,
 } from './children';
-import { createAssessment } from './assessments';
+import { completeAssessment, createAssessment, patchAssessment } from './assessments';
 import { upsertCoach } from './coaches';
 
 const testEnv = env as Env & { TEST_MIGRATIONS: D1Migration[] };
@@ -21,6 +21,39 @@ const testEnv = env as Env & { TEST_MIGRATIONS: D1Migration[] };
 beforeAll(async () => {
   await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 });
+
+async function createFixture(name: string) {
+  const coach = await upsertCoach(testEnv, {
+    id: crypto.randomUUID(),
+    email: `${crypto.randomUUID()}@example.com`,
+  });
+  const child = await createChild(testEnv, coach.id, {
+    name,
+    honorific: 'chan',
+    gradeCode: 'k2',
+    joinedOn: '2026-01-05',
+    goals: [],
+  });
+  return { coach, child };
+}
+
+function saveCompletedInput(
+  coach: Awaited<ReturnType<typeof upsertCoach>>,
+  assessment: Awaited<ReturnType<typeof createAssessment>>,
+) {
+  return patchAssessment(testEnv, assessment.id, coach.id, {
+    data: {
+      lv: { post: 3, eyeh: 4, hand: 5 },
+      errs: {},
+      troubles: ['転びやすい・つまずきやすい'],
+      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
+      ppiNote: '',
+      plan: 'pre',
+      memo: '',
+    },
+    updatedAt: assessment.updatedAt,
+  });
+}
 
 describe('子ども管理サービス', () => {
   it('通常コードで参加し、オーナーコードで移譲できる', async () => {
@@ -120,5 +153,58 @@ describe('子ども管理サービス', () => {
     expect(await getChildForCoach(testEnv, emptyChild.id, coach.id)).toBeNull();
     expect(await deleteChildIfEmpty(testEnv, assessedChild.id)).toBe(false);
     expect(await getChildForCoach(testEnv, assessedChild.id, coach.id)).not.toBeNull();
+  });
+
+  it('一覧に下書きのIDを載せ、期限超過が大きい子どもを先に並べる', async () => {
+    const coachId = crypto.randomUUID();
+    await upsertCoach(testEnv, { id: coachId, email: `${coachId}@example.com` });
+    const base = { honorific: 'chan' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05', goals: [] };
+    const drafting = await createChild(testEnv, coachId, { ...base, name: 'あさひ' });
+    const slightlyOverdue = await createChild(testEnv, coachId, { ...base, name: 'いおり' });
+    const longOverdue = await createChild(testEnv, coachId, { ...base, name: 'うみ' });
+
+    const draft = await createAssessment(testEnv, drafting.id, coachId, false);
+    for (const [child, assessedOn] of [[slightlyOverdue, '2026-06-01'], [longOverdue, '2024-01-10']] as const) {
+      await testEnv.DB.prepare(
+        `INSERT INTO assessments (id, child_id, seq_no, status, assessed_on, coach_id, unlock_ext, prev_assessment_id,
+           master_version, data, revision, mutation_id, created_at, updated_at, completed_at)
+         VALUES (?, ?, 1, 'done', ?, ?, 0, NULL, 'test', ?, 1, ?, ?, ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        child.id,
+        assessedOn,
+        coachId,
+        JSON.stringify({
+          lv: { post: 1, eyeh: 1, hand: 1 },
+          errs: {},
+          troubles: [],
+          ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
+          ppiNote: '',
+          plan: 'base',
+          memo: '',
+          goals: [],
+        }),
+        crypto.randomUUID(),
+        '2026-01-05T00:00:00.000Z',
+        '2026-01-05T00:00:00.000Z',
+        '2026-01-05T00:00:00.000Z',
+      ).run();
+    }
+
+    const list = await listChildren(testEnv, coachId, false);
+    expect(list.map(({ name }) => name)).toEqual(['あさひ', 'うみ', 'いおり']);
+    expect(list[0]?.latestAssessment?.id).toBe(draft.id);
+  });
+
+  it('回を重ねても、一覧には直近の完了回だけを反映する', async () => {
+    const { coach, child } = await createFixture('のぞみ');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    await completeAssessment(testEnv, first.id, coach, (await saveCompletedInput(coach, first)).updatedAt);
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    await completeAssessment(testEnv, second.id, coach, (await saveCompletedInput(coach, second)).updatedAt);
+
+    const listed = (await listChildren(testEnv, coach.id, false)).find(({ id }) => id === child.id);
+    expect(listed?.latestAssessment).toMatchObject({ id: second.id, seqNo: 2, status: 'done' });
+    expect(listed?.state).toMatchObject({ key: 'ok' });
   });
 });

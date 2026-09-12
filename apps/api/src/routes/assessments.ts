@@ -81,13 +81,13 @@ assessmentsRoutes.post('/:id/complete', async (context) => {
     return jsonError(context, 'validation', '入力内容を確認してください。', 400);
   }
   try {
-    const report = await completeAssessment(
+    const completed = await completeAssessment(
       context.env,
       context.req.param('id'),
       context.get('coach'),
       parsed.data.updatedAt,
     );
-    return context.json(reportResponseSchema.parse({ report }));
+    return context.json(reportResponseSchema.parse(completed));
   } catch (caught) {
     return serviceError(context, caught);
   }
@@ -95,8 +95,8 @@ assessmentsRoutes.post('/:id/complete', async (context) => {
 
 assessmentsRoutes.get('/:id/report', async (context) => {
   try {
-    const report = await getReport(context.env, context.req.param('id'), context.get('coach').id);
-    return context.json(reportResponseSchema.parse({ report }));
+    const found = await getReport(context.env, context.req.param('id'), context.get('coach').id);
+    return context.json(reportResponseSchema.parse(found));
   } catch (caught) {
     return serviceError(context, caught);
   }

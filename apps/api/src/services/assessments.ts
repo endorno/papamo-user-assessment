@@ -497,7 +497,7 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
     updatedAt: generatedAt,
     completedAt: assessment.completedAt ?? generatedAt,
   });
-  return report;
+  return { report, childId: assessment.childId, assessmentId: assessment.id };
 }
 
 export async function getReport(env: Env, assessmentId: string, coachId: string) {
@@ -511,5 +511,9 @@ export async function getReport(env: Env, assessmentId: string, coachId: string)
   if (report.assessmentRevision !== assessment.revision) {
     throw new Error(`レポートとアセスメントの版が一致しません: ${assessmentId}`);
   }
-  return reportContentSchema.parse(JSON.parse(report.content));
+  return {
+    report: reportContentSchema.parse(JSON.parse(report.content)),
+    childId: assessment.childId,
+    assessmentId: assessment.id,
+  };
 }

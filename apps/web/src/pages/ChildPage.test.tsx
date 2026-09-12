@@ -74,7 +74,7 @@ describe('子どもページ', () => {
     const draftChild = {
       ...child,
       state: { key: 'draft' as const, label: 'アセスメント入力中（2/6）', filled: 2, total: 6, order: 0 as const },
-      latestAssessment: { seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, lv: { post: 3, eyeh: 4 } },
+      latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, lv: { post: 3, eyeh: 4 } },
       assessments: [{ id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, updatedAt: '2026-09-01T00:00:00.000Z', completedAt: null, reportAvailable: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: draftChild })));
