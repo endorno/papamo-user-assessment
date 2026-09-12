@@ -1,6 +1,6 @@
 import type { ChildListState } from '@papamo/shared';
 
-import { formatJapaneseDate } from '../utils/display';
+import { formatJapaneseMonthDay } from '../utils/display';
 import styles from './ui.module.css';
 
 const STATE_ICON: Record<ChildListState['key'], string> = {
@@ -12,7 +12,7 @@ const STATE_ICON: Record<ChildListState['key'], string> = {
 
 // 日付は画面のほかの表記にそろえる（status.ts の label は ISO のまま）。
 function stateLabel(state: ChildListState): string {
-  return state.key === 'ok' ? `次回 ${formatJapaneseDate(state.dueDate)} 予定` : state.label;
+  return state.key === 'ok' ? `次回 ${formatJapaneseMonthDay(state.dueDate)} 予定` : state.label;
 }
 
 export function ChildStatusBadge({ state }: { state: ChildListState | null }) {

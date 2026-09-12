@@ -246,18 +246,27 @@
   border-color: var(--green);
 }
 
+/*
+ * 日本語の学年表記（例「中学3年生（14〜15歳）」）と状態バッジは、
+ * 300px 幅のカードに横並びでは収まらない。バッジは必ず次の行に置く。
+ */
 .childCardTop {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px 10px;
 }
 
 .childIdentity {
   display: flex;
   min-width: 0;
+  flex: 1 1 100%;
   align-items: center;
   gap: 11px;
+}
+
+.childIdentity > span:last-child {
+  min-width: 0;
 }
 
 .face {
@@ -290,8 +299,11 @@
 
 .childMeta {
   display: block;
+  overflow: hidden;
   color: var(--mute);
   font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .levelChips {

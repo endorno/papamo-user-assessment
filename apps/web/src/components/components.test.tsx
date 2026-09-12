@@ -18,6 +18,12 @@ describe('共通UI', () => {
     expect(screen.getByText('次回まであと3日')).toHaveTextContent('!');
   });
 
+  it('次回予定のバッジは一覧に収まるよう年を省いて表示する', () => {
+    render(<ChildStatusBadge state={{ key: 'ok', label: '次回 2026-12-12 予定', dueDate: '2026-12-12', order: 2 }} />);
+    expect(screen.getByText('次回 12月12日 予定')).toBeInTheDocument();
+    expect(screen.queryByText(/2026/)).not.toBeInTheDocument();
+  });
+
   it('共有コードをクリップボードへコピーし、結果を通知する', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
