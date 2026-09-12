@@ -20,11 +20,21 @@
   --focus: #9ccfc2;
   --r: 10px;
   --r-lg: 16px;
+
+  /* モーション。モックの .15s を基準にし、状態変化が分かる範囲にとどめる。 */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
   font-size: 16px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  /* ジャンプナビの移動を目で追えるようにする（動きを減らす設定では無効化される）。 */
+  scroll-behavior: smooth;
 }
 
 html,
@@ -76,4 +86,37 @@ a {
 
 ::selection {
   background: #b9d8cf;
+}
+
+.bootError {
+  display: grid;
+  gap: 14px;
+  place-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+
+.bootError button {
+  justify-self: center;
+  min-height: 48px;
+  padding: 11px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--green-ink);
+  font-weight: 700;
+}
+
+/* 動きを減らす設定では、遷移とスクロールの演出を止める。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  *::backdrop {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -486,3 +486,32 @@
     align-self: flex-end;
   }
 }
+
+/* --- 状態変化のトランジション --- */
+
+.primaryButton,
+.secondaryButton,
+.childCard,
+.archiveToggle {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.loadingGrid > div {
+  background-image: linear-gradient(100deg, transparent 30%, var(--line2) 50%, transparent 70%);
+  background-repeat: no-repeat;
+  background-size: 280% 100%;
+  animation: home-shimmer 1.4s var(--ease) infinite;
+}
+
+@keyframes home-shimmer {
+  from {
+    background-position: 160% 0;
+  }
+
+  to {
+    background-position: -60% 0;
+  }
+}

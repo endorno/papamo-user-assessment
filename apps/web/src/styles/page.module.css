@@ -2213,3 +2213,87 @@
     grid-template-columns: 96px 1fr 52px;
   }
 }
+
+/* --- 確認ダイアログ --- */
+
+.confirmDialog[open] {
+  animation: dialog-in var(--dur) var(--ease);
+}
+
+.confirmDialog[open]::backdrop {
+  animation: backdrop-in var(--dur) var(--ease);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.confirmDetail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink2);
+  font-size: 0.86rem;
+}
+
+.confirmDetail > * {
+  margin: 0;
+}
+
+.confirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.confirmActions .dangerButton {
+  margin-top: 0;
+}
+
+/* --- 状態変化のトランジション（モックの .15s 系にそろえる） --- */
+
+.primaryButton,
+.dangerButton,
+.secondaryButton,
+.compactButton,
+.textDangerButton,
+.lvButton,
+.lvButtonSelected,
+.errorChip,
+.errorChipSelected,
+.planOptions label,
+.troubleOption,
+.jumpNav a,
+.ladderDetails > summary {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.troubleOption:hover,
+.planOptions label:hover {
+  background: var(--green-soft);
+}
+
+.assessmentSection .lvButton:hover:not(:disabled) {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+/* 保存状態の切り替えを、点滅ではなく色の変化で伝える。 */
+.saveStatus {
+  transition: color var(--dur) var(--ease);
+}

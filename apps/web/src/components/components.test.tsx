@@ -35,6 +35,39 @@ describe('共通UI', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it('取り消せない操作はキャンセルから始め、3つ目の選択肢も出せる', () => {
+    const secondary = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="削除しますか？"
+        message="取り消せません。"
+        confirmLabel="削除する"
+        secondary={{ label: '前回を編集する', onClick: secondary }}
+        detail={<p>前回：第1回</p>}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toHaveFocus();
+    expect(screen.getByText('前回：第1回')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '前回を編集する' }));
+    expect(secondary).toHaveBeenCalledOnce();
+  });
+
+  it('確認を促す操作は確定ボタンから始め、同じ画面に2つ置いても見出しidが衝突しない', () => {
+    const { container } = render(
+      <>
+        <ConfirmDialog open tone="primary" title="始めますか？" message="説明" confirmLabel="始める" onCancel={vi.fn()} onConfirm={vi.fn()} />
+        <ConfirmDialog open={false} tone="primary" title="戻しますか？" message="説明" confirmLabel="戻す" onCancel={vi.fn()} onConfirm={vi.fn()} />
+      </>,
+    );
+    expect(screen.getByRole('button', { name: '始める' })).toHaveFocus();
+    const ids = [...container.querySelectorAll('dialog')].map((dialog) => dialog.getAttribute('aria-labelledby'));
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it('レーダーは前回と今回、未開放種目を読み上げ可能にする', () => {
     const report = reportContentSchema.parse({
       kind: 'comparison',

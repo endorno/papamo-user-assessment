@@ -1,13 +1,30 @@
 import type { Session } from '@supabase/supabase-js';
 
+export type ApiErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'onboarding_required'
+  | 'not_found'
+  | 'validation'
+  | 'conflict'
+  | 'internal';
+
 export class ApiClientError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code: ApiErrorCode | null = null,
   ) {
     super(message);
     this.name = 'ApiClientError';
   }
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/** セッション切れの扱いを1か所にまとめる。レイアウトから登録する。 */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
 }
 
 export async function apiRequest<T>(
@@ -23,18 +40,19 @@ export async function apiRequest<T>(
 
   const response = await fetch(`/api${path}`, { ...init, headers });
   const body = (await response.json().catch(() => null)) as
-    | { error?: { message?: string } }
+    | { error?: { message?: string; code?: ApiErrorCode } }
     | T
     | null;
 
   if (!response.ok) {
-    const message =
-      body && typeof body === 'object' && 'error' in body
-        ? body.error?.message
-        : undefined;
+    const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined;
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
     throw new ApiClientError(
-      message ?? '通信に失敗しました。もう一度お試しください。',
+      error?.message ?? '通信に失敗しました。もう一度お試しください。',
       response.status,
+      error?.code ?? null,
     );
   }
 

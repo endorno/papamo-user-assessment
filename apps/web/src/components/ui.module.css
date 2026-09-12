@@ -91,3 +91,156 @@
   color: var(--ink2);
   font-size: 0.78rem;
 }
+
+/* --- 通知（モック .toast 準拠：画面下中央・4秒） --- */
+
+.toastArea {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 60;
+  display: grid;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  justify-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  padding: 12px 14px 12px 20px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.92rem;
+  box-shadow: 0 10px 28px rgb(30 43 39 / 24%);
+  pointer-events: auto;
+  animation: toast-in var(--dur) var(--ease);
+}
+
+.toast > span {
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+.toast button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.toast button:hover {
+  background: rgb(255 255 255 / 16%);
+}
+
+.toast button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.toastClose {
+  min-width: 36px;
+  padding: 6px 10px !important;
+  border-color: transparent !important;
+  font-size: 1rem;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* --- 読み込み中のつなぎ --- */
+
+.skeletonPage {
+  min-height: 100dvh;
+  background: var(--paper);
+}
+
+.skeletonHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  font-weight: 700;
+}
+
+.skeletonMark {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.skeletonBrand {
+  color: var(--ink);
+}
+
+.skeletonMain {
+  display: grid;
+  gap: 16px;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.skeletonLine {
+  width: 220px;
+  height: 22px;
+  border-radius: var(--r);
+  background: var(--line2);
+}
+
+.skeletonPanel {
+  height: 180px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--card);
+}
+
+.shimmer {
+  background-image: linear-gradient(100deg, transparent 30%, var(--line2) 50%, transparent 70%);
+  background-repeat: no-repeat;
+  background-size: 280% 100%;
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 160% 0;
+  }
+
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* --- 既存部品の状態変化をなめらかにする --- */
+
+.codeValueRow button {
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.codeValueRow button:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
