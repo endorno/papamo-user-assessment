@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 
 import {
   assessmentDataDraftSchema,
   assessmentResponseSchema,
   bandOf,
   EXERCISES,
+  EXT_EXERCISE_KEYS,
   ladderLabel,
   PPI_QUESTIONS,
   PLANS,
@@ -15,10 +16,12 @@ import {
   type ExerciseDefinition,
   type PpiKey,
 } from '@papamo/shared';
-import { apiRequest } from '../api/client';
+import { apiRequest, ApiClientError } from '../api/client';
+import { useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
@@ -27,6 +30,15 @@ interface AssessmentFormState {
   unlockExt: boolean;
   data: AssessmentData;
 }
+
+interface LocalDraft {
+  savedAt: string | null;
+  form: AssessmentFormState;
+}
+
+/** ボタン・チェックはすぐ、文字入力は打ち終わるのを待ってから保存する。 */
+const SAVE_DELAY_MS = 800;
+const TEXT_SAVE_DELAY_MS = 1500;
 
 function readAssessment(value: unknown) {
   const parsed = assessmentResponseSchema.safeParse(value);
@@ -46,104 +58,204 @@ function localDraftKey(id: string) {
   return `papamo:assessment:${id}`;
 }
 
-function readLocalForm(raw: string): AssessmentFormState | null {
+function readLocalDraft(raw: string): LocalDraft | null {
   try {
-    const candidate = JSON.parse(raw) as Partial<AssessmentFormState>;
-    const data = assessmentDataDraftSchema.safeParse(candidate.data);
-    if (!data.success || typeof candidate.assessedOn !== 'string' || typeof candidate.unlockExt !== 'boolean') return null;
-    return { assessedOn: candidate.assessedOn, unlockExt: candidate.unlockExt, data: data.data };
+    const candidate = JSON.parse(raw) as Partial<LocalDraft> & Partial<AssessmentFormState>;
+    // 以前の版は保存時刻を持たず、フォームだけを直接入れていた。
+    const form = (candidate.form ?? candidate) as Partial<AssessmentFormState>;
+    const data = assessmentDataDraftSchema.safeParse(form.data);
+    if (!data.success || typeof form.assessedOn !== 'string' || typeof form.unlockExt !== 'boolean') return null;
+    return {
+      savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : null,
+      form: { assessedOn: form.assessedOn, unlockExt: form.unlockExt, data: data.data },
+    };
   } catch {
     return null;
   }
 }
 
+function formatClock(value: string | null) {
+  if (!value) return '時刻不明';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '時刻不明';
+  return parsed.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+
+function savedMessageFor(assessment: AssessmentDetail) {
+  const clock = formatClock(new Date().toISOString());
+  return assessment.status === 'done'
+    ? `保存済み・レポートも更新しました ${clock}`
+    : `保存済み ${clock}`;
+}
+
+/** 4・5種目目を閉じたときに残った入力を落とす（サーバー側でも同じ整理をする）。 */
+function withoutExtInput(data: AssessmentData): AssessmentData {
+  const lv = { ...data.lv };
+  const errs = { ...data.errs };
+  for (const key of EXT_EXERCISE_KEYS) {
+    delete lv[key];
+    delete errs[key];
+  }
+  return { ...data, lv, errs };
+}
+
+/** 作っただけの下書きは、確認なしで捨ててよい。 */
+function hasAnyInput(form: AssessmentFormState) {
+  const { lv, ppi, errs, memo, ppiNote } = form.data;
+  return Boolean(
+    Object.keys(lv).length
+    || Object.keys(ppi).length
+    || Object.values(errs).some((selected) => selected?.length)
+    || memo.trim()
+    || ppiNote.trim(),
+  );
+}
+
 export function AssessmentPage() {
   const { id } = useParams();
   const { session } = useAuth();
+  const { showToast } = useToast();
+  const { registerGuard } = useUnsavedChanges();
   const navigate = useNavigate();
-  const changeVersionRef = useRef(0);
+
   const [assessment, setAssessment] = useState<AssessmentDetail | null>(null);
   const [form, setForm] = useState<AssessmentFormState | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('変更は自動保存されます');
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<ApiClientError | Error | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const [localRestoreForm, setLocalRestoreForm] = useState<AssessmentFormState | null>(null);
+  const [localRestore, setLocalRestore] = useState<LocalDraft | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [goalsText, setGoalsText] = useState('');
   const [editingGoals, setEditingGoals] = useState(false);
   const [goalsSaving, setGoalsSaving] = useState(false);
   const [goalsError, setGoalsError] = useState<string | null>(null);
 
-  async function loadAssessment() {
-    if (!session || !id) return;
-    const response = await apiRequest<unknown>(`/assessments/${id}`, session);
-    const loaded = readAssessment(response);
+  // 保存処理は非同期に連なるため、描画用の state とは別に最新値を ref で持つ。
+  const assessmentRef = useRef<AssessmentDetail | null>(null);
+  const formRef = useRef<AssessmentFormState | null>(null);
+  const dirtyRef = useRef(false);
+  const sessionRef = useRef(session);
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
+  const changeVersionRef = useRef(0);
+  const saveDelayRef = useRef(SAVE_DELAY_MS);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  const applyAssessment = useCallback((next: AssessmentDetail) => {
+    assessmentRef.current = next;
+    setAssessment(next);
+  }, []);
+
+  const applyForm = useCallback((next: AssessmentFormState, nextDirty: boolean) => {
+    formRef.current = next;
+    dirtyRef.current = nextDirty;
+    setForm(next);
+    setDirty(nextDirty);
+  }, []);
+
+  const loadAssessment = useCallback(async () => {
+    const currentSession = sessionRef.current;
+    if (!currentSession || !id) return;
+    const loaded = readAssessment(await apiRequest<unknown>(`/assessments/${id}`, currentSession));
     const loadedForm = formFromAssessment(loaded);
-    setAssessment(loaded);
-    setForm(loadedForm);
+    applyAssessment(loaded);
+    applyForm(loadedForm, false);
     setGoalsText(loaded.child.goals.join('\n'));
-    setDirty(false);
     setSaveError(null);
     changeVersionRef.current = 0;
 
     const raw = window.localStorage.getItem(localDraftKey(loaded.id));
     if (!raw || loaded.readOnly) return;
-    const local = readLocalForm(raw);
+    const local = readLocalDraft(raw);
     if (!local) {
       window.localStorage.removeItem(localDraftKey(loaded.id));
       return;
     }
-    if (JSON.stringify(local) !== JSON.stringify(loadedForm)) setLocalRestoreForm(local);
-  }
+    if (JSON.stringify(local.form) !== JSON.stringify(loadedForm)) setLocalRestore(local);
+  }, [applyAssessment, applyForm, id]);
 
   useEffect(() => {
     void loadAssessment().catch((caught) => setPageError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
-  }, [id, session]);
+  }, [loadAssessment, session]);
+
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    if (inFlightRef.current) await inFlightRef.current;
+    const currentForm = formRef.current;
+    const currentAssessment = assessmentRef.current;
+    const currentSession = sessionRef.current;
+    if (!dirtyRef.current || !currentForm || !currentAssessment || !currentSession || currentAssessment.readOnly) {
+      return true;
+    }
+    const savedVersion = changeVersionRef.current;
+    const { goals: _goals, ...editableData } = currentForm.data;
+    const request = (async () => {
+      setSaving(true);
+      setSavedMessage('保存中…');
+      try {
+        const response = await apiRequest<unknown>(`/assessments/${currentAssessment.id}`, currentSession, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            assessedOn: currentForm.assessedOn,
+            unlockExt: currentForm.unlockExt,
+            data: editableData,
+            updatedAt: currentAssessment.updatedAt,
+          }),
+        });
+        const saved = readAssessment(response);
+        applyAssessment(saved);
+        setSaveError(null);
+        // 保存中にさらに変更されていたら、古い応答でフォームを戻さない。
+        if (changeVersionRef.current === savedVersion) {
+          applyForm(formFromAssessment(saved), false);
+          window.localStorage.removeItem(localDraftKey(saved.id));
+          setSavedMessage(savedMessageFor(saved));
+        }
+        return true;
+      } catch (caught) {
+        setSaveError(caught instanceof Error ? caught : new Error('保存に失敗しました。'));
+        setSavedMessage('保存できていません');
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    })();
+    inFlightRef.current = request;
+    try {
+      return await request;
+    } finally {
+      if (inFlightRef.current === request) inFlightRef.current = null;
+    }
+  }, [applyAssessment, applyForm]);
+
+  useEffect(() => {
+    if (!dirty || !assessment || assessment.readOnly || saveError) return;
+    const timer = window.setTimeout(() => void saveNow(), saveDelayRef.current);
+    return () => window.clearTimeout(timer);
+  }, [assessment, dirty, form, saveError, saveNow]);
 
   useEffect(() => {
     if (!dirty || !assessment || !form) return;
-    window.localStorage.setItem(localDraftKey(assessment.id), JSON.stringify(form));
+    window.localStorage.setItem(
+      localDraftKey(assessment.id),
+      JSON.stringify({ savedAt: new Date().toISOString(), form } satisfies LocalDraft),
+    );
   }, [assessment, dirty, form]);
 
-  useEffect(() => {
-    if (!dirty || !assessment || !form || !session || assessment.readOnly || saving || saveError) return;
-    const timer = window.setTimeout(() => {
-      const snapshot = form;
-      const { goals: _snapshotGoals, ...editableData } = snapshot.data;
-      const savedVersion = changeVersionRef.current;
-      setSaving(true);
-      setSavedMessage('保存中…');
-      void apiRequest<unknown>(`/assessments/${assessment.id}`, session, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          assessedOn: snapshot.assessedOn,
-          unlockExt: snapshot.unlockExt,
-          data: editableData,
-          updatedAt: assessment.updatedAt,
-        }),
-      })
-        .then((response) => {
-          const saved = readAssessment(response);
-          setAssessment(saved);
-          setSaveError(null);
-          if (changeVersionRef.current === savedVersion) {
-            setForm(formFromAssessment(saved));
-            setDirty(false);
-            window.localStorage.removeItem(localDraftKey(saved.id));
-            setSavedMessage(`保存済み ${new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`);
-          }
-        })
-        .catch((caught) => {
-          setSaveError(caught instanceof Error ? caught.message : '保存に失敗しました。');
-          setSavedMessage('保存できていません');
-        })
-        .finally(() => setSaving(false));
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [assessment, dirty, form, saveError, saving, session]);
+  useEffect(() => registerGuard({
+    isDirty: () => dirtyRef.current,
+    save: saveNow,
+    // 保存せずに移動を選んだら、離脱時の送信もしない。端末の下書きは残すので後から戻せる。
+    discard: () => {
+      dirtyRef.current = false;
+    },
+  }), [registerGuard, saveNow]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -155,17 +267,61 @@ export function AssessmentPage() {
     return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [dirty]);
 
-  function updateForm(update: (current: AssessmentFormState) => AssessmentFormState) {
-    if (assessment?.readOnly) return;
+  // 画面を離れる瞬間に未送信の変更が残っていたら、最後の1回だけ送り切る。
+  useEffect(() => () => {
+    const currentForm = formRef.current;
+    const currentAssessment = assessmentRef.current;
+    const currentSession = sessionRef.current;
+    if (!dirtyRef.current || !currentForm || !currentAssessment || !currentSession || currentAssessment.readOnly) return;
+    const { goals: _goals, ...editableData } = currentForm.data;
+    void fetch(`/api/assessments/${currentAssessment.id}`, {
+      method: 'PATCH',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`,
+      },
+      body: JSON.stringify({
+        assessedOn: currentForm.assessedOn,
+        unlockExt: currentForm.unlockExt,
+        data: editableData,
+        updatedAt: currentAssessment.updatedAt,
+      }),
+    }).catch(() => undefined);
+  }, []);
+
+  // 長い1ビューなので、いまどのセクションを見ているかをナビに返す。
+  useEffect(() => {
+    if (!form || typeof IntersectionObserver === 'undefined') return;
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-assessment-section]'));
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting);
+        if (visible.length) setActiveSection(visible[0]?.target.id ?? null);
+      },
+      { rootMargin: '-120px 0px -60% 0px' },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [form]);
+
+  function updateForm(update: (current: AssessmentFormState) => AssessmentFormState, delay = SAVE_DELAY_MS) {
+    const current = formRef.current;
+    if (!current || assessmentRef.current?.readOnly) return;
     changeVersionRef.current += 1;
-    setForm((current) => current ? update(current) : current);
-    setDirty(true);
+    saveDelayRef.current = delay;
+    applyForm(update(current), true);
     setSaveError(null);
     setSavedMessage('未保存の変更があります');
   }
 
-  function updateData(update: (current: AssessmentData) => AssessmentData) {
-    updateForm((current) => ({ ...current, data: update(current.data) }));
+  function updateData(update: (current: AssessmentData) => AssessmentData, delay = SAVE_DELAY_MS) {
+    updateForm((current) => ({ ...current, data: update(current.data) }), delay);
+  }
+
+  function updateText(update: (current: AssessmentData) => AssessmentData) {
+    updateData(update, TEXT_SAVE_DELAY_MS);
   }
 
   function toggleTrouble(trouble: string, checked: boolean) {
@@ -190,22 +346,41 @@ export function AssessmentPage() {
     });
   }
 
+  function toggleUnlockExt(checked: boolean) {
+    updateForm((current) => ({
+      ...current,
+      unlockExt: checked,
+      data: checked ? current.data : withoutExtInput(current.data),
+    }));
+  }
+
   async function complete() {
-    if (!session || !assessment || assessment.readOnly || dirty || saving) return;
+    const current = assessmentRef.current;
+    if (!session || !current || current.readOnly || dirtyRef.current || saving) return;
     setCompleting(true);
     setPageError(null);
     try {
-      const response = await apiRequest<{ report?: unknown }>(`/assessments/${assessment.id}/complete`, session, {
+      const response = await apiRequest<{ report?: unknown }>(`/assessments/${current.id}/complete`, session, {
         method: 'POST',
-        body: JSON.stringify({ updatedAt: assessment.updatedAt }),
+        body: JSON.stringify({ updatedAt: current.updatedAt }),
       });
       if (!response.report) throw new Error('レポートの作成結果を読み込めませんでした。');
-      navigate(`/reports/${assessment.id}`);
+      showToast(current.status === 'done' ? 'レポートを更新しました。' : 'レポートを作成しました。');
+      navigate(`/reports/${current.id}`);
     } catch (caught) {
       setPageError(caught instanceof Error ? caught.message : 'レポートを作成できませんでした。');
     } finally {
       setCompleting(false);
     }
+  }
+
+  async function closeAndReturn() {
+    const current = assessmentRef.current;
+    if (!current) return;
+    setClosing(true);
+    const saved = await saveNow();
+    setClosing(false);
+    if (saved) navigate(`/children/${current.childId}`);
   }
 
   async function saveGoals() {
@@ -222,7 +397,7 @@ export function AssessmentPage() {
         method: 'PATCH',
         body: JSON.stringify({ goals }),
       });
-      setAssessment((current) => current ? { ...current, child: { ...current.child, goals } } : current);
+      applyAssessment({ ...assessment, child: { ...assessment.child, goals } });
       setEditingGoals(false);
     } catch (caught) {
       setGoalsError(caught instanceof Error ? caught.message : '目標を保存できませんでした。');
@@ -232,32 +407,52 @@ export function AssessmentPage() {
   }
 
   async function discardDraft() {
-    if (!session || !assessment || assessment.status !== 'draft') return;
+    const current = assessmentRef.current;
+    if (!session || !current || current.status !== 'draft') return;
     try {
-      await apiRequest(`/assessments/${assessment.id}`, session, { method: 'DELETE' });
-      window.localStorage.removeItem(localDraftKey(assessment.id));
-      navigate(`/children/${assessment.childId}`);
+      await apiRequest(`/assessments/${current.id}`, session, { method: 'DELETE' });
+      window.localStorage.removeItem(localDraftKey(current.id));
+      dirtyRef.current = false;
+      showToast('下書きを破棄しました。');
+      navigate(`/children/${current.childId}`);
     } catch (caught) {
       setPageError(caught instanceof Error ? caught.message : '下書きを破棄できませんでした。');
     }
   }
 
+  function requestDiscard() {
+    if (formRef.current && !hasAnyInput(formRef.current)) {
+      void discardDraft();
+      return;
+    }
+    setConfirmDiscard(true);
+  }
+
   if (pageError && !assessment) {
     return <main className={styles.page}><div className={styles.errorPanel} role="alert"><p>{pageError}</p><button className={styles.secondaryButton} type="button" onClick={() => window.location.reload()}>もう一度読み込む</button></div></main>;
   }
-  if (!assessment || !form) return <main className={styles.page}><p className={styles.muted}>アセスメントを読み込み中…</p></main>;
+  if (!assessment || !form) {
+    return (
+      <div className={styles.pageFrame}>
+        <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: 'アセスメント' }]} />
+        <main className={styles.page}><p className={styles.muted}>アセスメントを読み込み中…</p></main>
+      </div>
+    );
+  }
 
   const exercises = EXERCISES.filter((exercise) => exercise.core || form.unlockExt);
   const missingExercises = exercises.filter((exercise) => form.data.lv[exercise.key] === undefined);
   const missingPpi = PPI_QUESTIONS.filter(({ key }) => form.data.ppi[key] === undefined);
   const completionIssues = [
-    ...(missingExercises.length ? [`Lv未入力：${missingExercises.map((exercise) => exercise.name).join('・')}`] : []),
-    ...(missingPpi.length ? [`ご家庭の負担度 あと${missingPpi.length}問`] : []),
-    ...(!form.data.plan ? ['3か月の運動計画が未選択'] : []),
+    ...missingExercises.map((exercise) => ({ target: `assessment-${exercise.key}`, label: `${exercise.name}のLv` })),
+    ...(missingPpi.length ? [{ target: 'assessment-ppi', label: `ご家庭の負担度 あと${missingPpi.length}問` }] : []),
+    ...(!form.data.plan ? [{ target: 'assessment-plan', label: '3か月の運動計画' }] : []),
   ];
   const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing;
+  const conflict = saveError instanceof ApiClientError && saveError.code === 'conflict';
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
   const goalCount = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean).length;
+  const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
   const navSections = [
     { id: 'assessment-basic', label: '基本情報', complete: true },
     ...exercises.map((exercise) => ({ id: `assessment-${exercise.key}`, label: `${exercise.icon} ${exercise.name}`, complete: form.data.lv[exercise.key] !== undefined })),
@@ -273,7 +468,7 @@ export function AssessmentPage() {
         <div className={`${styles.pageInner} ${styles.assessmentLayout}`}>
           <nav className={styles.jumpNav} aria-label="入力項目">
             {navSections.map((section) => (
-              <a href={`#${section.id}`} key={section.id}>
+              <a href={`#${section.id}`} key={section.id} aria-current={activeSection === section.id ? 'true' : undefined}>
                 <span className={section.complete ? styles.jumpComplete : styles.jumpIncomplete} aria-hidden="true">{section.complete ? '✓' : '・'}</span>
                 <span>{section.label}</span>
               </a>
@@ -287,23 +482,23 @@ export function AssessmentPage() {
                 <h1>{assessment.child.name}{honorificLabel(assessment.child.honorific)}のアセスメント</h1>
                 <p className={saveError ? styles.error : styles.saveStatus} role="status">
                   <span aria-hidden="true">{saveError ? '!' : saving ? '●' : '✓'}</span>
-                  {assessment.readOnly ? readOnlyMessage : saveError ?? savedMessage}
+                  {assessment.readOnly ? readOnlyMessage : saveError?.message ?? savedMessage}
                 </p>
               </div>
-              {assessment.status === 'draft' && !assessment.readOnly ? <button className={styles.textDangerButton} type="button" onClick={() => setConfirmDiscard(true)}>下書きを破棄</button> : null}
+              {assessment.status === 'draft' && !assessment.readOnly ? <button className={styles.textDangerButton} type="button" onClick={requestDiscard}>下書きを破棄</button> : null}
             </header>
 
             {saveError ? (
               <div className={styles.inlineError} role="alert">
-                <span>{saveError}</span>
-                <button className={styles.secondaryButton} type="button" onClick={() => saveError.includes('他のコーチ') ? window.location.reload() : setSaveError(null)}>
-                  {saveError.includes('他のコーチ') ? '最新の内容を読み込む' : '保存を再試行'}
+                <span>{saveError.message}</span>
+                <button className={styles.secondaryButton} type="button" onClick={() => conflict ? window.location.reload() : setSaveError(null)}>
+                  {conflict ? '最新の内容を読み込む' : '保存を再試行'}
                 </button>
               </div>
             ) : null}
             {pageError ? <div className={styles.inlineError} role="alert">{pageError}</div> : null}
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-basic" aria-labelledby="basic-title">
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-basic" data-assessment-section aria-labelledby="basic-title">
               <div className={styles.sectionHeader}><div><h2 id="basic-title">基本情報</h2><p className={styles.muted}>今回の実施日と目標を確認します</p></div></div>
               <div className={styles.basicGrid}>
                 <div className={styles.formField}>
@@ -333,7 +528,19 @@ export function AssessmentPage() {
                   </>
                 ) : assessment.child.goals.length ? <div className={styles.goalChips}>{assessment.child.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。</p>}
               </div>
-              {assessment.child.extUnlocked ? <div className={styles.unlockInfo}><strong>4・5種目目は開放済みです</strong><span>以降のアセスメントは5種目で記録します。</span></div> : form.unlockExt ? <div className={styles.unlockInfo}><strong>今回から4・5種目目を記録します</strong><span>完了すると、以降も5種目での記録になります。</span></div> : null}
+              {assessment.child.extUnlocked ? (
+                <div className={styles.unlockInfo}><strong>4・5種目目は開放済みです</strong><span>以降のアセスメントは5種目で記録します。</span></div>
+              ) : canToggleUnlock ? (
+                <label className={styles.unlockChoice}>
+                  <input type="checkbox" checked={form.unlockExt} onChange={(event) => toggleUnlockExt(event.target.checked)} />
+                  <span>
+                    <strong>この回から4・5種目目も記録する</strong>
+                    <small>レポートを作ると以降もずっと5種目になります。完了前ならチェックを外して戻せます。</small>
+                  </span>
+                </label>
+              ) : form.unlockExt ? (
+                <div className={styles.unlockInfo}><strong>この回から4・5種目目を記録します</strong><span>以降も5種目での記録になります。</span></div>
+              ) : null}
             </section>
 
             {exercises.map((exercise) => (
@@ -349,7 +556,7 @@ export function AssessmentPage() {
               />
             ))}
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" aria-labelledby="troubles-title">
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" data-assessment-section aria-labelledby="troubles-title">
               <div className={styles.sectionHeader}><div><h2 id="troubles-title">お子さまのお困りごと</h2><p className={styles.muted}>保護者に聞き取り・当てはまるものを選択</p></div></div>
               <div className={styles.troubleCategories}>
                 {TROUBLE_CATEGORIES[assessment.child.ageGroup].map((category) => (
@@ -366,7 +573,7 @@ export function AssessmentPage() {
               </div>
             </section>
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" aria-labelledby="ppi-title">
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" data-assessment-section aria-labelledby="ppi-title">
               <div className={styles.sectionHeader}><div><h2 id="ppi-title">ご家庭のお困り度</h2><p className={styles.muted}>0〜5・5問すべて回答してください</p></div></div>
               {PPI_QUESTIONS.map((question) => (
                 <PpiRow
@@ -380,11 +587,11 @@ export function AssessmentPage() {
               ))}
               <div className={styles.formField}>
                 <label htmlFor="ppi-note">いま一番負担に感じている場面（任意）</label>
-                <input id="ppi-note" value={form.data.ppiNote} disabled={assessment.readOnly} onChange={(event) => updateData((current) => ({ ...current, ppiNote: event.target.value }))} />
+                <input id="ppi-note" value={form.data.ppiNote} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, ppiNote: event.target.value }))} />
               </div>
             </section>
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-plan" aria-labelledby="plan-title">
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-plan" data-assessment-section aria-labelledby="plan-title">
               <div className={styles.sectionHeader}><div><h2 id="plan-title">計画・所見</h2><p className={styles.muted}>所見は内部用で、保護者レポートには出ません</p></div></div>
               <fieldset className={styles.planOptions}>
                 <legend>3〜6か月の運動計画</legend>
@@ -397,7 +604,7 @@ export function AssessmentPage() {
               </fieldset>
               <div className={styles.formField}>
                 <label htmlFor="coach-memo">コーチ所見メモ（内部用）</label>
-                <textarea id="coach-memo" rows={4} value={form.data.memo} disabled={assessment.readOnly} onChange={(event) => updateData((current) => ({ ...current, memo: event.target.value }))} />
+                <textarea id="coach-memo" rows={4} value={form.data.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
               </div>
             </section>
           </div>
@@ -406,33 +613,65 @@ export function AssessmentPage() {
         <div className={styles.assessmentDock} data-print-hidden>
           <div className={styles.dockInner}>
             <div className={styles.dockStatus}>
-              {assessment.readOnly ? <><strong>この回は閲覧のみです</strong><span>{readOnlyMessage}</span></> : completionIssues.length ? <><strong>レポート作成まで、あと少しです</strong><span>{completionIssues.join(' ／ ')}</span></> : dirty || saving ? <><strong>入力内容を保存しています</strong><span>保存が終わるとレポートを作成できます。</span></> : <><strong>必要な入力がそろいました</strong><span>保存済みです。レポートを作成できます。</span></>}
+              {assessment.readOnly ? (
+                <><strong>この回は閲覧のみです</strong><span>{readOnlyMessage}</span></>
+              ) : completionIssues.length ? (
+                <>
+                  <strong>レポート作成まで、あと{completionIssues.length}項目です</strong>
+                  <span className={styles.dockIssues}>
+                    {completionIssues.map((issue) => (
+                      <a href={`#${issue.target}`} key={issue.target}>{issue.label}</a>
+                    ))}
+                  </span>
+                </>
+              ) : dirty || saving ? (
+                <><strong>入力内容を保存しています</strong><span>保存が終わるとレポートを作成できます。</span></>
+              ) : (
+                <><strong>必要な入力がそろいました</strong><span>保存済みです。レポートを作成できます。</span></>
+              )}
             </div>
             <div className={styles.dockActions}>
-              <Link className={styles.secondaryButton} to={`/children/${assessment.childId}`}>いったん閉じる</Link>
+              <button className={styles.secondaryButton} type="button" disabled={closing} onClick={() => void closeAndReturn()}>
+                {closing ? '保存中…' : 'いったん閉じる'}
+              </button>
               <button className={styles.primaryButton} type="button" disabled={!canComplete} onClick={() => void complete()}>{completing ? '作成中…' : assessment.status === 'done' ? 'レポートを更新' : 'レポートを作る'}</button>
             </div>
           </div>
         </div>
 
-        <ConfirmDialog open={confirmDiscard} title="下書きを破棄しますか？" message="この回の入力内容をすべて削除します。この操作は取り消せません。" confirmLabel="下書きを破棄する" onCancel={() => setConfirmDiscard(false)} onConfirm={() => { setConfirmDiscard(false); void discardDraft(); }} />
         <ConfirmDialog
-          open={localRestoreForm !== null}
+          open={confirmDiscard}
+          title="下書きを破棄しますか？"
+          message="この回の入力内容をすべて削除します。この操作は取り消せません。"
+          detail={assessment.seqNo > 1 ? <p>破棄すると、第{assessment.seqNo - 1}回の記録とレポートをまた編集できるようになります。</p> : null}
+          confirmLabel="下書きを破棄する"
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={() => { setConfirmDiscard(false); void discardDraft(); }}
+        />
+        <ConfirmDialog
+          open={localRestore !== null}
+          tone="primary"
           title="保存できていない入力があります"
           message="この端末に残っている入力を復元しますか？復元後、自動でサーバーへ保存します。"
+          detail={
+            <p>
+              この端末：{formatClock(localRestore?.savedAt ?? null)}
+              ／ サーバー：{formatClock(assessment.updatedAt)}
+            </p>
+          }
           confirmLabel="入力を復元する"
+          cancelLabel="サーバーの内容を使う"
           onCancel={() => {
             window.localStorage.removeItem(localDraftKey(assessment.id));
-            setLocalRestoreForm(null);
+            setLocalRestore(null);
           }}
           onConfirm={() => {
-            if (localRestoreForm) {
+            if (localRestore) {
               changeVersionRef.current += 1;
-              setForm(localRestoreForm);
-              setDirty(true);
+              applyForm(localRestore.form, true);
               setSavedMessage('端末に残っていた入力を復元しました');
             }
-            setLocalRestoreForm(null);
+            setLocalRestore(null);
           }}
         />
       </main>
@@ -457,15 +696,19 @@ function ExerciseSection({
   onLevelChange: (level: number) => void;
   onErrorToggle: (error: string) => void;
 }) {
+  // ラダーを開かなくても、狙っているLvの課題文を先に読めるようにする。
+  const [preview, setPreview] = useState<number | null>(null);
+  const shown = preview ?? level;
   const delta = level === undefined || previousLevel === undefined ? undefined : level - previousLevel;
+
   return (
-    <section className={`${styles.panel} ${styles.assessmentSection} ${level === undefined ? styles.sectionIncomplete : ''}`} id={`assessment-${exercise.key}`} aria-labelledby={`${exercise.key}-title`}>
+    <section className={`${styles.panel} ${styles.assessmentSection} ${level === undefined ? styles.sectionIncomplete : ''}`} id={`assessment-${exercise.key}`} data-assessment-section aria-labelledby={`${exercise.key}-title`}>
       <div className={styles.exerciseHeader}>
         <span className={styles.exerciseIcon} aria-hidden="true">{exercise.icon}</span>
         <div><h2 id={`${exercise.key}-title`}>{exercise.name}</h2><p>{exercise.parentName} — {exercise.clinicalName}</p></div>
         {level === undefined ? <span className={styles.unenteredBadge}>未入力</span> : null}
       </div>
-      <div className={styles.lvGrid} aria-label={`${exercise.name}の到達レベル`}>
+      <div className={styles.lvGrid} aria-label={`${exercise.name}の到達レベル`} onMouseLeave={() => setPreview(null)}>
         {Array.from({ length: 21 }, (_, candidate) => {
           const classNames = [styles.lvButton];
           if (level === candidate) classNames.push(styles.lvButtonSelected);
@@ -479,15 +722,22 @@ function ExerciseSection({
               aria-pressed={level === candidate}
               aria-label={`Lv${candidate}${previousLevel === candidate ? '、前回のレベル' : ''}`}
               title={ladderLabel(exercise.key, candidate)}
+              onMouseEnter={() => setPreview(candidate)}
+              onFocus={() => setPreview(candidate)}
+              onBlur={() => setPreview(null)}
               onClick={() => onLevelChange(candidate)}
             >{candidate}</button>
           );
         })}
       </div>
-      <div className={`${styles.selectedLevel} ${level === undefined ? styles.selectedLevelEmpty : ''}`}>
-        <strong>{level === undefined ? '—' : `Lv${level}`}</strong>
-        <span>{level === undefined ? `到達できた一番上のレベルを選びます${previousLevel === undefined ? '' : `（前回 Lv${previousLevel}）`}` : <>{ladderLabel(exercise.key, level)}<small>帯：{level === 0 ? '導入前' : bandOf(exercise.key, level).name}</small></>}</span>
-        {delta !== undefined ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
+      <div className={`${styles.selectedLevel} ${shown === undefined ? styles.selectedLevelEmpty : ''} ${preview !== null && preview !== level ? styles.lvPreview : ''}`} aria-live="polite">
+        <strong>{shown === undefined ? '—' : `Lv${shown}`}</strong>
+        <span>
+          {shown === undefined
+            ? `到達できた一番上のレベルを選びます${previousLevel === undefined ? '' : `（前回 Lv${previousLevel}）`}`
+            : <>{ladderLabel(exercise.key, shown)}<small>帯：{shown === 0 ? '導入前' : bandOf(exercise.key, shown).name}{preview !== null && preview !== level ? '・選ぶ前の下見' : ''}</small></>}
+        </span>
+        {delta !== undefined && preview === null ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
       </div>
       <details className={styles.ladderDetails}>
         <summary>ラダーの一覧（各Lvの課題）を見る</summary>

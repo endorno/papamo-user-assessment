@@ -2297,3 +2297,66 @@
 .saveStatus {
   transition: color var(--dur) var(--ease);
 }
+
+/* --- アセスメント：不足項目から該当セクションへ飛ぶ --- */
+
+.dockIssues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  overflow: hidden;
+}
+
+.dockIssues a {
+  color: var(--orange-ink);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.dockIssues a:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- アセスメント：Lvの下見表示 --- */
+
+.lvPreview {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink2);
+}
+
+/* --- 子どもページ：4・5種目目の開放案内（モック .unlock-note） --- */
+
+.unlockNote {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px dashed #c4b7e6;
+  border-radius: 12px;
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+  font-size: 0.86rem;
+}
+
+.unlockNote strong {
+  font-size: 0.92rem;
+}
+
+/* --- 子どもページ：オーナーの引き継ぎ説明 --- */
+
+.managementHint {
+  margin: 12px 0 0;
+  color: var(--ink2);
+  font-size: 0.84rem;
+  text-wrap: pretty;
+}
+
+/* いま見ているセクションをジャンプナビで示す。 */
+.jumpNav a[aria-current] {
+  background: var(--green-soft);
+  color: var(--green-ink);
+  font-weight: 700;
+}

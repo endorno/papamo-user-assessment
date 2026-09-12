@@ -1,21 +1,23 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import {
+  childImportResponseSchema,
   childrenResponseSchema,
   EXERCISES,
   todayInJst,
   type ChildView,
-  type MeResponse,
 } from '@papamo/shared';
-import { apiRequest, ApiClientError } from '../api/client';
+import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
+import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../App.module.css';
 
-type ImportFeedback = { kind: 'success' | 'error'; message: string } | null;
+/** これ以上増えると目で探すのが辛くなるので、しぼり込みを出す。 */
+const FILTER_THRESHOLD = 8;
 
 function formatShareCodeInput(value: string) {
   const normalized = value
@@ -31,7 +33,15 @@ function childActionLabel(child: ChildView) {
   return '子どもページへ';
 }
 
-function ChildCard({ child }: { child: ChildView }) {
+/** 入力中の回はカードから直接その回を開く。ラベルと行き先を一致させる。 */
+function childLinkTarget(child: ChildView) {
+  const assessment = child.latestAssessment;
+  return child.state?.key === 'draft' && assessment?.status === 'draft'
+    ? `/assessments/${assessment.id}`
+    : `/children/${child.id}`;
+}
+
+function ChildCard({ child, highlighted }: { child: ChildView; highlighted: boolean }) {
   const assessment = child.latestAssessment;
   const exercises = assessment
     ? EXERCISES.filter((exercise) => exercise.core || assessment.unlockExt)
@@ -39,8 +49,12 @@ function ChildCard({ child }: { child: ChildView }) {
 
   return (
     <Link
-      className={`${styles.childCard} ${child.state ? styles[`childCard--${child.state.key}`] : ''}`}
-      to={`/children/${child.id}`}
+      className={[
+        styles.childCard,
+        child.state ? styles[`childCard--${child.state.key}`] : '',
+        highlighted ? styles.childCardHighlight : '',
+      ].filter(Boolean).join(' ')}
+      to={childLinkTarget(child)}
     >
       <div className={styles.childCardTop}>
         <div className={styles.childIdentity}>
@@ -71,7 +85,15 @@ function ChildCard({ child }: { child: ChildView }) {
   );
 }
 
-function ChildrenSection({ title, children }: { title: string; children: ChildView[] }) {
+function ChildrenSection({
+  title,
+  children,
+  highlightedId,
+}: {
+  title: string;
+  children: ChildView[];
+  highlightedId: string | null;
+}) {
   const headingId = title === 'まずやること' ? 'todo-children' : 'settled-children';
   return (
     <section className={styles.listSection} aria-labelledby={headingId}>
@@ -80,16 +102,18 @@ function ChildrenSection({ title, children }: { title: string; children: ChildVi
         <span>{children.length}名</span>
       </div>
       <div className={styles.childGrid}>
-        {children.map((child) => <ChildCard child={child} key={child.id} />)}
+        {children.map((child) => (
+          <ChildCard child={child} highlighted={child.id === highlightedId} key={child.id} />
+        ))}
       </div>
     </section>
   );
 }
 
 export function HomePage() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
-  const [me, setMe] = useState<MeResponse | null>(null);
   const [children, setChildren] = useState<ChildView[]>([]);
   const [archivedChildren, setArchivedChildren] = useState<ChildView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +122,9 @@ export function HomePage() {
   const [showImport, setShowImport] = useState(false);
   const [shareCode, setShareCode] = useState('');
   const [importing, setImporting] = useState(false);
-  const [importFeedback, setImportFeedback] = useState<ImportFeedback>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
   const [pageError, setPageError] = useState<string | null>(null);
 
   const loadChildren = useCallback(async (archived = false) => {
@@ -114,24 +140,9 @@ export function HomePage() {
     if (!session) return;
     let active = true;
     setLoading(true);
-    void apiRequest<MeResponse>('/me', session)
-      .then(async (profile) => {
-        if (!active) return;
-        if (!profile.displayName) {
-          navigate('/onboarding', { replace: true });
-          return;
-        }
-        setMe(profile);
-        await loadChildren();
-      })
-      .catch(async (caught: unknown) => {
-        if (!active) return;
-        if (caught instanceof ApiClientError && caught.status === 401) {
-          await signOut();
-          navigate('/login', { replace: true });
-          return;
-        }
-        setPageError(caught instanceof Error ? caught.message : '一覧を取得できませんでした。');
+    void loadChildren()
+      .catch((caught: unknown) => {
+        if (active) setPageError(caught instanceof Error ? caught.message : '一覧を取得できませんでした。');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -139,7 +150,7 @@ export function HomePage() {
     return () => {
       active = false;
     };
-  }, [loadChildren, navigate, session, signOut]);
+  }, [loadChildren, session]);
 
   useEffect(() => {
     if (!showArchived || !session) return;
@@ -153,42 +164,67 @@ export function HomePage() {
     event.preventDefault();
     if (!session || shareCode.length !== 9) return;
     setImporting(true);
-    setImportFeedback(null);
+    setImportError(null);
     try {
-      await apiRequest('/children/import', session, {
+      const response = await apiRequest<unknown>('/children/import', session, {
         method: 'POST',
         body: JSON.stringify({ code: shareCode }),
       });
+      const parsed = childImportResponseSchema.safeParse(response);
+      if (!parsed.success) throw new Error('取り込み結果を読み込めませんでした。');
+      const { child, ownershipTransferred } = parsed.data;
+      const childName = `${child.name}${honorificLabel(child.honorific)}`;
       setShareCode('');
-      setImportFeedback({ kind: 'success', message: 'お子さまを担当一覧に追加しました。' });
+      setShowImport(false);
+      setHighlightedId(child.id);
+      showToast(
+        ownershipTransferred
+          ? `${childName}のオーナーになりました。前のオーナーは担当メンバーになります。`
+          : `${childName}を担当に追加しました。`,
+        { action: { label: 'ページを開く', onClick: () => void navigate(`/children/${child.id}`) } },
+      );
       await loadChildren();
     } catch (caught) {
-      setImportFeedback({
-        kind: 'error',
-        message: caught instanceof Error ? caught.message : '共有コードを確認してください。',
-      });
+      setImportError(caught instanceof Error ? caught.message : '共有コードを確認してください。');
     } finally {
       setImporting(false);
     }
   }
 
-  async function restoreArchived(childId: string) {
+  async function restoreArchived(child: ChildView) {
     if (!session) return;
     setPageError(null);
     try {
-      await apiRequest(`/children/${childId}/unarchive`, session, { method: 'POST' });
+      await apiRequest(`/children/${child.id}/unarchive`, session, { method: 'POST' });
+      setHighlightedId(child.id);
+      showToast(`${child.name}${honorificLabel(child.honorific)}を担当一覧に戻しました。`);
       await Promise.all([loadChildren(), loadChildren(true)]);
     } catch (caught) {
       setPageError(caught instanceof Error ? caught.message : '復元に失敗しました。');
     }
   }
 
-  const todoChildren = children.filter((child) => (child.state?.order ?? 2) < 2);
-  const settledChildren = children.filter((child) => (child.state?.order ?? 2) >= 2);
+  // 取り込み・復元の直後だけ場所を示す。ずっと光らせない。
+  useEffect(() => {
+    if (!highlightedId) return;
+    const timer = window.setTimeout(() => setHighlightedId(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [highlightedId]);
+
+  const keyword = filter.trim();
+  const matches = useCallback(
+    (child: ChildView) => !keyword || child.name.includes(keyword),
+    [keyword],
+  );
+  const visibleChildren = useMemo(() => children.filter(matches), [children, matches]);
+  const visibleArchived = useMemo(() => archivedChildren.filter(matches), [archivedChildren, matches]);
+  const todoChildren = visibleChildren.filter((child) => (child.state?.order ?? 2) < 2);
+  const settledChildren = visibleChildren.filter((child) => (child.state?.order ?? 2) >= 2);
+  const showFilter = children.length >= FILTER_THRESHOLD;
 
   return (
     <div className={styles.app}>
-      <AppHeader breadcrumbs={[{ label: '担当の子ども' }]} coachName={me?.displayName} />
+      <AppHeader breadcrumbs={[{ label: '担当の子ども' }]} />
       <main className={styles.main}>
         <div className={styles.pageHead}>
           <div>
@@ -226,11 +262,7 @@ export function HomePage() {
                 </button>
               </div>
             </form>
-            {importFeedback ? (
-              <p className={importFeedback.kind === 'error' ? styles.error : styles.success} role={importFeedback.kind === 'error' ? 'alert' : 'status'}>
-                {importFeedback.message}
-              </p>
-            ) : null}
+            {importError ? <p className={styles.error} role="alert">{importError}</p> : null}
           </section>
         ) : null}
 
@@ -241,27 +273,47 @@ export function HomePage() {
           </div>
         ) : null}
 
+        {showFilter ? (
+          <div className={styles.filterRow}>
+            <label htmlFor="child-filter" className={styles.eyebrow}>お名前でしぼり込む</label>
+            <input
+              id="child-filter"
+              type="search"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="例：そうた"
+              autoComplete="off"
+            />
+            <span aria-live="polite">{keyword ? `${visibleChildren.length}名を表示中` : `${children.length}名`}</span>
+          </div>
+        ) : null}
+
         {loading ? (
           <div className={styles.loadingGrid} aria-label="担当のお子さまを読み込み中" aria-live="polite">
             <div /><div /><div />
           </div>
-        ) : children.length ? (
-          <>
-            {todoChildren.length ? <ChildrenSection title="まずやること" children={todoChildren} /> : (
-              <section className={styles.allDone}>
-                <strong>いま対応が必要な記録はありません</strong>
-                <p>次回予定が近づくと、ここに表示されます。</p>
-              </section>
-            )}
-            {settledChildren.length ? <ChildrenSection title="次の予定まで余裕あり" children={settledChildren} /> : null}
-          </>
-        ) : (
+        ) : !children.length ? (
           <section className={styles.emptyState}>
             <span className={styles.emptyIcon} aria-hidden="true">🧭</span>
             <h2>最初のお子さまを登録しましょう</h2>
             <p>登録後、そのまま初回アセスメントを始められます。</p>
             <Link className={styles.primaryButton} to="/children/new">お子さまを登録する</Link>
           </section>
+        ) : !visibleChildren.length ? (
+          <section className={styles.allDone}>
+            <strong>「{keyword}」に一致するお子さまはいません</strong>
+            <p>お名前の一部で探せます。</p>
+          </section>
+        ) : (
+          <>
+            {todoChildren.length ? <ChildrenSection title="まずやること" children={todoChildren} highlightedId={highlightedId} /> : (
+              <section className={styles.allDone}>
+                <strong>いま対応が必要な記録はありません</strong>
+                <p>次回予定が近づくと、ここに表示されます。</p>
+              </section>
+            )}
+            {settledChildren.length ? <ChildrenSection title="次の予定まで余裕あり" children={settledChildren} highlightedId={highlightedId} /> : null}
+          </>
         )}
 
         <section className={styles.archiveSection} aria-labelledby="archive-heading">
@@ -270,19 +322,19 @@ export function HomePage() {
             <span id="archive-heading">アーカイブした子ども{showArchived && !archivedLoading ? `（${archivedChildren.length}名）` : ''}</span>
           </button>
           {showArchived ? (
-            archivedLoading ? <p className={styles.muted}>読み込み中…</p> : archivedChildren.length ? (
+            archivedLoading ? <p className={styles.muted}>読み込み中…</p> : visibleArchived.length ? (
               <div className={styles.archivedList}>
-                {archivedChildren.map((child) => (
+                {visibleArchived.map((child) => (
                   <div className={styles.archivedCard} key={child.id}>
                     <Link to={`/children/${child.id}`}>
                       <strong>{child.name}{honorificLabel(child.honorific)}</strong>
                       <span>{child.grade.name}・アーカイブ中</span>
                     </Link>
-                    {child.role === 'owner' ? <button type="button" onClick={() => void restoreArchived(child.id)}>復元</button> : <span>オーナーのみ復元できます</span>}
+                    {child.role === 'owner' ? <button type="button" onClick={() => void restoreArchived(child)}>復元</button> : <span>オーナーのみ復元できます</span>}
                   </div>
                 ))}
               </div>
-            ) : <p className={styles.muted}>アーカイブしたお子さまはいません。</p>
+            ) : <p className={styles.muted}>{archivedChildren.length ? `「${keyword}」に一致するお子さまはいません。` : 'アーカイブしたお子さまはいません。'}</p>
           ) : null}
         </section>
       </main>

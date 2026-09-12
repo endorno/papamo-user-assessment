@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 
+import { meResponseSchema } from '@papamo/shared';
 import { apiRequest } from '../api/client';
+import { useMe } from '../app/MeContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import styles from '../styles/auth.module.css';
 
 export function OnboardingPage() {
   const { session } = useAuth();
+  const { setMe } = useMe();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,10 +24,13 @@ export function OnboardingPage() {
     setSaving(true);
     setError(null);
     try {
-      await apiRequest('/me', session, {
+      const response = await apiRequest<unknown>('/me', session, {
         method: 'PUT',
         body: JSON.stringify({ displayName }),
       });
+      const parsed = meResponseSchema.safeParse(response);
+      if (!parsed.success) throw new Error('登録結果を読み込めませんでした。');
+      setMe(parsed.data);
       navigate('/', { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存に失敗しました。');

@@ -6,7 +6,11 @@ import {
   GRADES,
   PPI_QUESTIONS,
   childDetailSchema,
+  daysBetween,
   exerciseByKey,
+  monthsBetween,
+  nextDueDate,
+  todayInJst,
   type ChildDetail,
   type GradeCode,
   type Honorific,
@@ -18,6 +22,7 @@ import { ChildStatusBadge } from '../components/ChildStatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CopyCode } from '../components/CopyCode';
 import { RadarChart } from '../components/RadarChart';
+import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
@@ -40,6 +45,11 @@ function formFromChild(child: ChildDetail): ChildFormState {
   };
 }
 
+// 入会日を「1か月目」と数える。入会前の日付でも0以下にしない。
+function monthsSinceJoinedOn(joinedOn: string, today: string): number {
+  return Math.max(1, monthsBetween(joinedOn, today) + 1);
+}
+
 function readChild(value: unknown): ChildDetail {
   const parsed = childDetailSchema.safeParse((value as { child?: unknown }).child);
   if (!parsed.success) throw new Error('子ども情報を読み込めませんでした。');
@@ -51,27 +61,32 @@ function confirmationFor(action: Exclude<ConfirmAction, null>) {
     title: '新しいアセスメントを始めますか？',
     message: '新しい回を作成すると、前の回の入力内容は編集できなくなります。レポートの閲覧と印刷は引き続きできます。',
     label: '新しい回を始める',
+    tone: 'primary' as const,
   };
   if (action === 'archive') return {
     title: '退会としてアーカイブしますか？',
     message: '全コーチの担当一覧から隠れ、記録は閲覧のみになります。あとから復元できます。',
     label: 'アーカイブする',
+    tone: 'danger' as const,
   };
   if (action === 'remove') return {
     title: '自分の担当一覧から外しますか？',
     message: 'このコーチとの紐づきだけを解除します。お子さまの記録はオーナー側に残ります。',
     label: '一覧から外す',
+    tone: 'danger' as const,
   };
   return {
     title: 'この登録を完全に削除しますか？',
     message: 'アセスメントがない登録だけ削除できます。この操作は取り消せません。',
     label: '完全に削除する',
+    tone: 'danger' as const,
   };
 }
 
 export function ChildPage() {
   const { id } = useParams();
   const { session } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [child, setChild] = useState<ChildDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -174,33 +189,55 @@ export function ChildPage() {
   }
 
   async function archive() {
-    if (!session || !id) return;
+    if (!session || !id || !child) return;
+    const label = `${child.name}${honorificLabel(child.honorific)}`;
     await runAction(async () => {
       await apiRequest(`/children/${id}/archive`, session, { method: 'POST' });
+      showToast(`${label}をアーカイブしました。`, {
+        action: { label: '元に戻す', onClick: () => void undoArchive(label) },
+      });
       navigate('/');
     }, 'アーカイブに失敗しました。');
   }
 
-  async function restore() {
+  // 通知から戻したときは、復元されたお子さまのページを開いて結果を見せる。
+  async function undoArchive(label: string) {
     if (!session || !id) return;
+    try {
+      await apiRequest(`/children/${id}/unarchive`, session, { method: 'POST' });
+      showToast(`${label}を担当一覧に戻しました。`);
+      navigate(`/children/${id}`);
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : '復元に失敗しました。');
+    }
+  }
+
+  async function restore() {
+    if (!session || !id || !child) return;
+    const label = `${child.name}${honorificLabel(child.honorific)}`;
     await runAction(async () => {
       await apiRequest(`/children/${id}/unarchive`, session, { method: 'POST' });
       await reload();
+      showToast(`${label}を担当一覧に戻しました。`);
     }, '復元に失敗しました。');
   }
 
   async function removeMembership() {
-    if (!session || !id) return;
+    if (!session || !id || !child) return;
+    const label = `${child.name}${honorificLabel(child.honorific)}`;
     await runAction(async () => {
       await apiRequest(`/children/${id}/membership`, session, { method: 'DELETE' });
+      showToast(`${label}を自分の担当一覧から外しました。`);
       navigate('/');
     }, '一覧から外せませんでした。');
   }
 
   async function deleteChild() {
-    if (!session || !id) return;
+    if (!session || !id || !child) return;
+    const label = `${child.name}${honorificLabel(child.honorific)}`;
     await runAction(async () => {
       await apiRequest(`/children/${id}`, session, { method: 'DELETE' });
+      showToast(`${label}の登録を削除しました。`);
       navigate('/');
     }, '削除できませんでした。');
   }
@@ -227,7 +264,14 @@ export function ChildPage() {
       </div>
     );
   }
-  if (!child) return <main className={styles.page}><p className={styles.muted}>子ども情報を読み込み中…</p></main>;
+  if (!child) {
+    return (
+      <div className={styles.pageFrame}>
+        <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: 'お子さまのページ' }]} />
+        <main className={styles.page}><p className={styles.muted}>子ども情報を読み込み中…</p></main>
+      </div>
+    );
+  }
 
   const childName = `${child.name}${honorificLabel(child.honorific)}`;
   const draft = child.assessments.find((assessment) => assessment.status === 'draft');
@@ -237,6 +281,16 @@ export function ChildPage() {
   const report = child.latestReport;
   const goalCount = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean).length;
   const confirmation = confirmAction ? confirmationFor(confirmAction) : null;
+  const today = todayInJst();
+  const monthsSinceJoined = monthsSinceJoinedOn(child.joinedOn, today);
+  // モックの案内に合わせ、入会半年を過ぎて未開放なら次の回で足せることを伝える。
+  const canSuggestUnlock = !child.extUnlocked && monthsSinceJoined >= 6 && Boolean(latestCompleted);
+  const startDetail = latestCompleted ? (
+    <>
+      <p>前回：第{latestCompleted.seqNo}回・{formatJapaneseDate(latestCompleted.assessedOn)}（{daysBetween(latestCompleted.assessedOn, today)}日前）</p>
+      <p>次回の目安：{formatJapaneseDate(nextDueDate(latestCompleted.assessedOn))}ごろ</p>
+    </>
+  ) : null;
 
   return (
     <div className={styles.pageFrame}>
@@ -249,7 +303,7 @@ export function ChildPage() {
               <div>
                 <p className={styles.eyebrow}>{readOnly ? 'アーカイブ中・閲覧のみ' : '担当のお子さま'}</p>
                 <h1>{childName}</h1>
-                <p>{child.grade.name}（{child.grade.ageHint}）・入会 {formatJapaneseDate(child.joinedOn)}</p>
+                <p>{child.grade.name}（{child.grade.ageHint}）・入会 {formatJapaneseDate(child.joinedOn)}（{monthsSinceJoined}か月目）</p>
                 <ChildStatusBadge state={child.state} />
               </div>
             </div>
@@ -261,7 +315,7 @@ export function ChildPage() {
                   {!child.extUnlocked ? (
                     <label className={styles.unlockChoice}>
                       <input type="checkbox" checked={unlockExtRequested} onChange={(event) => setUnlockExtRequested(event.target.checked)} />
-                      <span><strong>4・5種目目を今回から開放</strong><small>一度開放すると、以降も5種目になります</small></span>
+                      <span><strong>4・5種目目を今回から開放</strong><small>入会から{monthsSinceJoined}か月目。レポートを作るまでは、入力画面で戻せます</small></span>
                     </label>
                   ) : <span className={styles.unlockedBadge}>4・5種目目 開放済み</span>}
                   <button
@@ -322,6 +376,14 @@ export function ChildPage() {
                     {draft ? <Link to={`/assessments/${draft.id}`}>入力中のアセスメントを続ける</Link> : null}
                   </div>
                 )}
+                {canSuggestUnlock ? (
+                  <div className={styles.unlockNote}>
+                    <strong>🔓 4・5種目目を開放できる時期です</strong>
+                    <span>
+                      入会から{monthsSinceJoined}か月目です。土台が安定していれば、次のアセスメントで「あしあとものまね」「信号ゲーム」を追加できます（コーチ判断）。
+                    </span>
+                  </div>
+                ) : null}
               </section>
 
               <section className={styles.panel} aria-labelledby="history-title">
@@ -472,6 +534,11 @@ export function ChildPage() {
                     {!readOnly && child.role === 'member' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('remove')} disabled={busy}>自分の担当一覧から外す</button> : null}
                     {!readOnly && child.role === 'owner' && child.assessments.length === 0 ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('delete')} disabled={busy}>登録を完全に削除</button> : null}
                     {readOnly ? <p className={styles.muted}>アーカイブ中は記録を編集できません。</p> : null}
+                    {child.role === 'owner' ? (
+                      <p className={styles.managementHint}>
+                        オーナーは担当から外れられません。引き継ぐときは「オーナーを移すコード」を次のコーチに渡し、取り込んでもらってください。
+                      </p>
+                    ) : null}
                   </div>
                 </details>
               </section>
@@ -480,9 +547,18 @@ export function ChildPage() {
 
           <ConfirmDialog
             open={confirmAction !== null}
+            tone={confirmation?.tone ?? 'danger'}
             title={confirmation?.title ?? ''}
             message={confirmation?.message ?? ''}
             confirmLabel={confirmation?.label ?? ''}
+            detail={confirmAction === 'start' ? startDetail : null}
+            secondary={confirmAction === 'start' && latestCompleted ? {
+              label: '前回の入力を修正する',
+              onClick: () => {
+                setConfirmAction(null);
+                navigate(`/assessments/${latestCompleted.id}`);
+              },
+            } : undefined}
             onCancel={() => setConfirmAction(null)}
             onConfirm={confirmPendingAction}
           />

@@ -1,6 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router';
 
 const auth = vi.hoisted(() => ({
   session: { access_token: 'test-token' },
@@ -12,6 +11,7 @@ const auth = vi.hoisted(() => ({
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
 import { ChildPage } from './ChildPage';
+import { renderWithProviders } from '../test-utils';
 
 const child = {
   id: 'child-1',
@@ -40,11 +40,7 @@ function response(body: unknown) {
 }
 
 function renderChildPage() {
-  return render(
-    <MemoryRouter initialEntries={['/children/child-1']}>
-      <Routes><Route path="/children/:id" element={<ChildPage />} /></Routes>
-    </MemoryRouter>,
-  );
+  return renderWithProviders(<ChildPage />, { route: '/children/child-1', path: '/children/:id' });
 }
 
 afterEach(() => {
@@ -83,5 +79,46 @@ describe('子どもページ', () => {
     const resumeLinks = await screen.findAllByRole('link', { name: '入力を続ける' });
     expect(resumeLinks[0]).toHaveAttribute('href', '/assessments/assessment-1');
     expect(screen.queryByRole('button', { name: 'アセスメントを始める' })).not.toBeInTheDocument();
+  });
+
+  it('2回目以降の開始では、前回の修正へ戻る道も示す', async () => {
+    const completedChild = {
+      ...child,
+      state: { key: 'due' as const, label: '次回まであと3日', daysLeft: 3, order: 0.5 as const },
+      latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, lv: { post: 3, eyeh: 4, hand: 5 } },
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
+    renderChildPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'アセスメントを始める' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('前回：第1回');
+    expect(within(dialog).getByRole('button', { name: '新しい回を始める' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '前回の入力を修正する' })).toBeInTheDocument();
+  });
+
+  it('入会から半年を過ぎて未開放なら、4・5種目目の目安を伝える', async () => {
+    const longTermChild = {
+      ...child,
+      joinedOn: '2025-01-06',
+      state: { key: 'ok' as const, label: '次回 2026-12-01 予定', dueDate: '2026-12-01', order: 2 as const },
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: longTermChild })));
+    renderChildPage();
+
+    const map = await screen.findByRole('region', { name: '育ちマップ' });
+    expect(map).toHaveTextContent('4・5種目目を開放できる時期です');
+  });
+
+  it('オーナーには担当を外れる手順を示す', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
+    renderChildPage();
+
+    const management = await screen.findByRole('region', { name: '退会・担当解除などの管理' });
+    expect(management).toHaveTextContent('オーナーを移すコード');
+    expect(within(management).queryByRole('button', { name: '自分の担当一覧から外す' })).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router';
+
 
 import { MASTER_VERSION, RuleBasedReportGenerator, type ReportContent } from '@papamo/shared';
 
@@ -14,6 +14,7 @@ const auth = vi.hoisted(() => ({
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
 import { ReportPage } from './ReportPage';
+import { renderWithProviders } from '../test-utils';
 
 let report: ReportContent;
 let firstReport: ReportContent;
@@ -71,7 +72,7 @@ afterEach(() => {
 
 describe('保護者向けレポート', () => {
   it('初回レポートの見出しと困りごとを初回向けに表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
@@ -80,7 +81,7 @@ describe('保護者向けレポート', () => {
   });
 
   it('比較レポートを3枚構成と日本語ラベルで表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
@@ -92,7 +93,7 @@ describe('保護者向けレポート', () => {
 
   it('印刷ボタンからブラウザ印刷を呼び出す', async () => {
     const print = vi.fn();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     vi.stubGlobal('print', print);
     renderReportPage();
     fireEvent.click(await screen.findByRole('button', { name: '印刷 / PDF' }));
@@ -101,9 +102,5 @@ describe('保護者向けレポート', () => {
 });
 
 function renderReportPage() {
-  return render(
-    <MemoryRouter initialEntries={['/reports/assessment-1']}>
-      <Routes><Route path="/reports/:id" element={<ReportPage />} /></Routes>
-    </MemoryRouter>,
-  );
+  return renderWithProviders(<ReportPage />, { route: '/reports/assessment-1', path: '/reports/:id' });
 }

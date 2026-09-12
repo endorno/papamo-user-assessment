@@ -515,3 +515,40 @@
     background-position: -60% 0;
   }
 }
+
+/* --- 一覧のしぼり込み --- */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.filterRow input {
+  min-height: 44px;
+  min-width: 0;
+  flex: 1;
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.filterRow input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.filterRow span {
+  color: var(--mute);
+  font-size: 0.84rem;
+}
+
+/* 取り込み直後・復元直後の子どもを一時的に目立たせる。 */
+.childCardHighlight {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}

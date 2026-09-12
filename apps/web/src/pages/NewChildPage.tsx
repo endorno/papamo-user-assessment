@@ -1,29 +1,33 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { GRADES, todayInJst, childViewSchema, type ChildView } from '@papamo/shared';
+import { GRADES, todayInJst, childViewSchema, type ChildView, type GradeCode } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { CopyCode } from '../components/CopyCode';
+import { useToast } from '../components/Toast';
 import { honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
 export function NewChildPage() {
   const { session } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [honorific, setHonorific] = useState<'kun' | 'chan' | 'san'>('chan');
-  const [gradeCode, setGradeCode] = useState<(typeof GRADES)[number]['code']>('e1');
+  // 就学／未就学で困りごとの設問が変わるため、既定値は置かずに必ず選ばせる。
+  const [gradeCode, setGradeCode] = useState<GradeCode | ''>('');
   const [joinedOn, setJoinedOn] = useState(todayInJst());
   const [goalsText, setGoalsText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<ChildView | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session) return;
+    if (!session || !gradeCode) return;
     const goals = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean);
     if (goals.length > 5) {
       setError('目標は5件以内で入力してください。');
@@ -47,6 +51,36 @@ export function NewChildPage() {
     }
   }
 
+  async function startFirstAssessment(child: ChildView) {
+    if (!session) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const response = await apiRequest<unknown>(`/children/${child.id}/assessments`, session, {
+        method: 'POST',
+        body: JSON.stringify({ unlockExt: false }),
+      });
+      const assessmentId = (response as { assessment?: { id?: unknown } }).assessment?.id;
+      if (typeof assessmentId !== 'string') throw new Error('作成結果を読み込めませんでした。');
+      navigate(`/assessments/${assessmentId}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'アセスメントを開始できませんでした。');
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  function registerAnother(child: ChildView) {
+    showToast(`${child.name}${honorificLabel(child.honorific)}を登録しました。`);
+    setCreated(null);
+    setName('');
+    setHonorific('chan');
+    setGradeCode('');
+    setJoinedOn(todayInJst());
+    setGoalsText('');
+    setError(null);
+  }
+
   if (created) {
     const childName = `${created.name}${honorificLabel(created.honorific)}`;
     return (
@@ -56,8 +90,21 @@ export function NewChildPage() {
           <section className={`${styles.panel} ${styles.narrowPanel}`} aria-labelledby="created-title">
             <p className={styles.eyebrow}>登録完了</p>
             <h1 id="created-title">{childName}を登録しました</h1>
-            <p className={styles.lead}>共有コードは、ほかのコーチと一緒に担当するときだけお使いください。</p>
+            <p className={styles.lead}>このまま初回アセスメントを始められます。</p>
+            {error ? <p className={styles.formError} role="alert">{error}</p> : null}
+            <div className={styles.inlineActions}>
+              <button className={styles.primaryButton} type="button" disabled={starting} onClick={() => void startFirstAssessment(created)}>
+                {starting ? '準備中…' : '初回アセスメントを始める'}
+              </button>
+              <button className={styles.secondaryButton} type="button" onClick={() => registerAnother(created)}>
+                続けて別のお子さまを登録
+              </button>
+              <button className={styles.secondaryButton} type="button" onClick={() => navigate(`/children/${created.id}`)}>
+                {childName}のページへ
+              </button>
+            </div>
             <div className={styles.codeList}>
+              <p className={styles.muted}>共有コードは、ほかのコーチと一緒に担当するときだけお使いください。子どもページからいつでも確認できます。</p>
               <CopyCode
                 code={created.shareCode}
                 label="担当に追加するコード"
@@ -73,9 +120,6 @@ export function NewChildPage() {
               ) : null}
             </div>
             <div className={styles.inlineActions}>
-              <button className={styles.primaryButton} type="button" onClick={() => navigate(`/children/${created.id}`)}>
-                {childName}のページへ
-              </button>
               <Link className={styles.secondaryButton} to="/">一覧に戻る</Link>
             </div>
           </section>
@@ -113,10 +157,11 @@ export function NewChildPage() {
             </div>
             <div className={styles.formField}>
               <label htmlFor="child-grade">現在の学年</label>
-              <select id="child-grade" value={gradeCode} onChange={(event) => setGradeCode(event.target.value as typeof gradeCode)}>
+              <select id="child-grade" value={gradeCode} required onChange={(event) => setGradeCode(event.target.value as GradeCode)}>
+                <option value="">選んでください</option>
                 {GRADES.map((grade) => <option key={grade.code} value={grade.code}>{grade.name}（{grade.ageHint}）</option>)}
               </select>
-              <small>毎年4月1日に自動で進級します。</small>
+              <small>毎年4月1日に自動で進級します。お困りごとの設問は学年で切り替わります。</small>
             </div>
             <div className={styles.formField}>
               <label htmlFor="joined-on">入会日</label>
@@ -130,7 +175,7 @@ export function NewChildPage() {
             {error ? <p className={styles.formError} role="alert">{error}</p> : null}
             <div className={styles.formActions}>
               <Link className={styles.secondaryButton} to="/">キャンセル</Link>
-              <button className={styles.primaryButton} type="submit" disabled={submitting || goalCount > 5}>
+              <button className={styles.primaryButton} type="submit" disabled={submitting || !gradeCode || goalCount > 5}>
                 {submitting ? '登録中…' : 'この内容で登録する'}
               </button>
             </div>

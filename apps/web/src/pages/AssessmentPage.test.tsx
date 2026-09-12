@@ -1,6 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router';
 
 const auth = vi.hoisted(() => ({
   session: { access_token: 'test-token' },
@@ -12,6 +11,8 @@ const auth = vi.hoisted(() => ({
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
 import { AssessmentPage } from './AssessmentPage';
+import { renderWithProviders } from '../test-utils';
+import { Route, Routes } from 'react-router';
 
 const assessment = {
   id: 'assessment-1',
@@ -77,7 +78,7 @@ describe('アセスメント入力', () => {
     expect(await screen.findByRole('heading', { name: 'ゆいちゃんのアセスメント' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: '入力項目' })).toHaveTextContent('ラインウォーク');
     expect(screen.getByRole('region', { name: 'ご家庭のお困り度' })).toHaveTextContent('5問すべて回答');
-    expect(screen.getByText(/Lv未入力：ラインウォーク/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ラインウォークのLv' })).toHaveAttribute('href', '#assessment-post');
     expect(screen.getByRole('button', { name: 'レポートを作る' })).toBeDisabled();
   });
 
@@ -103,12 +104,69 @@ describe('アセスメント入力', () => {
       expect(body.data.goals).toBeUndefined();
     }, { timeout: 2000 });
   });
+
+  it('未保存のままヘッダーから移動しようとすると確認を出す', async () => {
+    renderAssessmentPage();
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+
+    fireEvent.click(screen.getByRole('link', { name: '担当の子ども' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('保存が終わっていません');
+    expect(within(dialog).getByRole('button', { name: '保存して移動' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '保存せずに移動' })).toBeInTheDocument();
+  });
+
+  it('「保存せずに移動」を選んだら、離脱時にも保存を送らない', async () => {
+    const { unmount } = renderAssessmentPage();
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+    fireEvent.click(screen.getByRole('link', { name: '担当の子ども' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '保存せずに移動' }));
+    unmount();
+
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+    // 端末には残しておき、次に開いたときに復元を提案できるようにする。
+    expect(window.localStorage.getItem('papamo:assessment:assessment-1')).not.toBeNull();
+  });
+
+  it('「いったん閉じる」は保存を終えてから子どもページへ移る', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/assessments/:id" element={<AssessmentPage />} />
+        <Route path="/children/:id" element={<p>子どもページです</p>} />
+      </Routes>,
+      { route: '/assessments/assessment-1' },
+    );
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'いったん閉じる' }));
+
+    expect(await screen.findByText('子どもページです')).toBeInTheDocument();
+    const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+    expect(JSON.parse(String(patchCall?.[1]?.body)).data.lv.post).toBe(3);
+  });
+
+  it('完了前なら4・5種目目の開放を取り消し、入力済みのLvも消す', async () => {
+    renderAssessmentPage();
+    const unlock = await screen.findByRole('checkbox', { name: /この回から4・5種目目も記録する/ });
+    fireEvent.click(unlock);
+
+    const extSection = await screen.findByRole('region', { name: 'あしあとものまね' });
+    fireEvent.click(within(extSection).getByRole('button', { name: 'Lv4' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /この回から4・5種目目も記録する/ }));
+
+    expect(screen.queryByRole('region', { name: 'あしあとものまね' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      const patchCalls = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'PATCH');
+      const last = JSON.parse(String(patchCalls.at(-1)?.[1]?.body)) as { unlockExt: boolean; data: { lv: Record<string, number> } };
+      expect(last.unlockExt).toBe(false);
+      expect(last.data.lv.sacc).toBeUndefined();
+    }, { timeout: 2000 });
+  });
 });
 
 function renderAssessmentPage() {
-  return render(
-    <MemoryRouter initialEntries={['/assessments/assessment-1']}>
-      <Routes><Route path="/assessments/:id" element={<AssessmentPage />} /></Routes>
-    </MemoryRouter>,
-  );
+  return renderWithProviders(<AssessmentPage />, { route: '/assessments/assessment-1', path: '/assessments/:id' });
 }

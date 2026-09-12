@@ -1,6 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router';
 
 const auth = vi.hoisted(() => ({
   session: { access_token: 'test-token' },
@@ -14,6 +13,7 @@ vi.mock('./auth/SupabaseAuthProvider', () => ({
 }));
 
 import { HomePage } from './pages/HomePage';
+import { renderWithProviders } from './test-utils';
 
 const profile = { id: 'coach-1', email: 'coach@example.com', displayName: 'さとうコーチ' };
 const baseChild = {
@@ -68,7 +68,7 @@ function response(body: unknown, status = 200) {
 }
 
 function renderHomePage() {
-  return render(<MemoryRouter><HomePage /></MemoryRouter>);
+  return renderWithProviders(<HomePage />);
 }
 
 describe('担当の子ども一覧', () => {
@@ -76,6 +76,12 @@ describe('担当の子ども一覧', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith('/api/me')) return response(profile);
+      if (url.endsWith('/api/children/import')) {
+        return response({
+          child: { ...settledChild, assessments: [], latestReport: null },
+          ownershipTransferred: false,
+        });
+      }
       if (url.includes('/api/children')) return response({ children: [draftChild, settledChild] });
       return response({});
     }));
@@ -108,7 +114,7 @@ describe('担当の子ども一覧', () => {
     expect(input).toHaveValue('ABCD-EFGH');
     fireEvent.click(screen.getByRole('button', { name: '取り込む' }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('担当一覧に追加しました'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('あおいちゃんを担当に追加しました'));
     expect(fetch).toHaveBeenCalledWith('/api/children/import', expect.objectContaining({ method: 'POST' }));
   });
 
@@ -120,5 +126,49 @@ describe('担当の子ども一覧', () => {
     renderHomePage();
     expect(await screen.findByRole('heading', { name: '最初のお子さまを登録しましょう' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'お子さまを登録する' })).toHaveAttribute('href', '/children/new');
+  });
+
+  it('オーナー移譲コードで取り込んだときは、オーナーになったことを伝える', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/children/import')) {
+        return response({
+          child: { ...settledChild, assessments: [], latestReport: null },
+          ownershipTransferred: true,
+        });
+      }
+      return response({ children: [draftChild, settledChild] });
+    }));
+    renderHomePage();
+    await screen.findByText('そうた');
+    fireEvent.click(screen.getByRole('button', { name: '共有コードで取り込む' }));
+    fireEvent.change(screen.getByLabelText('共有コード'), { target: { value: 'ABCDEFGH' } });
+    fireEvent.click(screen.getByRole('button', { name: '取り込む' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('あおいちゃんのオーナーになりました'));
+    expect(screen.getByRole('button', { name: 'ページを開く' })).toBeInTheDocument();
+  });
+
+  it('担当が増えたらお名前でしぼり込める', async () => {
+    const many = Array.from({ length: 9 }, (_, index) => ({
+      ...settledChild,
+      id: `child-${index}`,
+      name: index === 0 ? 'そうた' : `こども${index}`,
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => response({ children: many })));
+    renderHomePage();
+
+    const filter = await screen.findByLabelText('お名前でしぼり込む');
+    fireEvent.change(filter, { target: { value: 'そう' } });
+
+    const settled = screen.getByRole('region', { name: '次の予定まで余裕あり' });
+    expect(within(settled).getByText('そうた')).toBeInTheDocument();
+    expect(within(settled).queryByText('こども1')).not.toBeInTheDocument();
+  });
+
+  it('入力中の回はカードから直接その回を開く', async () => {
+    renderHomePage();
+    const todo = await screen.findByRole('region', { name: 'まずやること' });
+    expect(within(todo).getByRole('link')).toHaveAttribute('href', '/assessments/assessment-1');
   });
 });

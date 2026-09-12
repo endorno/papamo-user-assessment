@@ -7,7 +7,7 @@ import {
   TROUBLE_CATEGORIES,
   addMonthsClamped,
   exerciseByKey,
-  reportContentSchema,
+  reportResponseSchema,
 } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
@@ -16,7 +16,7 @@ import { RadarChart } from '../components/RadarChart';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
-type ParsedReport = ReturnType<typeof reportContentSchema.parse>;
+type ParsedReport = ReturnType<typeof reportResponseSchema.parse>['report'];
 
 function ReportSheetHeader({ report, title }: { report: ParsedReport; title: string }) {
   const childName = `${report.header.childName}${honorificLabel(report.header.honorific)}`;
@@ -76,21 +76,30 @@ export function ReportPage() {
   const { id } = useParams();
   const { session } = useAuth();
   const [report, setReport] = useState<ParsedReport | null>(null);
+  const [childId, setChildId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session || !id) return;
     void apiRequest<unknown>(`/assessments/${id}/report`, session)
       .then((response) => {
-        const parsed = reportContentSchema.safeParse((response as { report?: unknown }).report);
+        const parsed = reportResponseSchema.safeParse(response);
         if (!parsed.success) throw new Error('レポートを読み込めませんでした。');
-        setReport(parsed.data);
+        setReport(parsed.data.report);
+        setChildId(parsed.data.childId);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
 
   if (error) return <main className={styles.page}><div className={styles.errorPanel} role="alert"><p>{error}</p><Link className={styles.secondaryButton} to="/">一覧に戻る</Link></div></main>;
-  if (!report) return <main className={styles.page}><p className={styles.muted}>レポートを読み込み中…</p></main>;
+  if (!report) {
+    return (
+      <div className={styles.pageFrame}>
+        <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: 'レポート' }]} />
+        <main className={styles.page}><p className={styles.muted}>レポートを読み込み中…</p></main>
+      </div>
+    );
+  }
 
   const childName = `${report.header.childName}${honorificLabel(report.header.honorific)}`;
   const currentTroubles = new Set(report.troubles.current);
@@ -107,12 +116,16 @@ export function ReportPage() {
 
   return (
     <div className={styles.pageFrame}>
-      <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: childName }, { label: `第${report.header.seqNo}回レポート` }]} />
+      <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: childName, ...(childId ? { to: `/children/${childId}` } : {}) }, { label: `第${report.header.seqNo}回レポート` }]} />
       <main className={`${styles.page} ${styles.reportPage} report-document`}>
         <div className={styles.reportWrap}>
           <div className={styles.reportActions} data-print-hidden>
             <div><strong>保護者向けレポート</strong><span>コーチ用の所見・つまずきは子どもページで確認できます。</span></div>
-            <div><Link className={styles.secondaryButton} to="/">一覧に戻る</Link><button className={styles.primaryButton} type="button" onClick={() => window.print()}>印刷 / PDF</button></div>
+            <div>
+              <Link className={styles.secondaryButton} to="/">一覧に戻る</Link>
+              {childId ? <Link className={styles.secondaryButton} to={`/children/${childId}`}>{childName}のページへ</Link> : null}
+              <button className={styles.primaryButton} type="button" onClick={() => window.print()}>印刷 / PDF</button>
+            </div>
           </div>
 
           <section className="sheet" aria-label="レポート1ページ目">
