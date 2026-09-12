@@ -17,3 +17,32 @@ export function jsonError(
 ) {
   return context.json({ error: { code, message } }, status);
 }
+
+export function internalError(
+  context: AppContext,
+  caught: unknown,
+  operation: string,
+  userMessage = '処理中にエラーが発生しました。もう一度お試しください。',
+) {
+  let coachId: string | undefined;
+  try {
+    coachId = context.get('coach')?.id;
+  } catch {
+    coachId = undefined;
+  }
+
+  const error = caught instanceof Error
+    ? { name: caught.name, message: caught.message, stack: caught.stack }
+    : { name: 'UnknownError', message: String(caught) };
+  console.error(JSON.stringify({
+    event: 'api_internal_error',
+    operation,
+    method: context.req.method,
+    path: context.req.path,
+    requestId: context.req.header('cf-ray') ?? crypto.randomUUID(),
+    ...(coachId ? { coachId } : {}),
+    error,
+  }));
+
+  return jsonError(context, 'internal', userMessage, 500);
+}

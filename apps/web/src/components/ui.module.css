@@ -1,0 +1,93 @@
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.statusdraft {
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+}
+
+.statusdue {
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+}
+
+.statusfirst,
+.statusArchived {
+  background: var(--line2);
+  color: var(--ink2);
+}
+
+.statusok {
+  background: var(--green-soft);
+  color: var(--green-ink);
+}
+
+.codeCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+
+.codeCardSensitive {
+  border-style: dashed;
+  border-color: #c4b7e6;
+  background: var(--violet-soft);
+}
+
+.codeCard p {
+  margin: 3px 0 0;
+  color: var(--ink2);
+  font-size: 0.82rem;
+  text-wrap: pretty;
+}
+
+.codeValueRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.codeValueRow code {
+  min-width: 0;
+  flex: 1;
+  color: var(--green-ink);
+  font-family: inherit;
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.codeValueRow button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--green-ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.codeValueRow button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.srStatus {
+  min-height: 1.4em;
+  color: var(--ink2);
+  font-size: 0.78rem;
+}

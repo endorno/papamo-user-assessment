@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 
 import {
+  assessmentDataDraftSchema,
   formatShareCode,
   gradeAt,
   normalizeShareCode,
@@ -10,35 +11,19 @@ import {
   schoolYear,
   stateOf,
   todayInJst,
+  type AssessmentProgress,
+  type ChildDetail,
+  type ChildView,
   type GradeCode,
   type Honorific,
-  type ReportContent,
 } from '@papamo/shared';
 import type { ChildCreateRequest, ChildPatchRequest } from '@papamo/shared';
 
 import { assessments, childCoaches, children, reports } from '../db/schema';
+import { isForeignKeyConstraintError, isUniqueConstraintError } from '../db/errors';
 import type { Env } from '../env';
 
 export type ChildRole = 'owner' | 'member';
-
-export interface ChildView {
-  id: string;
-  name: string;
-  honorific: Honorific;
-  gradeCode: GradeCode;
-  gradeBaseYear: number;
-  grade: ReturnType<typeof gradeAt>;
-  joinedOn: string;
-  extUnlocked: boolean;
-  goals: string[];
-  archivedAt: string | null;
-  shareCode: string;
-  ownerShareCode?: string;
-  role: ChildRole;
-  state: ReturnType<typeof stateOf>;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface ChildAssessmentSummary {
   id: string;
@@ -49,11 +34,6 @@ export interface ChildAssessmentSummary {
   updatedAt: string;
   completedAt: string | null;
   reportAvailable: boolean;
-}
-
-export interface ChildDetail extends ChildView {
-  assessments: ChildAssessmentSummary[];
-  latestReport: ReportContent | null;
 }
 
 function dbFor(env: Env) {
@@ -71,15 +51,38 @@ function parseGoals(value: string): string[] {
   }
 }
 
+function assessmentProgressFrom(row: {
+  seqNo: number;
+  status: string;
+  assessedOn: string;
+  unlockExt: boolean;
+  data: string;
+}): AssessmentProgress & { seqNo: number } {
+  const data = assessmentDataDraftSchema.parse(JSON.parse(row.data));
+  return {
+    seqNo: row.seqNo,
+    status: row.status as 'draft' | 'done',
+    assessedOn: row.assessedOn,
+    unlockExt: row.unlockExt,
+    lv: data.lv,
+    troubles: data.troubles,
+    ppi: data.ppi,
+    plan: data.plan,
+  };
+}
+
 function serializeChild(
   row: typeof children.$inferSelect,
   role: ChildRole,
   includeOwnerShareCode: boolean,
-  assessmentsForChild: { status: 'draft' | 'done'; assessedOn: string; unlockExt: boolean; lv: Record<string, number | undefined>; troubles: string[]; ppi: Record<string, number | undefined>; plan: string | null }[] = [],
+  assessmentsForChild: (AssessmentProgress & { seqNo: number })[] = [],
   today = todayInJst(),
 ): ChildView {
   const gradeCode = row.gradeCode as GradeCode;
   const gradeBaseYear = row.gradeBaseYear;
+  const latestAssessment = assessmentsForChild.find((assessment) => assessment.status === 'draft')
+    ?? [...assessmentsForChild].sort((a, b) => b.seqNo - a.seqNo)[0]
+    ?? null;
   return {
     id: row.id,
     name: row.name,
@@ -95,6 +98,15 @@ function serializeChild(
     ...(includeOwnerShareCode ? { ownerShareCode: formatShareCode(row.ownerShareCode) } : {}),
     role,
     state: stateOf({ archivedAt: row.archivedAt, assessments: assessmentsForChild }, today),
+    latestAssessment: latestAssessment
+      ? {
+          seqNo: latestAssessment.seqNo,
+          status: latestAssessment.status,
+          assessedOn: latestAssessment.assessedOn,
+          unlockExt: latestAssessment.unlockExt,
+          lv: latestAssessment.lv,
+        }
+      : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -132,38 +144,44 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
     .orderBy(asc(children.name), asc(children.createdAt))
     .all();
 
-  const result: ChildView[] = [];
-  for (const row of rows) {
-    const childAssessments = await db
-      .select({
-        status: assessments.status,
-        assessedOn: assessments.assessedOn,
-        unlockExt: assessments.unlockExt,
-        data: assessments.data,
-      })
-      .from(assessments)
-      .where(eq(assessments.childId, row.child.id))
-      .all();
-    result.push(
-      serializeChild(
-        row.child,
-        row.role as ChildRole,
-        row.role === 'owner',
-        childAssessments.map((assessment) => {
-          const data = JSON.parse(assessment.data) as Record<string, unknown>;
-          return {
-            status: assessment.status as 'draft' | 'done',
-            assessedOn: assessment.assessedOn,
-            unlockExt: assessment.unlockExt,
-            lv: (data.lv ?? {}) as Record<string, number | undefined>,
-            troubles: (data.troubles ?? []) as string[],
-            ppi: (data.ppi ?? {}) as Record<string, number | undefined>,
-            plan: (data.plan as string | null | undefined) ?? null,
-          };
-        }),
-      ),
-    );
+  if (rows.length === 0) {
+    return [];
   }
+
+  const visibleChildIds = new Set(rows.map(({ child }) => child.id));
+  const assessmentRows = await db
+    .select({
+      childId: assessments.childId,
+      seqNo: assessments.seqNo,
+      status: assessments.status,
+      assessedOn: assessments.assessedOn,
+      unlockExt: assessments.unlockExt,
+      data: assessments.data,
+    })
+    .from(assessments)
+    .innerJoin(childCoaches, and(
+      eq(childCoaches.childId, assessments.childId),
+      eq(childCoaches.coachId, coachId),
+    ))
+    .all();
+  const assessmentsByChild = new Map<string, (AssessmentProgress & { seqNo: number })[]>();
+  for (const assessment of assessmentRows) {
+    if (!visibleChildIds.has(assessment.childId)) continue;
+    const grouped = assessmentsByChild.get(assessment.childId) ?? [];
+    grouped.push(assessmentProgressFrom(assessment));
+    assessmentsByChild.set(assessment.childId, grouped);
+  }
+
+  const result = rows.map((row) => serializeChild(
+    row.child,
+    row.role as ChildRole,
+    row.role === 'owner',
+    assessmentsByChild.get(row.child.id) ?? [],
+  ));
+  result.sort((first, second) => {
+    const byState = (first.state?.order ?? 99) - (second.state?.order ?? 99);
+    return byState || first.name.localeCompare(second.name, 'ja');
+  });
   return result;
 }
 
@@ -209,6 +227,9 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
       ]);
       return serializeChild(row, 'owner', true);
     } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error;
+      }
       if (attempt === 4) {
         throw error;
       }
@@ -242,44 +263,37 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     .where(eq(assessments.childId, childId))
     .orderBy(asc(assessments.seqNo))
     .all();
-  const reportRows = await Promise.all(
-    childAssessments
-      .filter((assessment) => assessment.status === 'done')
-      .map(async (assessment) => ({
-        assessmentId: assessment.id,
-        report: await db
-          .select({ content: reports.content })
-          .from(reports)
-          .where(eq(reports.assessmentId, assessment.id))
-          .get(),
-      })),
-  );
+  const reportRows = await db
+    .select({
+      assessmentId: assessments.id,
+      assessmentRevision: assessments.revision,
+      reportRevision: reports.assessmentRevision,
+      content: reports.content,
+    })
+    .from(assessments)
+    .innerJoin(reports, eq(reports.assessmentId, assessments.id))
+    .where(eq(assessments.childId, childId))
+    .all();
   const reportByAssessmentId = new Map(
-    reportRows.map(({ assessmentId, report }) => {
-      if (!report) {
+    reportRows.map(({ assessmentId, assessmentRevision, reportRevision, content }) => {
+      if (assessmentRevision !== reportRevision) {
         return [assessmentId, null] as const;
       }
       try {
-        const parsed = reportContentSchema.safeParse(JSON.parse(report.content));
+        const parsed = reportContentSchema.safeParse(JSON.parse(content));
         return [assessmentId, parsed.success ? parsed.data : null] as const;
       } catch {
         return [assessmentId, null] as const;
       }
     }),
   );
-  const serialized = serializeChild(child, membership, membership === 'owner', childAssessments.map((assessment) => {
-    const data = JSON.parse(assessment.data) as Record<string, unknown>;
-    return {
-      status: assessment.status as 'draft' | 'done',
-      assessedOn: assessment.assessedOn,
-      unlockExt: assessment.unlockExt,
-      lv: (data.lv ?? {}) as Record<string, number | undefined>,
-      troubles: (data.troubles ?? []) as string[],
-      ppi: (data.ppi ?? {}) as Record<string, number | undefined>,
-      plan: (data.plan as string | null | undefined) ?? null,
-    };
-  })) as ChildDetail;
-  serialized.assessments = childAssessments.map((assessment) => ({
+  const serialized = serializeChild(
+    child,
+    membership,
+    membership === 'owner',
+    childAssessments.map(assessmentProgressFrom),
+  );
+  const assessmentSummaries = childAssessments.map((assessment) => ({
     id: assessment.id,
     seqNo: assessment.seqNo,
     status: assessment.status as 'draft' | 'done',
@@ -292,10 +306,11 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
   const latestCompleted = [...childAssessments]
     .reverse()
     .find((assessment) => assessment.status === 'done' && reportByAssessmentId.get(assessment.id));
-  serialized.latestReport = latestCompleted
-    ? (reportByAssessmentId.get(latestCompleted.id) ?? null) as ReportContent | null
-    : null;
-  return serialized;
+  return {
+    ...serialized,
+    assessments: assessmentSummaries,
+    latestReport: latestCompleted ? reportByAssessmentId.get(latestCompleted.id) ?? null : null,
+  } satisfies ChildDetail;
 }
 
 export async function patchChild(env: Env, childId: string, input: ChildPatchRequest) {
@@ -340,19 +355,25 @@ export async function importChild(env: Env, coachId: string, code: string) {
   }
 
   const now = new Date().toISOString();
-  if (isOwnerTransfer) {
-    await db.update(childCoaches).set({ role: 'member' }).where(
-      and(eq(childCoaches.childId, child.id), eq(childCoaches.role, 'owner')),
-    ).run();
-    if (existing) {
-      await db.update(childCoaches).set({ role: 'owner' }).where(
-        and(eq(childCoaches.childId, child.id), eq(childCoaches.coachId, coachId)),
-      ).run();
+  try {
+    if (isOwnerTransfer) {
+      const demoteCurrentOwner = db.update(childCoaches).set({ role: 'member' }).where(
+        and(eq(childCoaches.childId, child.id), eq(childCoaches.role, 'owner')),
+      );
+      const promoteNewOwner = existing
+        ? db.update(childCoaches).set({ role: 'owner' }).where(
+            and(eq(childCoaches.childId, child.id), eq(childCoaches.coachId, coachId)),
+          )
+        : db.insert(childCoaches).values({ childId: child.id, coachId, role: 'owner', createdAt: now });
+      await db.batch([demoteCurrentOwner, promoteNewOwner]);
     } else {
-      await db.insert(childCoaches).values({ childId: child.id, coachId, role: 'owner', createdAt: now }).run();
+      await db.insert(childCoaches).values({ childId: child.id, coachId, role: 'member', createdAt: now }).run();
     }
-  } else {
-    await db.insert(childCoaches).values({ childId: child.id, coachId, role: 'member', createdAt: now }).run();
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return { kind: 'conflict' as const };
+    }
+    throw error;
   }
 
   return { kind: isOwnerTransfer ? 'owner' as const : 'member' as const, childId: child.id };
@@ -360,9 +381,10 @@ export async function importChild(env: Env, coachId: string, code: string) {
 
 export async function removeMembership(env: Env, childId: string, coachId: string) {
   const db = dbFor(env);
-  const membership = await requireMembership(env, childId, coachId);
-  if (!membership) return 'not_found' as const;
   const child = await childById(env, childId);
+  if (!child) return 'not_found' as const;
+  const membership = await requireMembership(env, childId, coachId);
+  if (!membership) return 'forbidden' as const;
   if (child?.archivedAt) return 'archived' as const;
   if (membership === 'owner') return 'owner' as const;
   await db.delete(childCoaches).where(and(eq(childCoaches.childId, childId), eq(childCoaches.coachId, coachId))).run();
@@ -376,9 +398,13 @@ export async function setArchiveState(env: Env, childId: string, archived: boole
 
 export async function deleteChildIfEmpty(env: Env, childId: string) {
   const db = dbFor(env);
-  const assessment = await db.select({ id: assessments.id }).from(assessments).where(eq(assessments.childId, childId)).limit(1).get();
-  if (assessment) return false;
-  await db.delete(childCoaches).where(eq(childCoaches.childId, childId)).run();
-  await db.delete(children).where(eq(children.id, childId)).run();
-  return true;
+  try {
+    const deleted = await db.delete(children).where(eq(children.id, childId)).returning({ id: children.id }).get();
+    return Boolean(deleted);
+  } catch (error) {
+    if (isForeignKeyConstraintError(error)) {
+      return false;
+    }
+    throw error;
+  }
 }

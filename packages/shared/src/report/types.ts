@@ -8,6 +8,7 @@ export interface ChildSnapshot {
   grade: string;
   ageHint: string;
   ageGroup: AgeGroup;
+  joinedOn?: string;
   goals: string[];
 }
 
@@ -50,6 +51,7 @@ export interface ReportContent {
     honorific: 'kun' | 'chan' | 'san';
     grade: string;
     ageHint: string;
+    joinedOn?: string;
     seqNo: number;
     assessedOn: string;
     prevAssessedOn?: string;

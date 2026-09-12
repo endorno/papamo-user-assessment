@@ -1,15 +1,17 @@
-import { and, desc, eq, gt, lt } from 'drizzle-orm';
+import { and, desc, eq, exists, gt, isNull, lt, notExists, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 import {
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
+  assessmentDataPatchSchema,
   CORE_EXERCISE_KEYS,
   EXT_EXERCISE_KEYS,
   gradeAt,
   MASTER_VERSION,
   PPI_QUESTIONS,
   PLANS,
+  reportContentSchema,
   TROUBLE_CATEGORIES,
   todayInJst,
   type AssessmentData,
@@ -18,7 +20,8 @@ import {
   type ExerciseKey,
 } from '@papamo/shared';
 
-import { assessments, childCoaches, children, reports } from '../db/schema';
+import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
+import { isUniqueConstraintError } from '../db/errors';
 import type { CoachRecord, Env } from '../env';
 import { generateReport } from './report';
 
@@ -26,7 +29,7 @@ export type AssessmentStatus = 'draft' | 'done';
 
 export class AssessmentServiceError extends Error {
   constructor(
-    readonly code: 'not_found' | 'conflict' | 'validation',
+    readonly code: 'not_found' | 'forbidden' | 'conflict' | 'validation',
     message: string,
   ) {
     super(message);
@@ -35,7 +38,7 @@ export class AssessmentServiceError extends Error {
 }
 
 function dbFor(env: Env) {
-  return drizzle(env.DB, { schema: { assessments, childCoaches, children, reports } });
+  return drizzle(env.DB, { schema: { assessments, childCoaches, children, coaches, reports } });
 }
 
 function parseData(value: string): AssessmentData {
@@ -65,18 +68,64 @@ async function assessmentOrThrow(env: Env, assessmentId: string) {
   return assessment;
 }
 
-async function ensureWritable(env: Env, childId: string, assessmentId: string, coachId: string) {
-  const assessment = await assessmentOrThrow(env, assessmentId);
-  if (assessment.childId !== childId) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
-  const linked = await membership(env, childId, coachId);
-  if (!linked) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
-  const child = await childOrThrow(env, childId);
+async function ensureWritable(
+  env: Env,
+  assessment: typeof assessments.$inferSelect,
+  coachId: string,
+) {
+  const linked = await membership(env, assessment.childId, coachId);
+  if (!linked) throw new AssessmentServiceError('forbidden', 'このアセスメントを操作する権限がありません。');
+  const child = await childOrThrow(env, assessment.childId);
   if (child.archivedAt) throw new AssessmentServiceError('conflict', 'アーカイブ中のお子さまは編集できません。');
   const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(
-    and(eq(assessments.childId, childId), gt(assessments.seqNo, assessment.seqNo)),
+    and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
   ).limit(1).get();
   if (later) throw new AssessmentServiceError('conflict', '次のアセスメントがあるため、この回は編集できません。');
-  return { assessment, child };
+  return child;
+}
+
+function nextUpdatedAt(previous: string): string {
+  const previousTime = Date.parse(previous);
+  const minimum = Number.isFinite(previousTime) ? previousTime + 1 : 0;
+  return new Date(Math.max(Date.now(), minimum)).toISOString();
+}
+
+function concurrentUpdateError() {
+  return new AssessmentServiceError('conflict', '他のコーチが更新しました。読み込み直してください。');
+}
+
+function affectedRows(result: { meta: { changes?: number } }): number {
+  return result.meta.changes ?? 0;
+}
+
+function writableMutationCondition(
+  db: ReturnType<typeof dbFor>,
+  assessment: typeof assessments.$inferSelect,
+  coachId: string,
+) {
+  return and(
+    eq(assessments.id, assessment.id),
+    eq(assessments.revision, assessment.revision),
+    eq(assessments.mutationId, assessment.mutationId),
+    exists(
+      db.select({ value: sql`1` }).from(childCoaches).where(and(
+        eq(childCoaches.childId, assessment.childId),
+        eq(childCoaches.coachId, coachId),
+      )),
+    ),
+    exists(
+      db.select({ value: sql`1` }).from(children).where(and(
+        eq(children.id, assessment.childId),
+        isNull(children.archivedAt),
+      )),
+    ),
+    notExists(
+      db.select({ value: sql`1` }).from(assessments).where(and(
+        eq(assessments.childId, assessment.childId),
+        gt(assessments.seqNo, assessment.seqNo),
+      )),
+    ),
+  );
 }
 
 function initialData(previous: CompletedAssessmentData | null, ageGroup: 'pre' | 'sch'): AssessmentData {
@@ -96,7 +145,7 @@ function initialData(previous: CompletedAssessmentData | null, ageGroup: 'pre' |
 export async function createAssessment(env: Env, childId: string, coachId: string, unlockExt: boolean) {
   const child = await childOrThrow(env, childId);
   if (child.archivedAt) throw new AssessmentServiceError('conflict', 'アーカイブ中のお子さまは編集できません。');
-  if (!(await membership(env, childId, coachId))) throw new AssessmentServiceError('not_found', 'お子さまが見つかりません。');
+  if (!(await membership(env, childId, coachId))) throw new AssessmentServiceError('forbidden', 'このお子さまを操作する権限がありません。');
   const db = dbFor(env);
   const draft = await db.select({ id: assessments.id }).from(assessments).where(
     and(eq(assessments.childId, childId), eq(assessments.status, 'draft')),
@@ -108,8 +157,9 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
   const max = await db.select({ seqNo: assessments.seqNo }).from(assessments).where(eq(assessments.childId, childId)).orderBy(desc(assessments.seqNo)).limit(1).get();
   const today = todayInJst();
   const now = new Date().toISOString();
+  const id = ulid();
   const row = {
-    id: ulid(),
+    id,
     childId,
     seqNo: (max?.seqNo ?? 0) + 1,
     status: 'draft',
@@ -125,24 +175,33 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
         today,
       ).ageGroup,
     )),
+    revision: 1,
+    mutationId: id,
     createdAt: now,
     updatedAt: now,
     completedAt: null,
   };
-  await db.insert(assessments).values(row).run();
+  try {
+    await db.insert(assessments).values(row).run();
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new AssessmentServiceError('conflict', '入力中のアセスメントがすでにあります。');
+    }
+    throw error;
+  }
   return row;
 }
 
 export async function getAssessment(env: Env, assessmentId: string, coachId: string) {
   const assessment = await assessmentOrThrow(env, assessmentId);
   const linked = await membership(env, assessment.childId, coachId);
-  if (!linked) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
+  if (!linked) throw new AssessmentServiceError('forbidden', 'このアセスメントを閲覧する権限がありません。');
   const child = await childOrThrow(env, assessment.childId);
   const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(
     and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
   ).limit(1).get();
   const previous = assessment.prevAssessmentId
-    ? await dbFor(env).select({ id: assessments.id, seqNo: assessments.seqNo, assessedOn: assessments.assessedOn, status: assessments.status }).from(assessments).where(eq(assessments.id, assessment.prevAssessmentId)).get()
+    ? await dbFor(env).select({ id: assessments.id, seqNo: assessments.seqNo, assessedOn: assessments.assessedOn, status: assessments.status, data: assessments.data }).from(assessments).where(eq(assessments.id, assessment.prevAssessmentId)).get()
     : null;
   return {
     id: assessment.id,
@@ -159,11 +218,27 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
     updatedAt: assessment.updatedAt,
     completedAt: assessment.completedAt,
     readOnly: Boolean(child.archivedAt || later),
-    previous,
+    previous: previous
+      ? (() => {
+          const previousData = parseCompletedData(previous.data);
+          return {
+            id: previous.id,
+            seqNo: previous.seqNo,
+            assessedOn: previous.assessedOn,
+            status: 'done' as const,
+            lv: previousData.lv,
+            troubles: previousData.troubles,
+            ppi: previousData.ppi,
+          };
+        })()
+      : null,
     child: {
       id: child.id,
       name: child.name,
+      honorific: child.honorific as 'kun' | 'chan' | 'san',
       archivedAt: child.archivedAt,
+      extUnlocked: child.extUnlocked,
+      goals: JSON.parse(child.goals) as string[],
       ageGroup: gradeAt(
         { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
         assessment.assessedOn,
@@ -178,28 +253,84 @@ export async function patchAssessment(
   coachId: string,
   input: { assessedOn?: string; unlockExt?: boolean; data: AssessmentDataPatch; updatedAt: string },
 ) {
-  const current = await assessmentOrThrow(env, assessmentId);
-  const { assessment, child } = await ensureWritable(env, current.childId, assessmentId, coachId);
-  if (assessment.updatedAt !== input.updatedAt) throw new AssessmentServiceError('conflict', '他のコーチが更新しました。読み込み直してください。');
-  const draftData = assessmentDataDraftSchema.parse(input.data);
+  const assessment = await assessmentOrThrow(env, assessmentId);
+  const child = await ensureWritable(env, assessment, coachId);
+  if (assessment.updatedAt !== input.updatedAt) throw concurrentUpdateError();
+  const editableData = assessmentDataPatchSchema.parse(input.data);
+  const draftData = assessmentDataDraftSchema.parse({ ...editableData, goals: [] });
   const nextUnlock = child.extUnlocked || input.unlockExt || assessment.unlockExt;
-  const updatedAt = new Date().toISOString();
-  await dbFor(env).update(assessments).set({
+  const updatedAt = nextUpdatedAt(assessment.updatedAt);
+  const mutationId = ulid();
+  const db = dbFor(env);
+
+  if (assessment.status === 'done') {
+    const existingData = parseCompletedData(assessment.data);
+    const completedDataResult = assessmentDataCompletedSchema.safeParse({
+      ...draftData,
+      goals: existingData.goals,
+    });
+    if (!completedDataResult.success) {
+      throw new AssessmentServiceError('validation', '完了済みの記録に必要な入力をすべて残してください。');
+    }
+    const ageGroup = gradeAt(
+      { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
+      input.assessedOn ?? assessment.assessedOn,
+    ).ageGroup;
+    assertCompletable(completedDataResult.data, nextUnlock, ageGroup);
+    const reportCoach = await coachOrThrow(env, assessment.coachId);
+    const previous = await previousForReport(env, assessment);
+    const report = await generateReport({
+      env,
+      child,
+      coach: reportCoach,
+      assessment: {
+        seqNo: assessment.seqNo,
+        assessedOn: input.assessedOn ?? assessment.assessedOn,
+        unlockExt: nextUnlock,
+        data: completedDataResult.data,
+      },
+      previous,
+      generatedAt: updatedAt,
+    });
+    await persistCompletedAssessment({
+      env,
+      assessment,
+      child,
+      actingCoachId: coachId,
+      reportCoachId: assessment.coachId,
+      assessedOn: input.assessedOn ?? assessment.assessedOn,
+      unlockExt: nextUnlock,
+      data: completedDataResult.data,
+      report,
+      mutationId,
+      updatedAt,
+      completedAt: assessment.completedAt ?? updatedAt,
+    });
+    return getAssessment(env, assessmentId, coachId);
+  }
+
+  const result = await db.update(assessments).set({
     assessedOn: input.assessedOn ?? assessment.assessedOn,
     unlockExt: nextUnlock,
     data: JSON.stringify({ ...draftData, goals: [] }),
+    revision: assessment.revision + 1,
+    mutationId,
     updatedAt,
-  }).where(eq(assessments.id, assessmentId)).run();
+  }).where(writableMutationCondition(db, assessment, coachId)).run();
+  if (affectedRows(result) !== 1) throw concurrentUpdateError();
   return getAssessment(env, assessmentId, coachId);
 }
 
 export async function deleteAssessment(env: Env, assessmentId: string, coachId: string) {
   const assessment = await assessmentOrThrow(env, assessmentId);
-  if (!(await membership(env, assessment.childId, coachId))) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
-  const child = await childOrThrow(env, assessment.childId);
-  if (child.archivedAt) throw new AssessmentServiceError('conflict', 'アーカイブ中のお子さまは編集できません。');
+  await ensureWritable(env, assessment, coachId);
   if (assessment.status !== 'draft') throw new AssessmentServiceError('conflict', '完了済みのアセスメントは削除できません。');
-  await dbFor(env).delete(assessments).where(eq(assessments.id, assessmentId)).run();
+  const db = dbFor(env);
+  const result = await db.delete(assessments).where(and(
+    writableMutationCondition(db, assessment, coachId),
+    eq(assessments.status, 'draft'),
+  )).run();
+  if (affectedRows(result) !== 1) throw concurrentUpdateError();
 }
 
 function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
@@ -212,15 +343,131 @@ function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ag
   if (!data.troubles.every((trouble) => validTroubles.has(trouble))) throw new AssessmentServiceError('validation', '困りごとの選択内容を確認してください。');
 }
 
+async function coachOrThrow(env: Env, coachId: string): Promise<CoachRecord> {
+  const coach = await dbFor(env).select().from(coaches).where(eq(coaches.id, coachId)).get();
+  if (!coach) throw new Error(`レポート担当コーチが見つかりません: ${coachId}`);
+  return {
+    id: coach.id,
+    email: coach.email,
+    displayName: coach.displayName,
+  };
+}
+
+async function previousForReport(
+  env: Env,
+  assessment: typeof assessments.$inferSelect,
+) {
+  const previousRow = await dbFor(env).select().from(assessments).where(and(
+    eq(assessments.childId, assessment.childId),
+    eq(assessments.status, 'done'),
+    lt(assessments.seqNo, assessment.seqNo),
+  )).orderBy(desc(assessments.seqNo)).limit(1).get();
+  return previousRow
+    ? {
+        seqNo: previousRow.seqNo,
+        assessedOn: previousRow.assessedOn,
+        unlockExt: previousRow.unlockExt,
+        data: parseCompletedData(previousRow.data),
+      }
+    : undefined;
+}
+
+function guardedReportUpsert(
+  db: ReturnType<typeof dbFor>,
+  input: {
+    assessmentId: string;
+    assessmentRevision: number;
+    mutationId: string;
+    generator: string;
+    content: string;
+    updatedAt: string;
+  },
+) {
+  const reportId = ulid();
+  const guardedReport = db.select({
+    id: sql<string>`${reportId}`.as('id'),
+    assessmentId: sql<string>`${input.assessmentId}`.as('assessment_id'),
+    assessmentRevision: sql<number>`${input.assessmentRevision}`.as('assessment_revision'),
+    generator: sql<string>`${input.generator}`.as('generator'),
+    content: sql<string>`${input.content}`.as('content'),
+    createdAt: sql<string>`${input.updatedAt}`.as('created_at'),
+    updatedAt: sql<string>`${input.updatedAt}`.as('updated_at'),
+  }).from(assessments).where(and(
+    eq(assessments.id, input.assessmentId),
+    eq(assessments.mutationId, input.mutationId),
+  ));
+
+  return db.insert(reports).select(guardedReport).onConflictDoUpdate({
+    target: reports.assessmentId,
+    set: {
+      assessmentRevision: input.assessmentRevision,
+      generator: input.generator,
+      content: input.content,
+      updatedAt: input.updatedAt,
+    },
+  });
+}
+
+async function persistCompletedAssessment(input: {
+  env: Env;
+  assessment: typeof assessments.$inferSelect;
+  child: typeof children.$inferSelect;
+  actingCoachId: string;
+  reportCoachId: string;
+  assessedOn: string;
+  unlockExt: boolean;
+  data: CompletedAssessmentData;
+  report: Awaited<ReturnType<typeof generateReport>>;
+  mutationId: string;
+  updatedAt: string;
+  completedAt: string;
+}) {
+  const db = dbFor(input.env);
+  const nextRevision = input.assessment.revision + 1;
+  const assessmentUpdate = db.update(assessments).set({
+    status: 'done',
+    assessedOn: input.assessedOn,
+    coachId: input.reportCoachId,
+    unlockExt: input.unlockExt,
+    masterVersion: MASTER_VERSION,
+    data: JSON.stringify(input.data),
+    revision: nextRevision,
+    mutationId: input.mutationId,
+    updatedAt: input.updatedAt,
+    completedAt: input.completedAt,
+  }).where(writableMutationCondition(db, input.assessment, input.actingCoachId));
+  const reportUpsert = guardedReportUpsert(db, {
+    assessmentId: input.assessment.id,
+    assessmentRevision: nextRevision,
+    mutationId: input.mutationId,
+    generator: input.report.generator,
+    content: JSON.stringify(input.report),
+    updatedAt: input.updatedAt,
+  });
+  const childUnlock = db.update(children).set({
+    extUnlocked: true,
+    updatedAt: input.updatedAt,
+  }).where(and(
+    eq(children.id, input.child.id),
+    exists(
+      db.select({ value: sql`1` }).from(assessments).where(and(
+        eq(assessments.id, input.assessment.id),
+        eq(assessments.mutationId, input.mutationId),
+      )),
+    ),
+  ));
+  const results = await db.batch([
+    assessmentUpdate,
+    reportUpsert,
+    ...(input.unlockExt && !input.child.extUnlocked ? [childUnlock] : []),
+  ]);
+  if (affectedRows(results[0]) !== 1) throw concurrentUpdateError();
+}
+
 export async function completeAssessment(env: Env, assessmentId: string, coach: CoachRecord, expectedUpdatedAt?: string) {
   const assessment = await assessmentOrThrow(env, assessmentId);
-  const linked = await membership(env, assessment.childId, coach.id);
-  if (!linked) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
-  const child = await childOrThrow(env, assessment.childId);
-  if (child.archivedAt) throw new AssessmentServiceError('conflict', 'アーカイブ中のお子さまは編集できません。');
-  const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(and(eq(assessments.childId, child.id), gt(assessments.seqNo, assessment.seqNo))).limit(1).get();
-  if (later) throw new AssessmentServiceError('conflict', '次のアセスメントがあるため、この回は完了できません。');
-  if (expectedUpdatedAt && expectedUpdatedAt !== assessment.updatedAt) throw new AssessmentServiceError('conflict', '他のコーチが更新しました。読み込み直してください。');
+  const child = await ensureWritable(env, assessment, coach.id);
+  if (expectedUpdatedAt && expectedUpdatedAt !== assessment.updatedAt) throw concurrentUpdateError();
   const draftData = assessmentDataDraftSchema.safeParse(JSON.parse(assessment.data));
   if (!draftData.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const unlockExt = child.extUnlocked || assessment.unlockExt;
@@ -233,24 +480,36 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   ).ageGroup;
   assertCompletable(data.data, unlockExt, ageGroup);
 
-  const previousRow = await dbFor(env).select().from(assessments).where(and(eq(assessments.childId, child.id), eq(assessments.status, 'done'), lt(assessments.seqNo, assessment.seqNo))).orderBy(desc(assessments.seqNo)).limit(1).get();
-  const previous = previousRow ? { seqNo: previousRow.seqNo, assessedOn: previousRow.assessedOn, unlockExt: previousRow.unlockExt, data: parseCompletedData(previousRow.data) } : undefined;
-  const generatedAt = new Date().toISOString();
+  const previous = await previousForReport(env, assessment);
+  const generatedAt = nextUpdatedAt(assessment.updatedAt);
   const report = await generateReport({ env, child, coach, assessment: { seqNo: assessment.seqNo, assessedOn: assessment.assessedOn, unlockExt, data: data.data }, previous, generatedAt });
-  const now = new Date().toISOString();
-  const db = dbFor(env);
-  await db.batch([
-    db.update(assessments).set({ status: 'done', coachId: coach.id, unlockExt, masterVersion: MASTER_VERSION, data: JSON.stringify(completedData), updatedAt: now, completedAt: now }).where(eq(assessments.id, assessmentId)),
-    db.insert(reports).values({ id: ulid(), assessmentId, generator: report.generator, content: JSON.stringify(report), createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: reports.assessmentId, set: { generator: report.generator, content: JSON.stringify(report), updatedAt: now } }),
-    ...(unlockExt && !child.extUnlocked ? [db.update(children).set({ extUnlocked: true, updatedAt: now }).where(eq(children.id, child.id))] : []),
-  ]);
+  await persistCompletedAssessment({
+    env,
+    assessment,
+    child,
+    actingCoachId: coach.id,
+    reportCoachId: coach.id,
+    assessedOn: assessment.assessedOn,
+    unlockExt,
+    data: data.data,
+    report,
+    mutationId: ulid(),
+    updatedAt: generatedAt,
+    completedAt: assessment.completedAt ?? generatedAt,
+  });
   return report;
 }
 
 export async function getReport(env: Env, assessmentId: string, coachId: string) {
   const assessment = await assessmentOrThrow(env, assessmentId);
-  if (!(await membership(env, assessment.childId, coachId))) throw new AssessmentServiceError('not_found', 'レポートが見つかりません。');
-  const report = await dbFor(env).select().from(reports).where(eq(reports.assessmentId, assessmentId)).get();
+  if (!(await membership(env, assessment.childId, coachId))) throw new AssessmentServiceError('forbidden', 'このレポートを閲覧する権限がありません。');
+  const report = await dbFor(env).select({
+    content: reports.content,
+    assessmentRevision: reports.assessmentRevision,
+  }).from(reports).where(eq(reports.assessmentId, assessmentId)).get();
   if (!report) throw new AssessmentServiceError('not_found', 'レポートが見つかりません。');
-  return JSON.parse(report.content) as unknown;
+  if (report.assessmentRevision !== assessment.revision) {
+    throw new Error(`レポートとアセスメントの版が一致しません: ${assessmentId}`);
+  }
+  return reportContentSchema.parse(JSON.parse(report.content));
 }

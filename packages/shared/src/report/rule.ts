@@ -114,6 +114,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         honorific: input.child.honorific,
         grade: input.child.grade,
         ageHint: input.child.ageHint,
+        ...(input.child.joinedOn ? { joinedOn: input.child.joinedOn } : {}),
         seqNo: input.assessment.seqNo,
         assessedOn: input.assessment.assessedOn,
         ...(input.previous ? { prevAssessedOn: input.previous.assessedOn } : {}),

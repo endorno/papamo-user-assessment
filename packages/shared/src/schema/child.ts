@@ -1,7 +1,42 @@
 import { z } from 'zod';
 
-import { gradeCodeSchema, honorificSchema } from './assessment';
+import { exerciseKeySchema, gradeCodeSchema, honorificSchema } from './assessment';
 import { reportContentSchema } from './report';
+
+export const childListStateSchema = z.discriminatedUnion('key', [
+  z.object({
+    key: z.literal('draft'),
+    label: z.string(),
+    filled: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+    order: z.literal(0),
+  }),
+  z.object({
+    key: z.literal('due'),
+    label: z.string(),
+    daysLeft: z.number().int(),
+    order: z.literal(0.5),
+  }),
+  z.object({
+    key: z.literal('first'),
+    label: z.string(),
+    order: z.literal(1),
+  }),
+  z.object({
+    key: z.literal('ok'),
+    label: z.string(),
+    dueDate: z.string(),
+    order: z.literal(2),
+  }),
+]);
+
+export const latestAssessmentViewSchema = z.object({
+  seqNo: z.number().int().positive(),
+  status: z.enum(['draft', 'done']),
+  assessedOn: z.string(),
+  unlockExt: z.boolean(),
+  lv: z.record(exerciseKeySchema, z.number().int().min(0).max(20).optional()),
+});
 
 export const childViewSchema = z.object({
   id: z.string(),
@@ -17,13 +52,18 @@ export const childViewSchema = z.object({
   shareCode: z.string(),
   ownerShareCode: z.string().optional(),
   role: z.enum(['owner', 'member']),
-  state: z.unknown().nullable(),
+  state: childListStateSchema.nullable(),
+  latestAssessment: latestAssessmentViewSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
 export const childrenResponseSchema = z.object({
   children: z.array(childViewSchema),
+});
+
+export const childResponseSchema = z.object({
+  child: childViewSchema,
 });
 
 export const childAssessmentSummarySchema = z.object({
@@ -40,6 +80,14 @@ export const childAssessmentSummarySchema = z.object({
 export const childDetailSchema = childViewSchema.extend({
   assessments: z.array(childAssessmentSummarySchema),
   latestReport: reportContentSchema.nullable(),
+});
+
+export const childDetailResponseSchema = z.object({
+  child: childDetailSchema,
+});
+
+export const childImportResponseSchema = childDetailResponseSchema.extend({
+  ownershipTransferred: z.boolean(),
 });
 
 export type ChildView = z.infer<typeof childViewSchema>;

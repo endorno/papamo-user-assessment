@@ -1,14 +1,19 @@
 import {
   assessmentCreateRequestSchema,
+  assessmentCreateResponseSchema,
   childCreateRequestSchema,
+  childDetailResponseSchema,
   childImportRequestSchema,
+  childImportResponseSchema,
   childPatchRequestSchema,
+  childResponseSchema,
+  childrenResponseSchema,
   isValidDateString,
 } from '@papamo/shared';
 import { Hono } from 'hono';
 
 import type { AppContext, AppVariables, Env } from '../env';
-import { jsonError } from '../http/errors';
+import { internalError, jsonError } from '../http/errors';
 import {
   childById,
   createChild,
@@ -31,7 +36,7 @@ export const childrenRoutes = new Hono<{
 childrenRoutes.get('/', async (context) => {
   const archived = context.req.query('archived') === '1';
   const children = await listChildren(context.env, context.get('coach').id, archived);
-  return context.json({ children });
+  return context.json(childrenResponseSchema.parse({ children }));
 });
 
 childrenRoutes.post('/', async (context) => {
@@ -48,9 +53,9 @@ childrenRoutes.post('/', async (context) => {
 
   try {
     const child = await createChild(context.env, context.get('coach').id, parsed.data);
-    return context.json({ child }, 201);
-  } catch {
-    return jsonError(context, 'internal', 'お子さまを登録できませんでした。', 500);
+    return context.json(childResponseSchema.parse({ child }), 201);
+  } catch (caught) {
+    return internalError(context, caught, 'child.create', 'お子さまを登録できませんでした。');
   }
 });
 
@@ -74,7 +79,10 @@ childrenRoutes.post('/import', async (context) => {
     return jsonError(context, 'conflict', 'そのお子さまはすでに一覧にあります。', 409);
   }
   const child = await getChildForCoach(context.env, result.childId, context.get('coach').id);
-  return context.json({ child, ownershipTransferred: result.kind === 'owner' });
+  if (!child) {
+    return jsonError(context, 'internal', '取り込み結果を読み込めませんでした。', 500);
+  }
+  return context.json(childImportResponseSchema.parse({ child, ownershipTransferred: result.kind === 'owner' }));
 });
 
 childrenRoutes.post('/:childId/assessments', async (context) => {
@@ -95,33 +103,38 @@ childrenRoutes.post('/:childId/assessments', async (context) => {
       context.get('coach').id,
       parsed.data.unlockExt,
     );
-    return context.json({ assessment }, 201);
+    return context.json(assessmentCreateResponseSchema.parse({ assessment }), 201);
   } catch (caught) {
     if (caught instanceof AssessmentServiceError) {
-      const status = caught.code === 'not_found' ? 404 : caught.code === 'validation' ? 400 : 409;
+      const status = caught.code === 'not_found' ? 404 : caught.code === 'forbidden' ? 403 : caught.code === 'validation' ? 400 : 409;
       return jsonError(context, caught.code, caught.message, status);
     }
-    return jsonError(context, 'internal', 'アセスメントを作成できませんでした。', 500);
+    return internalError(context, caught, 'assessment.create', 'アセスメントを作成できませんでした。');
   }
 });
 
 childrenRoutes.get('/:id', async (context) => {
-  const child = await getChildForCoach(context.env, context.req.param('id'), context.get('coach').id);
-  if (!child) {
+  const childId = context.req.param('id');
+  if (!(await childById(context.env, childId))) {
     return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
   }
-  return context.json({ child });
+  if (!(await requireMembership(context.env, childId, context.get('coach').id))) {
+    return jsonError(context, 'forbidden', 'このお子さまを閲覧する権限がありません。', 403);
+  }
+  const child = await getChildForCoach(context.env, childId, context.get('coach').id);
+  if (!child) return jsonError(context, 'internal', 'お子さまを読み込めませんでした。', 500);
+  return context.json(childDetailResponseSchema.parse({ child }));
 });
 
 childrenRoutes.patch('/:id', async (context) => {
   const childId = context.req.param('id');
-  const membership = await requireMembership(context.env, childId, context.get('coach').id);
-  if (!membership) {
-    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
-  }
   const current = await childById(context.env, childId);
   if (!current) {
     return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+  }
+  const membership = await requireMembership(context.env, childId, context.get('coach').id);
+  if (!membership) {
+    return jsonError(context, 'forbidden', 'このお子さまを編集する権限がありません。', 403);
   }
   if (current.archivedAt) {
     return jsonError(context, 'conflict', 'アーカイブ中のお子さまは編集できません。', 409);
@@ -139,7 +152,10 @@ childrenRoutes.patch('/:id', async (context) => {
   }
   const updated = await patchChild(context.env, childId, parsed.data);
   const serialized = await getChildForCoach(context.env, childId, context.get('coach').id);
-  return context.json({ child: updated && serialized });
+  if (!updated || !serialized) {
+    return jsonError(context, 'internal', '更新結果を読み込めませんでした。', 500);
+  }
+  return context.json(childDetailResponseSchema.parse({ child: serialized }));
 });
 
 childrenRoutes.delete('/:id/membership', async (context) => {
@@ -150,6 +166,9 @@ childrenRoutes.delete('/:id/membership', async (context) => {
   );
   if (result === 'not_found') {
     return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+  }
+  if (result === 'forbidden') {
+    return jsonError(context, 'forbidden', 'このお子さまを操作する権限がありません。', 403);
   }
   if (result === 'owner') {
     return jsonError(context, 'forbidden', 'オーナーは一覧から削除できません。', 403);
@@ -162,9 +181,12 @@ childrenRoutes.delete('/:id/membership', async (context) => {
 
 childrenRoutes.delete('/:id', async (context) => {
   const childId = context.req.param('id');
+  if (!(await childById(context.env, childId))) {
+    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+  }
   const membership = await requireMembership(context.env, childId, context.get('coach').id);
   if (!membership) {
-    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+    return jsonError(context, 'forbidden', 'このお子さまを操作する権限がありません。', 403);
   }
   if (membership !== 'owner') {
     return jsonError(context, 'forbidden', 'お子さまの削除はオーナーのみ行えます。', 403);
@@ -180,16 +202,22 @@ async function archive(context: AppContext, archived: boolean) {
   if (!childId) {
     return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
   }
+  if (!(await childById(context.env, childId))) {
+    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+  }
   const membership = await requireMembership(context.env, childId, context.get('coach').id);
   if (!membership) {
-    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
+    return jsonError(context, 'forbidden', 'このお子さまを操作する権限がありません。', 403);
   }
   if (membership !== 'owner') {
     return jsonError(context, 'forbidden', 'この操作はオーナーのみ行えます。', 403);
   }
   await setArchiveState(context.env, childId, archived);
   const child = await getChildForCoach(context.env, childId, context.get('coach').id);
-  return context.json({ child });
+  if (!child) {
+    return jsonError(context, 'internal', '更新結果を読み込めませんでした。', 500);
+  }
+  return context.json(childDetailResponseSchema.parse({ child }));
 }
 
 childrenRoutes.post('/:id/archive', (context) => archive(context, true));

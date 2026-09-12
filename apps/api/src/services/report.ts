@@ -39,6 +39,7 @@ export async function generateReport(input: {
       grade: grade.name,
       ageHint: grade.ageHint,
       ageGroup: grade.ageGroup,
+      joinedOn: input.child.joinedOn,
       goals: parseGoals(input.child.goals),
     },
     coach: { displayName: input.coach.displayName ?? input.coach.email },

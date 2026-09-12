@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { createMiddleware } from 'hono/factory';
 
-import { jsonError } from '../http/errors';
+import { internalError, jsonError } from '../http/errors';
 import type { AppVariables, Env } from '../env';
 import { upsertCoach } from '../services/coaches';
 
@@ -42,48 +42,54 @@ async function verifyToken(env: Env, token: string): Promise<JWTPayload> {
   return result.payload;
 }
 
-export const authMiddleware = createMiddleware<{
-  Bindings: Env;
-  Variables: AppVariables;
-}>(async (context, next) => {
-  if (context.req.path === '/api/health') {
+type TokenVerifier = (env: Env, token: string) => Promise<JWTPayload>;
+
+export function createAuthMiddleware(tokenVerifier: TokenVerifier = verifyToken) {
+  return createMiddleware<{
+    Bindings: Env;
+    Variables: AppVariables;
+  }>(async (context, next) => {
+    if (context.req.path === '/api/health') {
+      await next();
+      return;
+    }
+
+    const token = bearerToken(context.req.header('Authorization'));
+    if (!token) {
+      return jsonError(context, 'unauthorized', 'ログインが必要です。', 401);
+    }
+
+    let payload: JWTPayload;
+    try {
+      payload = await tokenVerifier(context.env, token);
+    } catch {
+      return jsonError(context, 'unauthorized', 'ログイン情報が無効です。再度ログインしてください。', 401);
+    }
+
+    const id = payload.sub;
+    if (!id) {
+      return jsonError(context, 'unauthorized', 'ログイン情報にユーザー ID がありません。', 401);
+    }
+
+    const email = typeof payload.email === 'string' ? payload.email : '';
+    if (!email) {
+      return jsonError(context, 'unauthorized', 'ログイン情報にメールアドレスがありません。', 401);
+    }
+
+    let coach;
+    try {
+      coach = await upsertCoach(context.env, { id, email });
+    } catch (caught) {
+      return internalError(context, caught, 'auth.upsert_coach', 'コーチ情報を保存できませんでした。');
+    }
+
+    context.set('token', payload);
+    context.set('coach', coach);
     await next();
-    return;
-  }
+  });
+}
 
-  const token = bearerToken(context.req.header('Authorization'));
-  if (!token) {
-    return jsonError(context, 'unauthorized', 'ログインが必要です。', 401);
-  }
-
-  let payload: JWTPayload;
-  try {
-    payload = await verifyToken(context.env, token);
-  } catch {
-    return jsonError(context, 'unauthorized', 'ログイン情報が無効です。再度ログインしてください。', 401);
-  }
-
-  const id = payload.sub;
-  if (!id) {
-    return jsonError(context, 'unauthorized', 'ログイン情報にユーザー ID がありません。', 401);
-  }
-
-  const email = typeof payload.email === 'string' ? payload.email : '';
-  if (!email) {
-    return jsonError(context, 'unauthorized', 'ログイン情報にメールアドレスがありません。', 401);
-  }
-
-  let coach;
-  try {
-    coach = await upsertCoach(context.env, { id, email });
-  } catch {
-    return jsonError(context, 'internal', 'コーチ情報を保存できませんでした。', 500);
-  }
-
-  context.set('token', payload);
-  context.set('coach', coach);
-  await next();
-});
+export const authMiddleware = createAuthMiddleware();
 
 export const onboardingMiddleware = createMiddleware<{
   Bindings: Env;

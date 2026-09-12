@@ -1,22 +1,89 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
+import {
+  childrenResponseSchema,
+  EXERCISES,
+  todayInJst,
+  type ChildView,
+  type MeResponse,
+} from '@papamo/shared';
 import { apiRequest, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
-import { childrenResponseSchema, type ChildView, type MeResponse } from '@papamo/shared';
+import { AppHeader } from '../components/AppHeader';
+import { ChildStatusBadge } from '../components/ChildStatusBadge';
+import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../App.module.css';
 
-type HealthState = 'idle' | 'checking' | 'ok' | 'error';
+type ImportFeedback = { kind: 'success' | 'error'; message: string } | null;
 
-function honorificLabel(honorific: ChildView['honorific']) {
-  return honorific === 'kun' ? 'くん' : honorific === 'chan' ? 'ちゃん' : 'さん';
+function formatShareCodeInput(value: string) {
+  const normalized = value
+    .toUpperCase()
+    .replace(/[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]/g, '')
+    .slice(0, 8);
+  return normalized.length > 4 ? `${normalized.slice(0, 4)}-${normalized.slice(4)}` : normalized;
 }
 
-function stateLabel(child: ChildView) {
-  if (typeof child.state === 'object' && child.state && 'label' in child.state) {
-    return String(child.state.label);
-  }
-  return '初回アセスメント未実施';
+function childActionLabel(child: ChildView) {
+  if (child.state?.key === 'draft') return '入力を続ける';
+  if (child.state?.key === 'due' || child.state?.key === 'first') return '確認する';
+  return '子どもページへ';
+}
+
+function ChildCard({ child }: { child: ChildView }) {
+  const assessment = child.latestAssessment;
+  const exercises = assessment
+    ? EXERCISES.filter((exercise) => exercise.core || assessment.unlockExt)
+    : [];
+
+  return (
+    <Link
+      className={`${styles.childCard} ${child.state ? styles[`childCard--${child.state.key}`] : ''}`}
+      to={`/children/${child.id}`}
+    >
+      <div className={styles.childCardTop}>
+        <div className={styles.childIdentity}>
+          <span className={styles.face} aria-hidden="true">{child.name.charAt(0)}</span>
+          <span>
+            <strong>{child.name}<small>{honorificLabel(child.honorific)}</small></strong>
+            <span className={styles.childMeta}>{child.grade.name}（{child.grade.ageHint}）</span>
+          </span>
+        </div>
+        <ChildStatusBadge state={child.state} />
+      </div>
+      <div className={styles.levelChips} aria-label={assessment ? `第${assessment.seqNo}回の入力状況` : 'アセスメント未実施'}>
+        {assessment ? exercises.map((exercise) => {
+          const level = assessment.lv[exercise.key];
+          return (
+            <span className={level === undefined ? styles.levelChipTodo : styles.levelChip} key={exercise.key}>
+              <span aria-hidden="true">{exercise.icon}</span> {level === undefined ? '未入力' : `Lv${level}`}
+            </span>
+          );
+        }) : <span className={styles.cardHint}>初回は基本の3種目から始めます。</span>}
+        {assessment && !assessment.unlockExt ? <span className={styles.levelChipLocked}>4・5種目目は未開放</span> : null}
+      </div>
+      <div className={styles.childCardFooter}>
+        <span>{assessment ? `第${assessment.seqNo}回 ${formatJapaneseDate(assessment.assessedOn)}${assessment.status === 'draft' ? '（入力中）' : ''}` : 'アセスメントはまだありません'}</span>
+        <strong>{childActionLabel(child)} <span aria-hidden="true">›</span></strong>
+      </div>
+    </Link>
+  );
+}
+
+function ChildrenSection({ title, children }: { title: string; children: ChildView[] }) {
+  const headingId = title === 'まずやること' ? 'todo-children' : 'settled-children';
+  return (
+    <section className={styles.listSection} aria-labelledby={headingId}>
+      <div className={styles.sectionTitle}>
+        <h2 id={headingId}>{title}</h2>
+        <span>{children.length}名</span>
+      </div>
+      <div className={styles.childGrid}>
+        {children.map((child) => <ChildCard child={child} key={child.id} />)}
+      </div>
+    </section>
+  );
 }
 
 export function HomePage() {
@@ -25,24 +92,28 @@ export function HomePage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [children, setChildren] = useState<ChildView[]>([]);
   const [archivedChildren, setArchivedChildren] = useState<ChildView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [shareCode, setShareCode] = useState('');
-  const [importMessage, setImportMessage] = useState('');
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [healthState, setHealthState] = useState<HealthState>('idle');
+  const [importing, setImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<ImportFeedback>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  async function loadChildren(archived = false) {
+  const loadChildren = useCallback(async (archived = false) => {
     if (!session) return;
     const response = await apiRequest<unknown>(`/children${archived ? '?archived=1' : ''}`, session);
     const parsed = childrenResponseSchema.safeParse(response);
     if (!parsed.success) throw new Error('お子さま一覧を読み込めませんでした。');
     if (archived) setArchivedChildren(parsed.data.children);
     else setChildren(parsed.data.children);
-  }
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
     let active = true;
+    setLoading(true);
     void apiRequest<MeResponse>('/me', session)
       .then(async (profile) => {
         if (!active) return;
@@ -60,144 +131,159 @@ export function HomePage() {
           navigate('/login', { replace: true });
           return;
         }
-        setProfileError(caught instanceof Error ? caught.message : 'コーチ情報を取得できませんでした。');
+        setPageError(caught instanceof Error ? caught.message : '一覧を取得できませんでした。');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [navigate, session, signOut]);
+  }, [loadChildren, navigate, session, signOut]);
 
   useEffect(() => {
     if (!showArchived || !session) return;
-    void loadChildren(true).catch((caught) => setProfileError(caught instanceof Error ? caught.message : 'アーカイブを取得できませんでした。'));
-  }, [session, showArchived]);
+    setArchivedLoading(true);
+    void loadChildren(true)
+      .catch((caught) => setPageError(caught instanceof Error ? caught.message : 'アーカイブを取得できませんでした。'))
+      .finally(() => setArchivedLoading(false));
+  }, [loadChildren, session, showArchived]);
 
   async function importChild(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session || !shareCode.trim()) return;
-    setImportMessage('取り込み中…');
+    if (!session || shareCode.length !== 9) return;
+    setImporting(true);
+    setImportFeedback(null);
     try {
       await apiRequest('/children/import', session, {
         method: 'POST',
         body: JSON.stringify({ code: shareCode }),
       });
       setShareCode('');
-      setImportMessage('お子さまを一覧に追加しました。');
+      setImportFeedback({ kind: 'success', message: 'お子さまを担当一覧に追加しました。' });
       await loadChildren();
     } catch (caught) {
-      setImportMessage(caught instanceof Error ? caught.message : '共有コードを確認してください。');
+      setImportFeedback({
+        kind: 'error',
+        message: caught instanceof Error ? caught.message : '共有コードを確認してください。',
+      });
+    } finally {
+      setImporting(false);
     }
   }
 
   async function restoreArchived(childId: string) {
     if (!session) return;
+    setPageError(null);
     try {
       await apiRequest(`/children/${childId}/unarchive`, session, { method: 'POST' });
       await Promise.all([loadChildren(), loadChildren(true)]);
     } catch (caught) {
-      setProfileError(caught instanceof Error ? caught.message : '復元に失敗しました。');
+      setPageError(caught instanceof Error ? caught.message : '復元に失敗しました。');
     }
   }
 
-  async function checkApiHealth() {
-    setHealthState('checking');
-    try {
-      const response = await fetch('/api/health');
-      setHealthState(response.ok ? 'ok' : 'error');
-    } catch {
-      setHealthState('error');
-    }
-  }
-
-  const statusMessage = {
-    idle: 'まだ接続確認をしていません。',
-    checking: 'API に接続しています。',
-    ok: 'API に接続できました。',
-    error: 'API に接続できませんでした。起動状態を確認してください。',
-  }[healthState];
+  const todoChildren = children.filter((child) => (child.state?.order ?? 2) < 2);
+  const settledChildren = children.filter((child) => (child.state?.order ?? 2) >= 2);
 
   return (
     <div className={styles.app}>
-      <header className={styles.topbar}>
-        <div className={styles.topbarInner}>
-          <div className={styles.brand}>
-            <span className={styles.mark} aria-hidden="true">育</span>
-            <span>へやすぽ 育ちマップ</span>
+      <AppHeader breadcrumbs={[{ label: '担当の子ども' }]} coachName={me?.displayName} />
+      <main className={styles.main}>
+        <div className={styles.pageHead}>
+          <div>
+            <p className={styles.eyebrow}>アセスメント・レポート</p>
+            <h1>担当の子ども</h1>
+            <p>{formatJapaneseDate(todayInJst())}の状況です。まず必要な記録から確認しましょう。</p>
           </div>
-          <div className={styles.account}>
-            <span>{me?.displayName ?? '読み込み中…'}</span>
-            <Link className={styles.accountLink} to="/children/new">＋ 新しいお子さまを登録</Link>
-            <button type="button" onClick={() => void signOut()}>ログアウト</button>
+          <div className={styles.pageActions}>
+            <button className={styles.secondaryButton} type="button" aria-expanded={showImport} onClick={() => setShowImport((current) => !current)}>
+              共有コードで取り込む
+            </button>
+            <Link className={styles.primaryButton} to="/children/new">＋ 新しいお子さまを登録</Link>
           </div>
         </div>
-      </header>
 
-      <main className={styles.main}>
-        <section className={styles.card} aria-labelledby="welcome-title">
-          <p className={styles.eyebrow}>アセスメント・レポートツール</p>
-          <h1 id="welcome-title">コーチの記録を、保護者への次の一歩へ。</h1>
-          <p className={styles.description}>子どもの現在地を見渡し、次の3か月のレッスンにつなげます。</p>
-          {profileError ? <p className={styles.error} role="alert">{profileError}</p> : null}
-
-          {children.length ? (
-            <div className={styles.childList} aria-label="担当のお子さま">
-              {children.map((child) => (
-                <Link className={styles.childCard} key={child.id} to={`/children/${child.id}`}>
-                  <span>
-                    <strong>{child.name}{honorificLabel(child.honorific)}</strong>
-                    <small>{child.grade.name}（{child.grade.ageHint}）</small>
-                  </span>
-                  <span className={styles.childState}>{stateLabel(child)}</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.emptyState}>
-              <p>担当のお子さまはまだ登録されていません。</p>
-              <Link className={styles.primaryButton} to="/children/new">最初のお子さまを登録する</Link>
-            </div>
-          )}
-
+        {showImport ? (
           <section className={styles.importPanel} aria-labelledby="import-title">
-            <h2 id="import-title">共有コードで取り込む</h2>
-            <p>別のコーチから受け取ったコードを入力してください。</p>
+            <div>
+              <h2 id="import-title">共有コードで担当に追加</h2>
+              <p>別のコーチから受け取った8文字のコードを入力してください。</p>
+            </div>
             <form className={styles.importForm} onSubmit={(event) => void importChild(event)}>
-              <input value={shareCode} onChange={(event) => setShareCode(event.target.value)} placeholder="XXXX-XXXX" aria-label="共有コード" />
-              <button className={styles.primaryButton} type="submit" disabled={!shareCode.trim()}>取り込む</button>
+              <label htmlFor="share-code">共有コード</label>
+              <div>
+                <input
+                  id="share-code"
+                  value={shareCode}
+                  onChange={(event) => setShareCode(formatShareCodeInput(event.target.value))}
+                  placeholder="XXXX-XXXX"
+                  autoComplete="off"
+                  inputMode="text"
+                />
+                <button className={styles.primaryButton} type="submit" disabled={shareCode.length !== 9 || importing}>
+                  {importing ? '取り込み中…' : '取り込む'}
+                </button>
+              </div>
             </form>
-            {importMessage ? <p className={styles.formMessage} role="status">{importMessage}</p> : null}
-          </section>
-
-          <section className={styles.archiveSection} aria-labelledby="archive-title">
-            <button className={styles.archiveToggle} type="button" onClick={() => setShowArchived((current) => !current)} aria-expanded={showArchived}>
-              {showArchived ? '▾' : '▸'} アーカイブ済みを表示
-            </button>
-            {showArchived ? (
-              archivedChildren.length ? (
-                <div className={styles.childList} id="archive-title">
-                  {archivedChildren.map((child) => (
-                    <div className={styles.archivedCard} key={child.id}>
-                      <Link className={styles.childCard} to={`/children/${child.id}`}>
-                        <span><strong>{child.name}{honorificLabel(child.honorific)}</strong><small>{child.grade.name}</small></span>
-                        <span className={styles.childState}>アーカイブ中</span>
-                      </Link>
-                      {child.role === 'owner' ? <button className={styles.restoreButton} type="button" onClick={() => void restoreArchived(child.id)}>復元</button> : null}
-                    </div>
-                  ))}
-                </div>
-              ) : <p className={styles.muted}>アーカイブ済みのお子さまはいません。</p>
+            {importFeedback ? (
+              <p className={importFeedback.kind === 'error' ? styles.error : styles.success} role={importFeedback.kind === 'error' ? 'alert' : 'status'}>
+                {importFeedback.message}
+              </p>
             ) : null}
           </section>
+        ) : null}
 
-          <div className={styles.actions}>
-            <button className={styles.primaryButton} type="button" onClick={() => void checkApiHealth()} disabled={healthState === 'checking'}>
-              {healthState === 'checking' ? '確認中…' : 'API 接続を確認'}
-            </button>
+        {pageError ? (
+          <div className={styles.errorBanner} role="alert">
+            <p>{pageError}</p>
+            <button type="button" onClick={() => window.location.reload()}>もう一度読み込む</button>
           </div>
-          <p className={styles.status} role="status" aria-live="polite">
-            <span className={`${styles.statusDot} ${styles[`statusDot--${healthState}`]}`} aria-hidden="true" />
-            {statusMessage}
-          </p>
+        ) : null}
+
+        {loading ? (
+          <div className={styles.loadingGrid} aria-label="担当のお子さまを読み込み中" aria-live="polite">
+            <div /><div /><div />
+          </div>
+        ) : children.length ? (
+          <>
+            {todoChildren.length ? <ChildrenSection title="まずやること" children={todoChildren} /> : (
+              <section className={styles.allDone}>
+                <strong>いま対応が必要な記録はありません</strong>
+                <p>次回予定が近づくと、ここに表示されます。</p>
+              </section>
+            )}
+            {settledChildren.length ? <ChildrenSection title="次の予定まで余裕あり" children={settledChildren} /> : null}
+          </>
+        ) : (
+          <section className={styles.emptyState}>
+            <span className={styles.emptyIcon} aria-hidden="true">🧭</span>
+            <h2>最初のお子さまを登録しましょう</h2>
+            <p>登録後、そのまま初回アセスメントを始められます。</p>
+            <Link className={styles.primaryButton} to="/children/new">お子さまを登録する</Link>
+          </section>
+        )}
+
+        <section className={styles.archiveSection} aria-labelledby="archive-heading">
+          <button className={styles.archiveToggle} type="button" onClick={() => setShowArchived((current) => !current)} aria-expanded={showArchived}>
+            <span aria-hidden="true">{showArchived ? '▾' : '▸'}</span>
+            <span id="archive-heading">アーカイブした子ども{showArchived && !archivedLoading ? `（${archivedChildren.length}名）` : ''}</span>
+          </button>
+          {showArchived ? (
+            archivedLoading ? <p className={styles.muted}>読み込み中…</p> : archivedChildren.length ? (
+              <div className={styles.archivedList}>
+                {archivedChildren.map((child) => (
+                  <div className={styles.archivedCard} key={child.id}>
+                    <Link to={`/children/${child.id}`}>
+                      <strong>{child.name}{honorificLabel(child.honorific)}</strong>
+                      <span>{child.grade.name}・アーカイブ中</span>
+                    </Link>
+                    {child.role === 'owner' ? <button type="button" onClick={() => void restoreArchived(child.id)}>復元</button> : <span>オーナーのみ復元できます</span>}
+                  </div>
+                ))}
+              </div>
+            ) : <p className={styles.muted}>アーカイブしたお子さまはいません。</p>
+          ) : null}
         </section>
       </main>
     </div>

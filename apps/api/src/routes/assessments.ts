@@ -1,11 +1,13 @@
 import {
   assessmentCompleteRequestSchema,
   assessmentPatchRequestSchema,
+  assessmentResponseSchema,
+  reportResponseSchema,
 } from '@papamo/shared';
 import { Hono } from 'hono';
 
 import type { AppContext, AppVariables, Env } from '../env';
-import { jsonError } from '../http/errors';
+import { internalError, jsonError } from '../http/errors';
 import {
   AssessmentServiceError,
   completeAssessment,
@@ -22,16 +24,16 @@ export const assessmentsRoutes = new Hono<{
 
 function serviceError(context: AppContext, caught: unknown) {
   if (caught instanceof AssessmentServiceError) {
-    const status = caught.code === 'not_found' ? 404 : caught.code === 'validation' ? 400 : 409;
+    const status = caught.code === 'not_found' ? 404 : caught.code === 'forbidden' ? 403 : caught.code === 'validation' ? 400 : 409;
     return jsonError(context, caught.code, caught.message, status);
   }
-  return jsonError(context, 'internal', 'アセスメントを処理できませんでした。', 500);
+  return internalError(context, caught, 'assessment.request', 'アセスメントを処理できませんでした。');
 }
 
 assessmentsRoutes.get('/:id', async (context) => {
   try {
     const assessment = await getAssessment(context.env, context.req.param('id'), context.get('coach').id);
-    return context.json({ assessment });
+    return context.json(assessmentResponseSchema.parse({ assessment }));
   } catch (caught) {
     return serviceError(context, caught);
   }
@@ -50,7 +52,7 @@ assessmentsRoutes.patch('/:id', async (context) => {
   }
   try {
     const assessment = await patchAssessment(context.env, context.req.param('id'), context.get('coach').id, parsed.data);
-    return context.json({ assessment });
+    return context.json(assessmentResponseSchema.parse({ assessment }));
   } catch (caught) {
     return serviceError(context, caught);
   }
@@ -85,7 +87,7 @@ assessmentsRoutes.post('/:id/complete', async (context) => {
       context.get('coach'),
       parsed.data.updatedAt,
     );
-    return context.json({ report });
+    return context.json(reportResponseSchema.parse({ report }));
   } catch (caught) {
     return serviceError(context, caught);
   }
@@ -94,7 +96,7 @@ assessmentsRoutes.post('/:id/complete', async (context) => {
 assessmentsRoutes.get('/:id/report', async (context) => {
   try {
     const report = await getReport(context.env, context.req.param('id'), context.get('coach').id);
-    return context.json({ report });
+    return context.json(reportResponseSchema.parse({ report }));
   } catch (caught) {
     return serviceError(context, caught);
   }

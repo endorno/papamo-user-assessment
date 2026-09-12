@@ -1,6 +1,6 @@
 name = "papamo-user-assessment"
 main = "src/index.ts"
-compatibility_date = "2026-09-01"
+compatibility_date = "2026-09-12"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
@@ -20,3 +20,14 @@ SUPABASE_URL = "http://127.0.0.1:54321"
 SUPABASE_JWT_ISSUER = "http://127.0.0.1:54321/auth/v1"
 SUPABASE_JWT_AUDIENCE = "authenticated"
 REPORT_GENERATOR = "rule_v1"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.1

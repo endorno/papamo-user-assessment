@@ -29,6 +29,7 @@ export const reportContentSchema = z.object({
     honorific: z.enum(['kun', 'chan', 'san']),
     grade: z.string(),
     ageHint: z.string(),
+    joinedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     seqNo: z.number().int().positive(),
     assessedOn: z.string(),
     prevAssessedOn: z.string().optional(),
@@ -49,4 +50,8 @@ export const reportContentSchema = z.object({
     strategies: z.array(z.object({ key: exerciseKeySchema, lv: z.number().int(), band: z.string(), nextLv: z.number().int(), nextLabel: z.string(), errs: z.array(z.string()) })),
     memo: z.string(),
   }),
+});
+
+export const reportResponseSchema = z.object({
+  report: reportContentSchema,
 });

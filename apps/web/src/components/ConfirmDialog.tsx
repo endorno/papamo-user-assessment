@@ -17,29 +17,33 @@ export function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    cancelButtonRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onCancel, open]);
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
 
-  if (!open) return null;
   return (
-    <div className={styles.confirmBackdrop}>
-      <div className={styles.confirmDialog} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <dialog
+      ref={dialogRef}
+      className={styles.confirmDialog}
+      aria-labelledby="confirm-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onCancel();
+      }}
+    >
+      <form method="dialog">
         <h2 id="confirm-title">{title}</h2>
         <p>{message}</p>
         <div className={styles.inlineActions}>
-          <button ref={cancelButtonRef} className={styles.secondaryButton} type="button" onClick={onCancel}>キャンセル</button>
+          <button className={styles.secondaryButton} type="button" onClick={onCancel}>キャンセル</button>
           <button className={styles.dangerButton} type="button" onClick={onConfirm}>{confirmLabel}</button>
         </div>
-      </div>
-    </div>
+      </form>
+    </dialog>
   );
 }
