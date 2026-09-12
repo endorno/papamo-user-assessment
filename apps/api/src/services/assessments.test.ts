@@ -257,4 +257,39 @@ describe('アセスメントサービス', () => {
     expect(revisions?.report_revision).toBe(revisions?.assessment_revision);
     expect(edited.status).toBe('done');
   });
+
+  it('下書きの間は4・5種目目の開放を取り消し、入力済みのLvも落とす', async () => {
+    const { coach, child } = await createFixture('かえで');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, true);
+    const unlocked = await patchAssessment(testEnv, assessment.id, coach.id, {
+      unlockExt: true,
+      data: { lv: { post: 3, sacc: 6, inhi: 7 }, errs: { sacc: ['見本と足の位置が違う'] } },
+      updatedAt: assessment.updatedAt,
+    });
+    expect(unlocked.unlockExt).toBe(true);
+
+    const closed = await patchAssessment(testEnv, assessment.id, coach.id, {
+      unlockExt: false,
+      data: { lv: { post: 3, sacc: 6, inhi: 7 }, errs: { sacc: ['見本と足の位置が違う'] } },
+      updatedAt: unlocked.updatedAt,
+    });
+    expect(closed.unlockExt).toBe(false);
+    expect(closed.data.lv).toEqual({ post: 3 });
+    expect(closed.data.errs.sacc).toBeUndefined();
+  });
+
+  it('子どもが開放済みなら下書きでも4・5種目目を閉じられない', async () => {
+    const { coach, child } = await createFixture('そら');
+    const first = await createAssessment(testEnv, child.id, coach.id, true);
+    const saved = await saveCompletedInput(coach, first, true);
+    await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
+
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    const patched = await patchAssessment(testEnv, second.id, coach.id, {
+      unlockExt: false,
+      data: { lv: { post: 1 } },
+      updatedAt: second.updatedAt,
+    });
+    expect(patched.unlockExt).toBe(true);
+  });
 });

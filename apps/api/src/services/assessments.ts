@@ -247,6 +247,29 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
   };
 }
 
+// 子ども単位で開放済みなら常に5種目。下書きの間だけコーチが開放を取り消せる。
+function nextUnlockExt(
+  child: typeof children.$inferSelect,
+  assessment: typeof assessments.$inferSelect,
+  requested: boolean | undefined,
+): boolean {
+  if (child.extUnlocked) return true;
+  if (assessment.status === 'draft') return requested ?? assessment.unlockExt;
+  return assessment.unlockExt || Boolean(requested);
+}
+
+// 開放を取り消したときに4・5種目目の入力が残っていると完了検証と食い違うため落とす。
+function withoutClosedExtData(data: AssessmentData, unlockExt: boolean): AssessmentData {
+  if (unlockExt) return data;
+  const lv = { ...data.lv };
+  const errs = { ...data.errs };
+  for (const key of EXT_EXERCISE_KEYS) {
+    delete lv[key];
+    delete errs[key];
+  }
+  return { ...data, lv, errs };
+}
+
 export async function patchAssessment(
   env: Env,
   assessmentId: string,
@@ -257,8 +280,11 @@ export async function patchAssessment(
   const child = await ensureWritable(env, assessment, coachId);
   if (assessment.updatedAt !== input.updatedAt) throw concurrentUpdateError();
   const editableData = assessmentDataPatchSchema.parse(input.data);
-  const draftData = assessmentDataDraftSchema.parse({ ...editableData, goals: [] });
-  const nextUnlock = child.extUnlocked || input.unlockExt || assessment.unlockExt;
+  const nextUnlock = nextUnlockExt(child, assessment, input.unlockExt);
+  const draftData = withoutClosedExtData(
+    assessmentDataDraftSchema.parse({ ...editableData, goals: [] }),
+    nextUnlock,
+  );
   const updatedAt = nextUpdatedAt(assessment.updatedAt);
   const mutationId = ulid();
   const db = dbFor(env);
