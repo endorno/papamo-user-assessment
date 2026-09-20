@@ -6,6 +6,7 @@ import { apiRequest, ApiClientError, setUnauthorizedHandler } from './api/client
 import { MeProvider, useMe } from './app/MeContext';
 import { UnsavedChangesProvider } from './app/UnsavedChangesContext';
 import { SupabaseAuthProvider, useAuth } from './auth/SupabaseAuthProvider';
+import { AuthErrorNotice } from './components/AuthErrorNotice';
 import { PageSkeleton } from './components/PageSkeleton';
 import { ToastProvider } from './components/Toast';
 
@@ -57,25 +58,31 @@ function AuthenticatedLayout() {
   const location = useLocation();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<ApiClientError | null>(null);
+  const [meRetryKey, setMeRetryKey] = useState(0);
   const returnToChecked = useRef(false);
 
-  const signOutAndReturnLater = useCallback(() => {
+  const loginAgain = useCallback(() => {
     rememberReturnTo(`${window.location.pathname}${window.location.search}`);
     void signOut().then(() => navigate('/login', { replace: true }));
   }, [navigate, signOut]);
 
   useEffect(() => {
-    setUnauthorizedHandler(signOutAndReturnLater);
+    setUnauthorizedHandler(setAuthError);
     return () => setUnauthorizedHandler(null);
-  }, [signOutAndReturnLater]);
+  }, []);
 
   useEffect(() => {
     if (!session) return;
     let active = true;
     setLoadError(null);
+    setAuthError(null);
     void apiRequest<MeResponse>('/me', session)
       .then((profile) => {
-        if (active) setMe(profile);
+        if (active) {
+          setMe(profile);
+          setAuthError(null);
+        }
       })
       .catch((caught: unknown) => {
         if (!active || (caught instanceof ApiClientError && caught.status === 401)) return;
@@ -84,7 +91,7 @@ function AuthenticatedLayout() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [meRetryKey, session]);
 
   // 再ログイン直後だけ、中断した画面へ戻す。
   useEffect(() => {
@@ -96,6 +103,19 @@ function AuthenticatedLayout() {
 
   if (loading) return <PageSkeleton label="ログイン状態を確認しています" />;
   if (!session) return <Navigate to="/login" replace />;
+  if (authError && !me) {
+    return (
+      <AuthErrorNotice
+        error={authError}
+        fullPage
+        onRetry={() => {
+          setAuthError(null);
+          setMeRetryKey((current) => current + 1);
+        }}
+        onLoginAgain={loginAgain}
+      />
+    );
+  }
   if (loadError) {
     return (
       <main className="bootError" role="alert">
@@ -111,6 +131,16 @@ function AuthenticatedLayout() {
       <ToastProvider>
         <UnsavedChangesProvider>
           <ScrollToTop />
+          {authError ? (
+            <AuthErrorNotice
+              error={authError}
+              onRetry={() => {
+                setAuthError(null);
+                setMeRetryKey((current) => current + 1);
+              }}
+              onLoginAgain={loginAgain}
+            />
+          ) : null}
           <Suspense fallback={<PageSkeleton />}>
             <Outlet />
           </Suspense>

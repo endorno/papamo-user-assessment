@@ -171,4 +171,56 @@ describe('担当の子ども一覧', () => {
     const todo = await screen.findByRole('region', { name: 'まずやること' });
     expect(within(todo).getByRole('link')).toHaveAttribute('href', '/assessments/assessment-1');
   });
+
+  it('本番相当で開発用APIが使えないときはサンプル操作を表示しない', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/dev-tools/sample-data')) {
+        return response({ error: { code: 'not_found', message: '指定された API は見つかりません。' } }, 404);
+      }
+      return response({ children: [draftChild, settledChild] });
+    }));
+
+    renderHomePage();
+    await screen.findByText('そうた');
+    expect(screen.queryByText('開発用：サンプルデータ')).not.toBeInTheDocument();
+  });
+
+  it('開発環境では10名を7・2・1の履歴構成で最大3件ずつ生成する', async () => {
+    const profiles: string[] = [];
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/dev-tools/sample-data')) {
+        return response({
+          enabled: true,
+          ready: true,
+          backgroundCoachCount: 15,
+          presets: [1, 10, 30],
+        });
+      }
+      if (url.endsWith('/api/dev-tools/sample-child')) {
+        const profile = JSON.parse(String(init?.body)).profile as string;
+        profiles.push(profile);
+        activeRequests += 1;
+        maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+        await Promise.resolve();
+        activeRequests -= 1;
+        return response({ childId: `sample-${profiles.length}`, profile }, 201);
+      }
+      return response({ children: [draftChild, settledChild] });
+    }));
+
+    renderHomePage();
+    fireEvent.click(await screen.findByText('開発用：サンプルデータ'));
+    fireEvent.click(screen.getByRole('button', { name: '10名追加' }));
+    fireEvent.click(screen.getByRole('button', { name: '追加する' }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('10名のサンプルを追加しました'));
+    expect(profiles.filter((profile) => profile === 'long')).toHaveLength(7);
+    expect(profiles.filter((profile) => profile === 'short')).toHaveLength(2);
+    expect(profiles.filter((profile) => profile === 'new')).toHaveLength(1);
+    expect(maxActiveRequests).toBeLessThanOrEqual(3);
+  });
 });

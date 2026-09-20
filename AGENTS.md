@@ -183,17 +183,17 @@ web 側（`apps/web/.env.local`）：`VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_K
 
 ```bash
 # apps/api/.dev.vars（コミットしない。.dev.vars.example を同じ内容で置く）
-SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1
+SUPABASE_URL=http://127.0.0.1:15421
+SUPABASE_JWT_ISSUER=http://127.0.0.1:15421/auth/v1
 SUPABASE_JWT_AUDIENCE=authenticated
 REPORT_GENERATOR=rule_v1
 
 # apps/web/.env.local
-VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_URL=http://127.0.0.1:15421
 VITE_SUPABASE_ANON_KEY=...   # reference/papamo-lesson-admin/.env.local の同名の値を流用
 ```
 
-- ローカルの JWKS は `http://127.0.0.1:54321/auth/v1/.well-known/jwks.json`。**ES256 の鍵が返ることを確認済み**（2026-09-12）。
+- ローカルの JWKS は `http://127.0.0.1:15421/auth/v1/.well-known/jwks.json`。**ES256 の鍵が返ることを確認済み**（2026-09-12）。
 - D1 のバインディング名は `DB`、`database_name` は `papamo-user-assessment`。ローカルは `wrangler dev` が `.wrangler/` 配下に自動で作る。
 - 動作環境：Node 24 / pnpm 10.33 / wrangler 4 で確認。`engines.node` は `>=22`。依存のバージョンは初回 install 時に最新安定版で解決し、**lockfile をコミットする**。
 
@@ -527,7 +527,7 @@ REPORT_GENERATOR = "rule_v1"
 
 **確認済み**
 
-- **JWT 署名鍵**：ローカル Supabase（`http://127.0.0.1:54321`）で非対称鍵が有効。`/auth/v1/.well-known/jwks.json` が ES256 の鍵を返すことを確認済み（2026-09-12）。
+- **JWT 署名鍵**：ローカル Supabase（`http://127.0.0.1:15421`）で非対称鍵が有効。`/auth/v1/.well-known/jwks.json` が ES256 の鍵を返すことを確認済み（2026-09-12）。
 - **Google OAuth のリダイレクト設定**：ローカルは設定済み。
 
 **本番環境で確認が必要なこと（ローカル実装が終わってから）**

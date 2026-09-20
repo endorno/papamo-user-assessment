@@ -40,6 +40,8 @@ Google でログイン後、初回だけコーチ表示名を登録します。�
 
 API は `apps/api/.dev.vars.example` を `.dev.vars` にコピーし、Web は `apps/web/.env.local.example` を `.env.local` にコピーしてから起動します。Supabase のローカル環境は lesson-admin と共有します。
 
+Supabase の URL やポートを変更したときは、API と Web の両方を停止してから再起動してください。ローカルでは Web の `VITE_SUPABASE_URL`、API の `SUPABASE_URL`、`SUPABASE_JWT_ISSUER` が同じ Supabase（現在は `http://127.0.0.1:15421`）を指している必要があります。ログイン後に 401 が表示された場合は、API の設定を確認して再起動してください。
+
 ```bash
 pnpm --filter @papamo/api dev
 pnpm --filter @papamo/web dev
@@ -48,6 +50,49 @@ pnpm --filter @papamo/api types:worker
 ```
 
 `wrangler.toml` のBindingを変更した場合は `types:worker` を実行し、生成された `worker-configuration.d.ts` も更新します。
+
+### 大量データでの動作確認
+
+開発環境では、ログイン中のコーチに対して一覧画面下部の「開発用：サンプルデータ」から1名・10名・30名を追加できます。10名ごとの内訳は次のとおりです。
+
+- 7名: 完了アセスメント12回（約3年分）と各回のレポート
+- 2名: 完了アセスメント1〜4回と各回のレポート
+- 1名: アセスメント未作成、または入力途中の下書き1回
+
+一部の子どもには4・5種目目の開放や背景コーチとの担当紐づきも入ります。30名追加を2回実行すると、60名・500件以上のアセスメント／レポートを持つ一覧を確認できます。
+
+初回とデータを作り直したいときは、ローカルD1へマイグレーションを適用してからシードを実行します。
+
+```bash
+pnpm --filter @papamo/api db:migrate:local
+pnpm --filter @papamo/api db:seed:local
+```
+
+`db:seed:local` はローカルD1の子ども、担当紐づき、アセスメント、レポートをすべて削除します。実際のログインで作られたコーチ行と表示名は残し、ログイン不能な背景コーチ15名だけを作り直します。背景コーチは一覧規模・担当関係の確認用であり、Googleログイン用アカウントではありません。
+
+共有コードの取り込みとオーナー移譲は、実在する2つのGoogleテストアカウントを別々のブラウザプロファイルで同時にログインして確認します。
+
+1. プロファイルAで子どもを開き、通常の共有コードをコピーする
+2. プロファイルBで取り込み、双方から同じ記録が見えることを確認する
+3. プロファイルAでオーナー移譲コードをコピーし、プロファイルBで取り込む
+4. プロファイルBがオーナー、プロファイルAがメンバーになり、Aだけリンク解除できることを確認する
+
+本リポジトリはなりすまし機能やSupabaseのservice role key／Admin Auth APIを使いません。
+
+### ステージング環境
+
+ステージングは本番とは別のWorker、D1、Supabaseプロジェクトを使います。`apps/api/wrangler.toml` の `env.staging` にあるD1 IDとSupabase URLのプレースホルダーを、作成したステージング資源の値へ置き換えてください。許可するGoogleアカウントはカンマ区切りでWorker Secretへ登録します。
+
+```bash
+pnpm --filter @papamo/api exec wrangler secret put STAGING_ALLOWED_EMAILS --env staging
+pnpm --filter @papamo/api exec wrangler d1 migrations apply DB --env staging --remote
+pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
+pnpm --filter @papamo/api exec wrangler deploy --env staging
+```
+
+許可リストはメールアドレスの大文字・小文字を区別しません。ステージングで値が空、またはログインメールが含まれない場合は403として拒否します。ステージングのシードも子ども関連データを全削除し、実コーチの表示名を保ったまま背景コーチ15名を再作成します。
+
+本番は `APP_ENV=production` かつ `NON_PRODUCTION_TOOLS_ENABLED=false` です。開発用UIは表示されず、認証済みで開発用APIを呼んでも404を返します。環境名と有効化フラグの両方を満たさない限り、生成機能は有効になりません。
 
 ### 実装状況
 

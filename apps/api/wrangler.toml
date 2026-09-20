@@ -16,10 +16,35 @@ database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [vars]
-SUPABASE_URL = "http://127.0.0.1:54321"
-SUPABASE_JWT_ISSUER = "http://127.0.0.1:54321/auth/v1"
+SUPABASE_URL = "http://127.0.0.1:15421"
+SUPABASE_JWT_ISSUER = "http://127.0.0.1:15421/auth/v1"
 SUPABASE_JWT_AUDIENCE = "authenticated"
 REPORT_GENERATOR = "rule_v1"
+APP_ENV = "production"
+NON_PRODUCTION_TOOLS_ENABLED = "false"
+STAGING_ALLOWED_EMAILS = ""
+
+[env.staging]
+name = "papamo-user-assessment-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "papamo-user-assessment-staging"
+# ステージング用 D1 を作成したあと、実際の ID に置き換える。
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[env.staging.vars]
+# ステージング専用 Supabase プロジェクトの値に置き換える。
+SUPABASE_URL = "https://staging-project-ref.supabase.co"
+SUPABASE_JWT_ISSUER = "https://staging-project-ref.supabase.co/auth/v1"
+SUPABASE_JWT_AUDIENCE = "authenticated"
+REPORT_GENERATOR = "rule_v1"
+APP_ENV = "staging"
+NON_PRODUCTION_TOOLS_ENABLED = "true"
+
+[env.staging.secrets]
+required = ["STAGING_ALLOWED_EMAILS"]
 
 [observability]
 enabled = true

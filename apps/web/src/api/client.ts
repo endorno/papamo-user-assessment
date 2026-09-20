@@ -20,10 +20,10 @@ export class ApiClientError extends Error {
   }
 }
 
-let unauthorizedHandler: (() => void) | null = null;
+let unauthorizedHandler: ((error: ApiClientError) => void) | null = null;
 
-/** セッション切れの扱いを1か所にまとめる。レイアウトから登録する。 */
-export function setUnauthorizedHandler(handler: (() => void) | null) {
+/** 401 の扱いを1か所にまとめる。レイアウトから登録する。 */
+export function setUnauthorizedHandler(handler: ((error: ApiClientError) => void) | null) {
   unauthorizedHandler = handler;
 }
 
@@ -46,14 +46,15 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined;
-    if (response.status === 401) {
-      unauthorizedHandler?.();
-    }
-    throw new ApiClientError(
+    const apiError = new ApiClientError(
       error?.message ?? '通信に失敗しました。もう一度お試しください。',
       response.status,
       error?.code ?? null,
     );
+    if (response.status === 401) {
+      unauthorizedHandler?.(apiError);
+    }
+    throw apiError;
   }
 
   return body as T;

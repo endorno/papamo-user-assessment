@@ -5,6 +5,7 @@ import { ulid } from 'ulid';
 import {
   assessmentDataDraftSchema,
   formatShareCode,
+  generateShareCode,
   gradeAt,
   normalizeShareCode,
   reportContentSchema,
@@ -209,8 +210,7 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
 function newShareCode(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('');
+  return generateShareCode(bytes);
 }
 
 export async function createChild(env: Env, coachId: string, input: ChildCreateRequest) {

@@ -5,19 +5,43 @@ import {
   childImportResponseSchema,
   childrenResponseSchema,
   EXERCISES,
+  sampleChildCreateResponseSchema,
+  sampleDataStatusResponseSchema,
   todayInJst,
   type ChildView,
+  type SampleDataProfile,
+  type SampleDataStatusResponse,
 } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../App.module.css';
 
 /** これ以上増えると目で探すのが辛くなるので、しぼり込みを出す。 */
 const FILTER_THRESHOLD = 8;
+const SAMPLE_PROFILE_CYCLE: SampleDataProfile[] = [
+  'long', 'long', 'long', 'long', 'long', 'long', 'long',
+  'short', 'short', 'new',
+];
+const SAMPLE_CREATE_CONCURRENCY = 3;
+
+function randomSampleProfile(): SampleDataProfile {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  const percentage = (value[0] ?? 0) % 10;
+  if (percentage < 7) return 'long';
+  if (percentage < 9) return 'short';
+  return 'new';
+}
+
+function sampleProfiles(count: number): SampleDataProfile[] {
+  if (count === 1) return [randomSampleProfile()];
+  return Array.from({ length: count }, (_, index) => SAMPLE_PROFILE_CYCLE[index % SAMPLE_PROFILE_CYCLE.length]!);
+}
 
 function formatShareCodeInput(value: string) {
   const normalized = value
@@ -126,6 +150,11 @@ export function HomePage() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [pageError, setPageError] = useState<string | null>(null);
+  const [sampleDataStatus, setSampleDataStatus] = useState<SampleDataStatusResponse | null>(null);
+  const [sampleCount, setSampleCount] = useState<number | null>(null);
+  const [sampleProgress, setSampleProgress] = useState({ completed: 0, total: 0, failed: 0 });
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  const [generatingSamples, setGeneratingSamples] = useState(false);
 
   const loadChildren = useCallback(async (archived = false) => {
     if (!session) return;
@@ -151,6 +180,22 @@ export function HomePage() {
       active = false;
     };
   }, [loadChildren, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    void apiRequest<unknown>('/dev-tools/sample-data', session)
+      .then((response) => {
+        const parsed = sampleDataStatusResponseSchema.safeParse(response);
+        if (active && parsed.success) setSampleDataStatus(parsed.data);
+      })
+      .catch(() => {
+        // 本番の404を含め、機能が無効な環境では何も表示しない。
+      });
+    return () => {
+      active = false;
+    };
+  }, [session]);
 
   useEffect(() => {
     if (!showArchived || !session) return;
@@ -201,6 +246,58 @@ export function HomePage() {
       await Promise.all([loadChildren(), loadChildren(true)]);
     } catch (caught) {
       setPageError(caught instanceof Error ? caught.message : '復元に失敗しました。');
+    }
+  }
+
+  async function createSampleChildren() {
+    if (!session || !sampleCount || generatingSamples) return;
+
+    const currentSession = session;
+    const profiles = sampleProfiles(sampleCount);
+    let nextIndex = 0;
+    let completed = 0;
+    let failed = 0;
+    setGeneratingSamples(true);
+    setSampleError(null);
+    setSampleProgress({ completed: 0, total: profiles.length, failed: 0 });
+
+    async function worker() {
+      while (nextIndex < profiles.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const profile = profiles[index]!;
+        try {
+          const response = await apiRequest<unknown>('/dev-tools/sample-child', currentSession, {
+            method: 'POST',
+            body: JSON.stringify({ profile }),
+          });
+          if (!sampleChildCreateResponseSchema.safeParse(response).success) {
+            throw new Error('生成結果を読み込めませんでした。');
+          }
+        } catch {
+          failed += 1;
+        } finally {
+          completed += 1;
+          setSampleProgress({ completed, total: profiles.length, failed });
+        }
+      }
+    }
+
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(SAMPLE_CREATE_CONCURRENCY, profiles.length) }, () => worker()),
+      );
+      await loadChildren();
+      const succeeded = profiles.length - failed;
+      if (failed > 0) {
+        setSampleError(`${succeeded}名を追加し、${failed}名は失敗しました。もう一度実行すると追加分だけ増えます。`);
+      }
+      showToast(`${succeeded}名のサンプルを追加しました。`);
+    } catch (caught) {
+      setSampleError(caught instanceof Error ? caught.message : '一覧を更新できませんでした。');
+    } finally {
+      setGeneratingSamples(false);
+      setSampleCount(null);
     }
   }
 
@@ -337,7 +434,61 @@ export function HomePage() {
             ) : <p className={styles.muted}>{archivedChildren.length ? `「${keyword}」に一致するお子さまはいません。` : 'アーカイブしたお子さまはいません。'}</p>
           ) : null}
         </section>
+
+        {sampleDataStatus ? (
+          <details className={styles.devToolsPanel}>
+            <summary>開発用：サンプルデータ</summary>
+            <div className={styles.devToolsContent}>
+              <p>
+                ログイン中のコーチに、架空のお子さまと履歴を追加します。10名につき
+                「3年分×7名・短期×2名・新規×1名」の構成です。
+              </p>
+              {sampleDataStatus.ready ? (
+                <div className={styles.devToolsActions}>
+                  {sampleDataStatus.presets.map((count) => (
+                    <button
+                      className={styles.secondaryButton}
+                      type="button"
+                      disabled={generatingSamples}
+                      onClick={() => {
+                        setSampleError(null);
+                        setSampleCount(count);
+                      }}
+                      key={count}
+                    >
+                      {count}名追加
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.devToolsNotice} role="status">
+                  背景コーチが{sampleDataStatus.backgroundCoachCount}名です。先に
+                  <code>pnpm --filter api db:seed:local</code> を実行してください。
+                </p>
+              )}
+              {generatingSamples ? (
+                <p className={styles.devToolsProgress} role="status" aria-live="polite">
+                  生成中 {sampleProgress.completed}/{sampleProgress.total}
+                  {sampleProgress.failed ? `（失敗 ${sampleProgress.failed}）` : ''}
+                </p>
+              ) : null}
+              {sampleError ? <p className={styles.error} role="alert">{sampleError}</p> : null}
+            </div>
+          </details>
+        ) : null}
       </main>
+      <ConfirmDialog
+        open={sampleCount !== null}
+        title={`${sampleCount ?? 0}名のサンプルを追加しますか？`}
+        message="既存データは削除せず、架空のお子さまとアセスメント履歴を追加します。"
+        confirmLabel="追加する"
+        tone="primary"
+        busy={generatingSamples}
+        detail={generatingSamples ? `生成中 ${sampleProgress.completed}/${sampleProgress.total}` : null}
+        error={sampleError}
+        onCancel={() => setSampleCount(null)}
+        onConfirm={() => void createSampleChildren()}
+      />
     </div>
   );
 }

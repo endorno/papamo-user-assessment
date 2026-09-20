@@ -80,6 +80,7 @@
 .secondaryButton:focus-visible,
 .childCard:focus-visible,
 .archiveToggle:focus-visible,
+.devToolsPanel summary:focus-visible,
 .archivedCard a:focus-visible,
 .archivedCard button:focus-visible,
 .errorBanner button:focus-visible,
@@ -563,4 +564,57 @@
 .childCardHighlight {
   border-color: var(--green);
   box-shadow: 0 0 0 3px var(--green-soft);
+}
+
+/* 本番ではAPIから機能情報が返らないため、このパネル自体を描画しない。 */
+.devToolsPanel {
+  margin-top: 28px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--line2);
+}
+
+.devToolsPanel summary {
+  min-height: 44px;
+  padding: 11px 14px;
+  color: var(--ink2);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.devToolsContent {
+  padding: 0 14px 14px;
+}
+
+.devToolsContent > p {
+  margin: 0 0 12px;
+  color: var(--mute);
+  font-size: 0.86rem;
+}
+
+.devToolsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.devToolsActions .secondaryButton {
+  min-height: 44px;
+  background: var(--card);
+}
+
+.devToolsNotice code {
+  margin-left: 4px;
+  color: var(--ink2);
+}
+
+.devToolsContent > .devToolsProgress {
+  margin-top: 12px;
+  color: var(--green-ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.devToolsContent > .error {
+  margin-top: 12px;
 }

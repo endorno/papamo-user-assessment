@@ -10,6 +10,7 @@ import type { Env, AppVariables } from './env';
 import { updateCoachDisplayName } from './services/coaches';
 import { childrenRoutes } from './routes/children';
 import { assessmentsRoutes } from './routes/assessments';
+import { devToolsRoutes } from './routes/dev-tools';
 
 export function createApi(auth = authMiddleware) {
   const app = new Hono<{
@@ -71,6 +72,7 @@ export function createApi(auth = authMiddleware) {
 
   app.route('/api/children', childrenRoutes);
   app.route('/api/assessments', assessmentsRoutes);
+  app.route('/api/dev-tools', devToolsRoutes);
 
   app.all('/api/*', (context) => {
     return context.json(

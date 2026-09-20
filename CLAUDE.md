@@ -34,6 +34,11 @@
 - 子どもの削除可否は事前SELECTではなく、アセスメント外部キーの `ON DELETE RESTRICT` で競合を含めて保証する。紐づきは `ON DELETE CASCADE` で削除する。
 - WorkersのBinding型は `apps/api/worker-configuration.d.ts` を `wrangler types` で生成し、手書きしない。
 - 内部エラーは構造化JSONで記録する。ログに入力本文や子どもの名前などの個人情報を含めない。
+- 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
+- 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。
+- ステージングは専用Worker・D1・Supabaseを使い、`STAGING_ALLOWED_EMAILS` のアプリ内許可リストを必須にする。service role key、Admin Auth API、コーチなりすましは導入しない。
+- 共有・オーナー移譲の確認には、2つの実Googleテストアカウントを別ブラウザプロファイルで使う。背景コーチはログイン用途に使わない。
+- サンプル10名の内訳は長期7（完了12回）、短期2（完了1〜4回）、新規1（空または下書き）で固定する。Webからの生成リクエストは最大3並列とし、途中失敗した分を隠さない。
 
 ## テスト
 

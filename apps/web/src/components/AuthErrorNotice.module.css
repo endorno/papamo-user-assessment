@@ -1,0 +1,152 @@
+.page,
+.inline {
+  color: var(--ink);
+}
+
+.page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 24px;
+  background: var(--paper);
+}
+
+.inline {
+  width: min(1080px, calc(100% - 40px));
+  margin: 16px auto 0;
+}
+
+.card {
+  width: min(620px, 100%);
+  padding: 28px;
+  border: 1px solid #efc1bb;
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: 0 8px 24px rgb(30 43 39 / 8%);
+}
+
+.inline .card {
+  width: 100%;
+  box-shadow: none;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--red);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.lead {
+  margin: 14px 0 0;
+  color: var(--ink2);
+  text-wrap: pretty;
+}
+
+.help {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: var(--r);
+  background: var(--red-soft);
+}
+
+.help h2 {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 0.95rem;
+}
+
+.help ol {
+  margin: 8px 0 0;
+  padding-left: 1.4rem;
+  color: var(--ink2);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--green);
+  border-radius: var(--r);
+  font: inherit;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: var(--green);
+  color: #fff;
+}
+
+.secondaryButton {
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--green-ink);
+}
+
+.primaryButton:hover {
+  border-color: var(--green-ink);
+  background: var(--green-ink);
+}
+
+.secondaryButton:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.details summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.details {
+  margin-top: 18px;
+  color: var(--ink2);
+  font-size: 0.82rem;
+}
+
+.details summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.details p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .inline {
+    width: min(100% - 24px, 620px);
+  }
+
+  .card {
+    padding: 22px 18px;
+  }
+
+  .actions {
+    display: grid;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}

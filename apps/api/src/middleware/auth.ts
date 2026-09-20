@@ -4,6 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import { internalError, jsonError } from '../http/errors';
 import type { AppVariables, Env } from '../env';
 import { upsertCoach } from '../services/coaches';
+import { stagingEmailAllowed } from '../services/non-production';
 
 const JWKS_CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -74,6 +75,10 @@ export function createAuthMiddleware(tokenVerifier: TokenVerifier = verifyToken)
     const email = typeof payload.email === 'string' ? payload.email : '';
     if (!email) {
       return jsonError(context, 'unauthorized', 'ログイン情報にメールアドレスがありません。', 401);
+    }
+
+    if (!stagingEmailAllowed(context.env, email)) {
+      return jsonError(context, 'forbidden', 'このアカウントはステージング環境を利用できません。', 403);
     }
 
     let coach;
