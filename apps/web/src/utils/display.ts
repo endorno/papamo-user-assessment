@@ -3,7 +3,8 @@ import type { Honorific } from '@papamo/shared';
 export function honorificLabel(honorific: Honorific) {
   if (honorific === 'kun') return 'くん';
   if (honorific === 'chan') return 'ちゃん';
-  return 'さん';
+  if (honorific === 'san') return 'さん';
+  return '';
 }
 
 export function formatJapaneseDate(date: string) {

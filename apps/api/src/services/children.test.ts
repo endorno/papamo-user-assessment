@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { Env } from '../env';
 import {
   createChild,
-  deleteChildIfEmpty,
+  deleteChildBeforeFirstReport,
   getChildForCoach,
   importChild,
   listChildren,
@@ -128,7 +128,7 @@ describe('子ども管理サービス', () => {
     expect((await listChildren(testEnv, ownerId, false)).some(({ id }) => id === child.id)).toBe(true);
   });
 
-  it('アセスメントがない登録だけ完全に削除できる', async () => {
+  it('最初のレポート作成前なら下書きと共有先を含めて完全に削除できる', async () => {
     const coach = await upsertCoach(testEnv, {
       id: crypto.randomUUID(),
       email: `${crypto.randomUUID()}@example.com`,
@@ -140,19 +140,26 @@ describe('子ども管理サービス', () => {
       joinedOn: '2026-09-01',
       goals: [],
     });
-    const assessedChild = await createChild(testEnv, coach.id, {
+    const draftingChild = await createChild(testEnv, coach.id, {
       name: 'なお',
       honorific: 'san',
       gradeCode: 'j1',
       joinedOn: '2026-09-01',
       goals: [],
     });
-    await createAssessment(testEnv, assessedChild.id, coach.id, false);
+    const member = await upsertCoach(testEnv, {
+      id: crypto.randomUUID(),
+      email: `${crypto.randomUUID()}@example.com`,
+    });
+    await importChild(testEnv, member.id, draftingChild.shareCode);
+    const draft = await createAssessment(testEnv, draftingChild.id, coach.id, false);
 
-    expect(await deleteChildIfEmpty(testEnv, emptyChild.id)).toBe(true);
+    expect(await deleteChildBeforeFirstReport(testEnv, emptyChild.id)).toBe(true);
     expect(await getChildForCoach(testEnv, emptyChild.id, coach.id)).toBeNull();
-    expect(await deleteChildIfEmpty(testEnv, assessedChild.id)).toBe(false);
-    expect(await getChildForCoach(testEnv, assessedChild.id, coach.id)).not.toBeNull();
+    expect(await deleteChildBeforeFirstReport(testEnv, draftingChild.id)).toBe(true);
+    expect(await getChildForCoach(testEnv, draftingChild.id, coach.id)).toBeNull();
+    expect(await getChildForCoach(testEnv, draftingChild.id, member.id)).toBeNull();
+    expect(await testEnv.DB.prepare('SELECT id FROM assessments WHERE id = ?').bind(draft.id).first()).toBeNull();
   });
 
   it('一覧に下書きのIDを載せ、期限超過が大きい子どもを先に並べる', async () => {

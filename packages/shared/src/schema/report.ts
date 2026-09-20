@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { exerciseKeySchema, planKeySchema } from './assessment';
+import { exerciseKeySchema, honorificSchema, planKeySchema } from './assessment';
 
 const ppiSchema = z.object({
   time: z.number().int().min(0).max(5),
@@ -26,7 +26,7 @@ export const reportContentSchema = z.object({
   generatedAt: z.string().datetime(),
   header: z.object({
     childName: z.string(),
-    honorific: z.enum(['kun', 'chan', 'san']),
+    honorific: honorificSchema,
     grade: z.string(),
     ageHint: z.string(),
     joinedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

@@ -12,7 +12,7 @@ export const exerciseKeySchema = z.enum(
 export const planKeySchema = z.enum(
   Object.keys(PLANS) as [PlanKey, ...PlanKey[]],
 );
-export const honorificSchema = z.enum(['kun', 'chan', 'san']);
+export const honorificSchema = z.enum(['kun', 'chan', 'san', 'none']);
 export const gradeCodeSchema = z.enum([
   'k0',
   'k1',
@@ -85,7 +85,7 @@ export const childCreateRequestSchema = z.object({
   honorific: honorificSchema,
   gradeCode: gradeCodeSchema,
   joinedOn: dateSchema,
-  goals: z.array(z.string().trim().min(1).max(100)).max(5),
+  goals: z.array(z.string().trim().min(1).max(100)).max(5).default([]),
 });
 
 export const childPatchRequestSchema = z.object({

@@ -13,7 +13,10 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "eslint .",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate:local": "pnpm --filter @papamo/api db:migrate:local",
+    "db:migrate:staging": "pnpm --filter @papamo/api db:migrate:staging",
+    "db:migrate:production": "pnpm --filter @papamo/api db:migrate:production"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

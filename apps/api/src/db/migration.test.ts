@@ -12,7 +12,9 @@ describe('データ整合性マイグレーション', () => {
       name.startsWith('0000_') || name.startsWith('0001_')
     ));
     const integrityMigration = testEnv.TEST_MIGRATIONS.find(({ name }) => name.startsWith('0002_'));
+    const honorificMigration = testEnv.TEST_MIGRATIONS.find(({ name }) => name.startsWith('0003_'));
     expect(integrityMigration).toBeDefined();
+    expect(honorificMigration).toBeDefined();
     await applyD1Migrations(testEnv.DB, initialMigrations);
 
     const coachId = crypto.randomUUID();
@@ -58,5 +60,32 @@ describe('データ整合性マイグレーション', () => {
     await expect(
       testEnv.DB.prepare('DELETE FROM children WHERE id = ?').bind(childId).run(),
     ).rejects.toThrow(/FOREIGN KEY/);
+
+    await applyD1Migrations(testEnv.DB, [honorificMigration!]);
+
+    const preserved = await testEnv.DB.prepare(`
+      SELECT children.honorific,
+             child_coaches.role,
+             assessments.revision,
+             reports.assessment_revision
+      FROM children
+      INNER JOIN child_coaches ON child_coaches.child_id = children.id
+      INNER JOIN assessments ON assessments.child_id = children.id
+      INNER JOIN reports ON reports.assessment_id = assessments.id
+      WHERE children.id = ?
+    `).bind(childId).first();
+    expect(preserved).toMatchObject({
+      honorific: 'san',
+      role: 'owner',
+      revision: 1,
+      assessment_revision: 1,
+    });
+
+    await testEnv.DB.prepare(`
+      INSERT INTO children (
+        id, share_code, owner_share_code, created_by, name, honorific, grade_code,
+        grade_base_year, joined_on, ext_unlocked, goals, archived_at, created_at, updated_at
+      ) VALUES (?, 'RSTUVWXY', '23456789', ?, '敬称なし', 'none', 'e1', 2026, '2026-09-01', 0, '[]', NULL, ?, ?)
+    `).bind(crypto.randomUUID(), coachId, now, now).run();
   });
 });

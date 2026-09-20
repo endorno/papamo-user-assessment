@@ -42,7 +42,7 @@ export const children = sqliteTable(
   (table) => [
     check('children_share_code_format', sql`length(${table.shareCode}) = 8 AND ${table.shareCode} NOT GLOB '*[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]*'`),
     check('children_owner_share_code_format', sql`length(${table.ownerShareCode}) = 8 AND ${table.ownerShareCode} NOT GLOB '*[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]*'`),
-    check('children_honorific', sql`${table.honorific} IN ('kun', 'chan', 'san')`),
+    check('children_honorific', sql`${table.honorific} IN ('kun', 'chan', 'san', 'none')`),
     check('children_grade_code', sql`${table.gradeCode} IN ('k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3')`),
     check('children_joined_on_format', sql`${table.joinedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
     check('children_ext_unlocked_boolean', sql`${table.extUnlocked} IN (0, 1)`),

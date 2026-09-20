@@ -1,10 +1,10 @@
 import type { AgeGroup, PpiKey } from '../master';
 import type { ExerciseKey, PlanKey } from '../master';
-import type { AssessmentData, CompletedAssessmentData } from '../schema';
+import type { AssessmentData, CompletedAssessmentData, Honorific } from '../schema';
 
 export interface ChildSnapshot {
   name: string;
-  honorific: 'kun' | 'chan' | 'san';
+  honorific: Honorific;
   grade: string;
   ageHint: string;
   ageGroup: AgeGroup;
@@ -48,7 +48,7 @@ export interface ReportContent {
   generatedAt: string;
   header: {
     childName: string;
-    honorific: 'kun' | 'chan' | 'san';
+    honorific: Honorific;
     grade: string;
     ageHint: string;
     joinedOn?: string;

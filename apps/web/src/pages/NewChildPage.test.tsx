@@ -47,7 +47,7 @@ function renderNewChildPage() {
   return renderWithProviders(
     <Routes>
       <Route path="/children/new" element={<NewChildPage />} />
-      <Route path="/assessments/:id" element={<p>アセスメント画面です</p>} />
+      <Route path="/" element={<p>子ども一覧です</p>} />
     </Routes>,
     { route: '/children/new' },
   );
@@ -65,27 +65,7 @@ describe('お子さま登録', () => {
     expect(screen.getByRole('button', { name: 'この内容で登録する' })).toBeEnabled();
   });
 
-  it('登録したらそのまま初回アセスメントに進める', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith('/api/children')) return response({ child: created }, 201);
-      return response({ assessment: { id: 'assessment-1' } }, 201);
-    }));
-    renderNewChildPage();
-
-    fireEvent.change(screen.getByLabelText('お名前（下の名前）'), { target: { value: 'ゆい' } });
-    fireEvent.change(screen.getByLabelText('現在の学年'), { target: { value: 'e1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'この内容で登録する' }));
-
-    fireEvent.click(await screen.findByRole('button', { name: '初回アセスメントを始める' }));
-
-    expect(await screen.findByText('アセスメント画面です')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/children/child-1/assessments', expect.objectContaining({ method: 'POST' }));
-    });
-  });
-
-  it('続けて別のお子さまを登録するときはフォームを空に戻す', async () => {
+  it('目標を求めず登録し、完了画面を挟まず子ども一覧へ戻る', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ child: created }, 201)));
     renderNewChildPage();
 
@@ -93,10 +73,31 @@ describe('お子さま登録', () => {
     fireEvent.change(screen.getByLabelText('現在の学年'), { target: { value: 'e1' } });
     fireEvent.click(screen.getByRole('button', { name: 'この内容で登録する' }));
 
-    fireEvent.click(await screen.findByRole('button', { name: '続けて別のお子さまを登録' }));
-
-    expect(screen.getByLabelText('お名前（下の名前）')).toHaveValue('');
-    expect(screen.getByLabelText('現在の学年')).toHaveValue('');
+    expect(await screen.findByText('子ども一覧です')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('ゆいちゃんを登録しました');
+    expect(screen.queryByText('共有コード')).not.toBeInTheDocument();
+    await waitFor(() => {
+      const createCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/api/children'));
+      expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
+        name: 'ゆい',
+        honorific: 'chan',
+        gradeCode: 'e1',
+        joinedOn: expect.any(String),
+      });
+    });
+  });
+
+  it('敬称なしを選んで登録できる', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ child: created }, 201)));
+    renderNewChildPage();
+
+    fireEvent.change(screen.getByLabelText('お名前（下の名前）'), { target: { value: 'ゆい' } });
+    fireEvent.change(screen.getByLabelText('敬称'), { target: { value: 'none' } });
+    fireEvent.change(screen.getByLabelText('現在の学年'), { target: { value: 'e1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'この内容で登録する' }));
+
+    await screen.findByText('子ども一覧です');
+    const createCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/api/children'));
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ honorific: 'none' });
   });
 });

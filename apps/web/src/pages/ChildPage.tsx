@@ -15,7 +15,7 @@ import {
   type GradeCode,
   type Honorific,
 } from '@papamo/shared';
-import { apiRequest } from '../api/client';
+import { apiRequest, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
@@ -77,7 +77,7 @@ function confirmationFor(action: Exclude<ConfirmAction, null>) {
   };
   return {
     title: 'この登録を完全に削除しますか？',
-    message: 'アセスメントがない登録だけ削除できます。この操作は取り消せません。',
+    message: '最初のレポートを作る前であれば削除できます。入力中のアセスメントと、ほかのコーチの担当一覧からも消えます。この操作は取り消せません。',
     label: '完全に削除する',
     tone: 'danger' as const,
   };
@@ -95,9 +95,15 @@ export function ChildPage() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [childForm, setChildForm] = useState<ChildFormState | null>(null);
   const [goalsText, setGoalsText] = useState('');
-  const [unlockExtRequested, setUnlockExtRequested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+
+  const returnToListIfDeleted = useCallback((caught: unknown) => {
+    if (!(caught instanceof ApiClientError) || caught.code !== 'not_found') return false;
+    showToast('このお子さまは削除されたため、担当一覧に戻りました。');
+    navigate('/', { replace: true });
+    return true;
+  }, [navigate, showToast]);
 
   const reload = useCallback(async () => {
     if (!session || !id) return;
@@ -112,12 +118,14 @@ export function ChildPage() {
     let active = true;
     void reload()
       .catch((caught) => {
-        if (active) setLoadError(caught instanceof Error ? caught.message : '読み込みに失敗しました。');
+        if (active && !returnToListIfDeleted(caught)) {
+          setLoadError(caught instanceof Error ? caught.message : '読み込みに失敗しました。');
+        }
       });
     return () => {
       active = false;
     };
-  }, [reload]);
+  }, [reload, returnToListIfDeleted]);
 
   async function runAction(action: () => Promise<void>, fallbackMessage: string) {
     setBusy(true);
@@ -125,7 +133,9 @@ export function ChildPage() {
     try {
       await action();
     } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : fallbackMessage);
+      if (!returnToListIfDeleted(caught)) {
+        setActionError(caught instanceof Error ? caught.message : fallbackMessage);
+      }
     } finally {
       setBusy(false);
     }
@@ -136,7 +146,7 @@ export function ChildPage() {
     await runAction(async () => {
       const response = await apiRequest<unknown>(`/children/${id}/assessments`, session, {
         method: 'POST',
-        body: JSON.stringify({ unlockExt: child.extUnlocked || unlockExtRequested }),
+        body: JSON.stringify({ unlockExt: child.extUnlocked }),
       });
       const assessmentId = (response as { assessment?: { id?: unknown } }).assessment?.id;
       if (typeof assessmentId !== 'string') throw new Error('作成結果を読み込めませんでした。');
@@ -312,12 +322,7 @@ export function ChildPage() {
                 <Link className={`${styles.primaryButton} ${styles.bigButton}`} to={`/assessments/${draft.id}`}>入力を続ける</Link>
               ) : !readOnly ? (
                 <>
-                  {!child.extUnlocked ? (
-                    <label className={styles.unlockChoice}>
-                      <input type="checkbox" checked={unlockExtRequested} onChange={(event) => setUnlockExtRequested(event.target.checked)} />
-                      <span><strong>4・5種目目を今回から開放</strong><small>入会から{monthsSinceJoined}か月目。レポートを作るまでは、入力画面で戻せます</small></span>
-                    </label>
-                  ) : <span className={styles.unlockedBadge}>4・5種目目 開放済み</span>}
+                  {child.extUnlocked ? <span className={styles.unlockedBadge}>4・5種目目 開放済み</span> : null}
                   <button
                     className={`${styles.primaryButton} ${styles.bigButton}`}
                     type="button"
@@ -489,7 +494,7 @@ export function ChildPage() {
                       <div className={styles.formField}>
                         <label htmlFor="profile-child-honorific">敬称</label>
                         <select id="profile-child-honorific" value={childForm.honorific} onChange={(event) => setChildForm((current) => current ? { ...current, honorific: event.target.value as Honorific } : current)}>
-                          <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option>
+                          <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option><option value="none">なし</option>
                         </select>
                       </div>
                     </div>
@@ -532,7 +537,7 @@ export function ChildPage() {
                   <div className={styles.managementActions}>
                     {!readOnly && child.role === 'owner' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('archive')} disabled={busy}>退会としてアーカイブ</button> : null}
                     {!readOnly && child.role === 'member' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('remove')} disabled={busy}>自分の担当一覧から外す</button> : null}
-                    {!readOnly && child.role === 'owner' && child.assessments.length === 0 ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('delete')} disabled={busy}>登録を完全に削除</button> : null}
+                    {!readOnly && child.role === 'owner' && !child.assessments.some((assessment) => assessment.reportAvailable) ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('delete')} disabled={busy}>登録を完全に削除</button> : null}
                     {readOnly ? <p className={styles.muted}>アーカイブ中は記録を編集できません。</p> : null}
                     {child.role === 'owner' ? (
                       <p className={styles.managementHint}>

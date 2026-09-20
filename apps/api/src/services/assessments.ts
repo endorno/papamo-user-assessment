@@ -18,6 +18,7 @@ import {
   type AssessmentDataPatch,
   type CompletedAssessmentData,
   type ExerciseKey,
+  type Honorific,
 } from '@papamo/shared';
 
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
@@ -235,7 +236,7 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
     child: {
       id: child.id,
       name: child.name,
-      honorific: child.honorific as 'kun' | 'chan' | 'san',
+      honorific: child.honorific as Honorific,
       archivedAt: child.archivedAt,
       extUnlocked: child.extUnlocked,
       goals: JSON.parse(child.goals) as string[],

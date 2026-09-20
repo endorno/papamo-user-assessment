@@ -6,6 +6,15 @@ import {
 } from './assessment';
 
 describe('アセスメント入力スキーマ', () => {
+  it('子ども登録では敬称なしを許可し、目標を空で初期化する', () => {
+    expect(childCreateRequestSchema.parse({
+      name: 'ひなた',
+      honorific: 'none',
+      gradeCode: 'e1',
+      joinedOn: '2026-09-01',
+    })).toMatchObject({ honorific: 'none', goals: [] });
+  });
+
   it('暦に存在しない日付を拒否する', () => {
     expect(childCreateRequestSchema.safeParse({
       name: 'ゆい',

@@ -423,7 +423,7 @@
 }
 
 .compactButton {
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r);
@@ -431,6 +431,13 @@
   color: var(--green-ink);
   font: inherit;
   font-weight: 700;
+}
+
+.compactActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .goalChips {
@@ -1436,6 +1443,18 @@
 .confirmDialog p {
   margin: 10px 0 0;
   color: var(--ink2);
+}
+
+.importDialog {
+  width: min(560px, 100%);
+}
+
+.importDialog .formField {
+  margin-top: 18px;
+}
+
+.importTextarea {
+  min-height: 160px;
 }
 
 .radarWrap {

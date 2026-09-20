@@ -70,7 +70,6 @@ async function createChild(client: TestClient, name: string) {
       honorific: 'chan',
       gradeCode: 'k2',
       joinedOn: '2026-09-01',
-      goals: ['転びにくくなってほしい'],
     }),
   });
   expect(response.status).toBe(201);
@@ -178,6 +177,40 @@ describe('API ルート結合', () => {
     expect(childDeletion.status).toBe(409);
   });
 
+  it('敬称なしで登録でき、最初のレポート前なら下書きと共有先ごと削除する', async () => {
+    const owner = await createTestClient();
+    const member = await createTestClient();
+    await onboard(owner);
+    await onboard(member);
+
+    const createResponse = await request(owner, '/children', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'ひなた',
+        honorific: 'none',
+        gradeCode: 'e1',
+        joinedOn: '2026-09-01',
+      }),
+    });
+    expect(createResponse.status).toBe(201);
+    const child = childResponseSchema.parse(await createResponse.json()).child;
+    expect(child).toMatchObject({ honorific: 'none', goals: [] });
+
+    expect((await request(member, '/children/import', {
+      method: 'POST',
+      body: JSON.stringify({ code: child.shareCode }),
+    })).status).toBe(200);
+    const draftResponse = await request(owner, `/children/${child.id}/assessments`, {
+      method: 'POST',
+      body: JSON.stringify({ unlockExt: false }),
+    });
+    const draft = assessmentCreateResponseSchema.parse(await draftResponse.json()).assessment;
+
+    expect((await request(owner, `/children/${child.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect((await request(member, `/children/${child.id}`)).status).toBe(404);
+    expect((await request(owner, `/assessments/${draft.id}`)).status).toBe(404);
+  });
+
   it('membership のないコーチを403にし、2種類の共有コードを正しく処理する', async () => {
     const owner = await createTestClient();
     const nextOwner = await createTestClient();
@@ -212,6 +245,7 @@ describe('API ルート結合', () => {
 
     const formerOwnerDetail = await request(owner, `/children/${child.id}`);
     expect(childDetailResponseSchema.parse(await formerOwnerDetail.json()).child.role).toBe('member');
+    expect((await request(owner, `/children/${child.id}`, { method: 'DELETE' })).status).toBe(403);
   });
 
   it('アーカイブ中は一覧から外して書き込みを拒否し、復元後に下書きを破棄できる', async () => {

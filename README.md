@@ -25,7 +25,7 @@ API（Wrangler）は `http://localhost:8787`、Web（Vite）は表示された V
 
 ## 使用方法
 
-Google でログイン後、初回だけコーチ表示名を登録します。子どもを登録すると、学年・目標・共有コードを管理でき、子どもページからアセスメント、育ちマップ、保護者向けレポートを利用できます。レポートはブラウザの印刷機能で PDF 保存できます。
+Google でログイン後、初回だけコーチ表示名を登録します。子どもは名前・敬称・学年・入会日で登録し、目標は初回アセスメントで設定します。初回の目標は入会アンケートの回答セルをGoogleスプレッドシートから貼り付けて取り込めます。子どもページから共有コード、アセスメント、育ちマップ、保護者向けレポートを利用でき、レポートはブラウザの印刷機能で PDF 保存できます。
 
 別のコーチから受け取った共有コードは一覧の「共有コードで取り込む」から入力します。退会した子どもはアーカイブ一覧から復元できます。
 
@@ -45,7 +45,7 @@ Supabase の URL やポートを変更したときは、API と Web の両方を
 ```bash
 pnpm --filter @papamo/api dev
 pnpm --filter @papamo/web dev
-pnpm --filter @papamo/api db:migrate:local
+pnpm db:migrate:local
 pnpm --filter @papamo/api types:worker
 ```
 
@@ -64,7 +64,7 @@ pnpm --filter @papamo/api types:worker
 初回とデータを作り直したいときは、ローカルD1へマイグレーションを適用してからシードを実行します。
 
 ```bash
-pnpm --filter @papamo/api db:migrate:local
+pnpm db:migrate:local
 pnpm --filter @papamo/api db:seed:local
 ```
 
@@ -85,10 +85,12 @@ pnpm --filter @papamo/api db:seed:local
 
 ```bash
 pnpm --filter @papamo/api exec wrangler secret put STAGING_ALLOWED_EMAILS --env staging
-pnpm --filter @papamo/api exec wrangler d1 migrations apply DB --env staging --remote
+pnpm db:migrate:staging
 pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
 pnpm --filter @papamo/api exec wrangler deploy --env staging
 ```
+
+本番D1のマイグレーションはデプロイ前に `pnpm db:migrate:production` で適用します。ステージング・本番とも、実行前に `apps/api/wrangler.toml` の対象D1 IDが実値になっていることを確認してください。
 
 許可リストはメールアドレスの大文字・小文字を区別しません。ステージングで値が空、またはログインメールが含まれない場合は403として拒否します。ステージングのシードも子ども関連データを全削除し、実コーチの表示名を保ったまま背景コーチ15名を再作成します。
 

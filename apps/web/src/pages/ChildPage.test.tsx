@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const auth = vi.hoisted(() => ({
@@ -35,8 +36,8 @@ const child = {
   latestReport: null,
 };
 
-function response(body: unknown) {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+function response(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 function renderChildPage() {
@@ -79,6 +80,8 @@ describe('子どもページ', () => {
     const resumeLinks = await screen.findAllByRole('link', { name: '入力を続ける' });
     expect(resumeLinks[0]).toHaveAttribute('href', '/assessments/assessment-1');
     expect(screen.queryByRole('button', { name: 'アセスメントを始める' })).not.toBeInTheDocument();
+    const management = screen.getByRole('region', { name: '退会・担当解除などの管理' });
+    expect(within(management).getByRole('button', { name: '登録を完全に削除' })).toBeInTheDocument();
   });
 
   it('2回目以降の開始では、前回の修正へ戻る道も示す', async () => {
@@ -111,6 +114,19 @@ describe('子どもページ', () => {
 
     const map = await screen.findByRole('region', { name: '育ちマップ' });
     expect(map).toHaveTextContent('4・5種目目を開放できる時期です');
+    expect(screen.queryByRole('checkbox', { name: /4・5種目目を今回から開放/ })).not.toBeInTheDocument();
+  });
+
+  it('最初のレポート作成後は完全削除を表示しない', async () => {
+    const completedChild = {
+      ...child,
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
+    renderChildPage();
+
+    const management = await screen.findByRole('region', { name: '退会・担当解除などの管理' });
+    expect(within(management).queryByRole('button', { name: '登録を完全に削除' })).not.toBeInTheDocument();
   });
 
   it('オーナーには担当を外れる手順を示す', async () => {
@@ -120,5 +136,21 @@ describe('子どもページ', () => {
     const management = await screen.findByRole('region', { name: '退会・担当解除などの管理' });
     expect(management).toHaveTextContent('オーナーを移すコード');
     expect(within(management).queryByRole('button', { name: '自分の担当一覧から外す' })).not.toBeInTheDocument();
+  });
+
+  it('共有先で削除済みの子どもを開いた場合は担当一覧へ戻す', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({
+      error: { code: 'not_found', message: 'お子さまが見つかりません。' },
+    }, 404)));
+    renderWithProviders(
+      <Routes>
+        <Route path="/children/:id" element={<ChildPage />} />
+        <Route path="/" element={<p>担当一覧へ戻りました</p>} />
+      </Routes>,
+      { route: '/children/child-1' },
+    );
+
+    expect(await screen.findByText('担当一覧へ戻りました')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('削除されたため');
   });
 });

@@ -17,7 +17,7 @@ import { internalError, jsonError } from '../http/errors';
 import {
   childById,
   createChild,
-  deleteChildIfEmpty,
+  deleteChildBeforeFirstReport,
   getChildForCoach,
   importChild,
   listChildren,
@@ -191,8 +191,8 @@ childrenRoutes.delete('/:id', async (context) => {
   if (membership !== 'owner') {
     return jsonError(context, 'forbidden', 'お子さまの削除はオーナーのみ行えます。', 403);
   }
-  if (!(await deleteChildIfEmpty(context.env, childId))) {
-    return jsonError(context, 'conflict', 'アセスメントがあるお子さまは削除できません。', 409);
+  if (!(await deleteChildBeforeFirstReport(context.env, childId))) {
+    return jsonError(context, 'conflict', '最初のレポートを作成したお子さまは削除できません。', 409);
   }
   return context.body(null, 204);
 });

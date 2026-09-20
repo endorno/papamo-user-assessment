@@ -1,11 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { GRADES, todayInJst, childViewSchema, type ChildView, type GradeCode } from '@papamo/shared';
+import { GRADES, todayInJst, childViewSchema, type GradeCode, type Honorific } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
-import { CopyCode } from '../components/CopyCode';
 import { useToast } from '../components/Toast';
 import { honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
@@ -15,120 +14,37 @@ export function NewChildPage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [honorific, setHonorific] = useState<'kun' | 'chan' | 'san'>('chan');
+  const [honorific, setHonorific] = useState<Honorific>('chan');
   // 就学／未就学で困りごとの設問が変わるため、既定値は置かずに必ず選ばせる。
   const [gradeCode, setGradeCode] = useState<GradeCode | ''>('');
   const [joinedOn, setJoinedOn] = useState(todayInJst());
-  const [goalsText, setGoalsText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<ChildView | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session || !gradeCode) return;
-    const goals = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean);
-    if (goals.length > 5) {
-      setError('目標は5件以内で入力してください。');
-      return;
-    }
 
     setSubmitting(true);
     setError(null);
     try {
       const response = await apiRequest<unknown>('/children', session, {
         method: 'POST',
-        body: JSON.stringify({ name, honorific, gradeCode, joinedOn, goals }),
+        body: JSON.stringify({ name, honorific, gradeCode, joinedOn }),
       });
       const parsed = childViewSchema.safeParse((response as { child?: unknown }).child);
       if (!parsed.success) throw new Error('登録結果を読み込めませんでした。');
-      setCreated(parsed.data);
+      const child = parsed.data;
+      showToast(`${child.name}${honorificLabel(child.honorific)}を登録しました。`, {
+        action: { label: '続けて登録', onClick: () => void navigate('/children/new') },
+      });
+      navigate('/', { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '登録に失敗しました。');
     } finally {
       setSubmitting(false);
     }
   }
-
-  async function startFirstAssessment(child: ChildView) {
-    if (!session) return;
-    setStarting(true);
-    setError(null);
-    try {
-      const response = await apiRequest<unknown>(`/children/${child.id}/assessments`, session, {
-        method: 'POST',
-        body: JSON.stringify({ unlockExt: false }),
-      });
-      const assessmentId = (response as { assessment?: { id?: unknown } }).assessment?.id;
-      if (typeof assessmentId !== 'string') throw new Error('作成結果を読み込めませんでした。');
-      navigate(`/assessments/${assessmentId}`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'アセスメントを開始できませんでした。');
-    } finally {
-      setStarting(false);
-    }
-  }
-
-  function registerAnother(child: ChildView) {
-    showToast(`${child.name}${honorificLabel(child.honorific)}を登録しました。`);
-    setCreated(null);
-    setName('');
-    setHonorific('chan');
-    setGradeCode('');
-    setJoinedOn(todayInJst());
-    setGoalsText('');
-    setError(null);
-  }
-
-  if (created) {
-    const childName = `${created.name}${honorificLabel(created.honorific)}`;
-    return (
-      <div className={styles.pageFrame}>
-        <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: '登録完了' }]} />
-        <main className={styles.page}>
-          <section className={`${styles.panel} ${styles.narrowPanel}`} aria-labelledby="created-title">
-            <p className={styles.eyebrow}>登録完了</p>
-            <h1 id="created-title">{childName}を登録しました</h1>
-            <p className={styles.lead}>このまま初回アセスメントを始められます。</p>
-            {error ? <p className={styles.formError} role="alert">{error}</p> : null}
-            <div className={styles.inlineActions}>
-              <button className={styles.primaryButton} type="button" disabled={starting} onClick={() => void startFirstAssessment(created)}>
-                {starting ? '準備中…' : '初回アセスメントを始める'}
-              </button>
-              <button className={styles.secondaryButton} type="button" onClick={() => registerAnother(created)}>
-                続けて別のお子さまを登録
-              </button>
-              <button className={styles.secondaryButton} type="button" onClick={() => navigate(`/children/${created.id}`)}>
-                {childName}のページへ
-              </button>
-            </div>
-            <div className={styles.codeList}>
-              <p className={styles.muted}>共有コードは、ほかのコーチと一緒に担当するときだけお使いください。子どもページからいつでも確認できます。</p>
-              <CopyCode
-                code={created.shareCode}
-                label="担当に追加するコード"
-                description="このコードで取り込んだコーチも、記録とレポートを編集できます。"
-              />
-              {created.ownerShareCode ? (
-                <CopyCode
-                  code={created.ownerShareCode}
-                  label="オーナーを移すコード"
-                  description="使った相手が新しいオーナーになります。引き継ぎ時以外は共有しないでください。"
-                  sensitive
-                />
-              ) : null}
-            </div>
-            <div className={styles.inlineActions}>
-              <Link className={styles.secondaryButton} to="/">一覧に戻る</Link>
-            </div>
-          </section>
-        </main>
-      </div>
-    );
-  }
-
-  const goalCount = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean).length;
 
   return (
     <div className={styles.pageFrame}>
@@ -152,6 +68,7 @@ export function NewChildPage() {
                   <option value="kun">くん</option>
                   <option value="chan">ちゃん</option>
                   <option value="san">さん</option>
+                  <option value="none">なし</option>
                 </select>
               </div>
             </div>
@@ -167,15 +84,10 @@ export function NewChildPage() {
               <label htmlFor="joined-on">入会日</label>
               <input id="joined-on" type="date" value={joinedOn} onChange={(event) => setJoinedOn(event.target.value)} required />
             </div>
-            <div className={styles.formField}>
-              <label htmlFor="child-goals">ご家族・本人の目標（任意）</label>
-              <textarea id="child-goals" value={goalsText} onChange={(event) => setGoalsText(event.target.value)} maxLength={504} rows={4} placeholder={'転びにくくなってほしい\n着替えを自分でできるようになりたい'} />
-              <small className={goalCount > 5 ? styles.fieldError : ''}>1行に1件、5件まで（現在 {goalCount}件）</small>
-            </div>
             {error ? <p className={styles.formError} role="alert">{error}</p> : null}
             <div className={styles.formActions}>
               <Link className={styles.secondaryButton} to="/">キャンセル</Link>
-              <button className={styles.primaryButton} type="submit" disabled={submitting || !gradeCode || goalCount > 5}>
+              <button className={styles.primaryButton} type="submit" disabled={submitting || !gradeCode}>
                 {submitting ? '登録中…' : 'この内容で登録する'}
               </button>
             </div>

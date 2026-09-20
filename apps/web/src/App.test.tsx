@@ -63,6 +63,14 @@ const settledChild = {
   },
 };
 
+const unassessedChild = {
+  ...baseChild,
+  id: 'child-new',
+  name: 'みお',
+  state: { key: 'first' as const, label: '初回アセスメント未実施', order: 1 as const },
+  latestAssessment: null,
+};
+
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -103,6 +111,17 @@ describe('担当の子ども一覧', () => {
     expect(within(todo).getByText('未入力')).toBeInTheDocument();
     expect(within(settled).getByText('あおい')).toBeInTheDocument();
     expect(screen.queryByText('API 接続を確認')).not.toBeInTheDocument();
+  });
+
+  it('アセスメント未作成の子どもを独立した最上段にまとめる', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => response({ children: [draftChild, settledChild, unassessedChild] })));
+    renderHomePage();
+
+    const unassessed = await screen.findByRole('region', { name: '初回アセスメント未実施' });
+    const todo = screen.getByRole('region', { name: 'まずやること' });
+    expect(within(unassessed).getByText('みお')).toBeInTheDocument();
+    expect(within(unassessed).getByText('初回を始める')).toBeInTheDocument();
+    expect(unassessed.compareDocumentPosition(todo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('共有コードを入力しやすい形式に整えて取り込む', async () => {

@@ -1,4 +1,10 @@
-import { MASTER_VERSION, gradeAt, RuleBasedReportGenerator, type CompletedAssessmentData } from '@papamo/shared';
+import {
+  MASTER_VERSION,
+  gradeAt,
+  RuleBasedReportGenerator,
+  type CompletedAssessmentData,
+  type Honorific,
+} from '@papamo/shared';
 
 import type { CoachRecord, Env } from '../env';
 import type { ChildRow } from './types';
@@ -35,7 +41,7 @@ export async function generateReport(input: {
   return generator.generate({
     child: {
       name: input.child.name,
-      honorific: input.child.honorific as 'kun' | 'chan' | 'san',
+      honorific: input.child.honorific as Honorific,
       grade: grade.name,
       ageHint: grade.ageHint,
       ageGroup: grade.ageGroup,

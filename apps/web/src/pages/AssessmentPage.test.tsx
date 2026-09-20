@@ -50,8 +50,8 @@ const assessment = {
   },
 };
 
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 describe('アセスメント入力', () => {
@@ -164,6 +164,47 @@ describe('アセスメント入力', () => {
       expect(last.unlockExt).toBe(false);
       expect(last.data.lv.sacc).toBeUndefined();
     }, { timeout: 2000 });
+  });
+
+  it('初回はスプレッドシートの複数セルから目標を一括入力できる', async () => {
+    renderAssessmentPage();
+    fireEvent.click(await screen.findByRole('button', { name: '入会アンケートから取り込む' }));
+
+    const dialog = screen.getByRole('dialog', { name: '入会アンケートから目標を取り込む' });
+    fireEvent.change(within(dialog).getByLabelText('コピーした目標'), {
+      target: { value: '姿勢を安定させたい\t着替えを自分でできるようになりたい' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '目標欄に取り込む' }));
+
+    expect(screen.getByRole('textbox', { name: 'ご家族・本人の目標' })).toHaveValue(
+      '姿勢を安定させたい\n着替えを自分でできるようになりたい',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '目標を保存' }));
+
+    await waitFor(() => {
+      const saveCall = vi.mocked(fetch).mock.calls.find(([input, init]) => (
+        String(input).endsWith('/api/children/child-1') && init?.method === 'PATCH'
+      ));
+      expect(JSON.parse(String(saveCall?.[1]?.body))).toEqual({
+        goals: ['姿勢を安定させたい', '着替えを自分でできるようになりたい'],
+      });
+    });
+  });
+
+  it('共有先で削除済みになったアセスメントは担当一覧へ戻す', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      error: { code: 'not_found', message: 'アセスメントが見つかりません。' },
+    }, 404)));
+    renderWithProviders(
+      <Routes>
+        <Route path="/assessments/:id" element={<AssessmentPage />} />
+        <Route path="/" element={<p>担当一覧へ戻りました</p>} />
+      </Routes>,
+      { route: '/assessments/assessment-1' },
+    );
+
+    expect(await screen.findByText('担当一覧へ戻りました')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('削除されたため');
   });
 });
 

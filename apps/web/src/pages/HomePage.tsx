@@ -53,7 +53,8 @@ function formatShareCodeInput(value: string) {
 
 function childActionLabel(child: ChildView) {
   if (child.state?.key === 'draft') return '入力を続ける';
-  if (child.state?.key === 'due' || child.state?.key === 'first') return '確認する';
+  if (child.state?.key === 'first') return '初回を始める';
+  if (child.state?.key === 'due') return '確認する';
   return '子どもページへ';
 }
 
@@ -118,7 +119,11 @@ function ChildrenSection({
   children: ChildView[];
   highlightedId: string | null;
 }) {
-  const headingId = title === 'まずやること' ? 'todo-children' : 'settled-children';
+  const headingId = title === '初回アセスメント未実施'
+    ? 'new-children'
+    : title === 'まずやること'
+      ? 'todo-children'
+      : 'settled-children';
   return (
     <section className={styles.listSection} aria-labelledby={headingId}>
       <div className={styles.sectionTitle}>
@@ -315,7 +320,8 @@ export function HomePage() {
   );
   const visibleChildren = useMemo(() => children.filter(matches), [children, matches]);
   const visibleArchived = useMemo(() => archivedChildren.filter(matches), [archivedChildren, matches]);
-  const todoChildren = visibleChildren.filter((child) => (child.state?.order ?? 2) < 2);
+  const newChildren = visibleChildren.filter((child) => child.latestAssessment === null);
+  const todoChildren = visibleChildren.filter((child) => child.latestAssessment !== null && (child.state?.order ?? 2) < 2);
   const settledChildren = visibleChildren.filter((child) => (child.state?.order ?? 2) >= 2);
   const showFilter = children.length >= FILTER_THRESHOLD;
 
@@ -393,7 +399,7 @@ export function HomePage() {
           <section className={styles.emptyState}>
             <span className={styles.emptyIcon} aria-hidden="true">🧭</span>
             <h2>最初のお子さまを登録しましょう</h2>
-            <p>登録後、そのまま初回アセスメントを始められます。</p>
+            <p>登録したお子さまは、一覧の最上段から初回アセスメントを始められます。</p>
             <Link className={styles.primaryButton} to="/children/new">お子さまを登録する</Link>
           </section>
         ) : !visibleChildren.length ? (
@@ -403,12 +409,13 @@ export function HomePage() {
           </section>
         ) : (
           <>
-            {todoChildren.length ? <ChildrenSection title="まずやること" children={todoChildren} highlightedId={highlightedId} /> : (
+            {newChildren.length ? <ChildrenSection title="初回アセスメント未実施" children={newChildren} highlightedId={highlightedId} /> : null}
+            {todoChildren.length ? <ChildrenSection title="まずやること" children={todoChildren} highlightedId={highlightedId} /> : !newChildren.length ? (
               <section className={styles.allDone}>
                 <strong>いま対応が必要な記録はありません</strong>
                 <p>次回予定が近づくと、ここに表示されます。</p>
               </section>
-            )}
+            ) : null}
             {settledChildren.length ? <ChildrenSection title="次の予定まで余裕あり" children={settledChildren} highlightedId={highlightedId} /> : null}
           </>
         )}

@@ -21,6 +21,7 @@ import { useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { SpreadsheetGoalImportDialog } from '../components/SpreadsheetGoalImportDialog';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
@@ -134,6 +135,7 @@ export function AssessmentPage() {
   const [editingGoals, setEditingGoals] = useState(false);
   const [goalsSaving, setGoalsSaving] = useState(false);
   const [goalsError, setGoalsError] = useState<string | null>(null);
+  const [showGoalImport, setShowGoalImport] = useState(false);
 
   // 保存処理は非同期に連なるため、描画用の state とは別に最新値を ref で持つ。
   const assessmentRef = useRef<AssessmentDetail | null>(null);
@@ -143,6 +145,17 @@ export function AssessmentPage() {
   const inFlightRef = useRef<Promise<boolean> | null>(null);
   const changeVersionRef = useRef(0);
   const saveDelayRef = useRef(SAVE_DELAY_MS);
+
+  const returnToListIfDeleted = useCallback((caught: unknown) => {
+    if (!(caught instanceof ApiClientError) || caught.code !== 'not_found') return false;
+    if (id) window.localStorage.removeItem(localDraftKey(id));
+    dirtyRef.current = false;
+    assessmentRef.current = null;
+    formRef.current = null;
+    showToast('このお子さまは削除されたため、担当一覧に戻りました。');
+    navigate('/', { replace: true });
+    return true;
+  }, [id, navigate, showToast]);
 
   useEffect(() => {
     sessionRef.current = session;
@@ -182,8 +195,12 @@ export function AssessmentPage() {
   }, [applyAssessment, applyForm, id]);
 
   useEffect(() => {
-    void loadAssessment().catch((caught) => setPageError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
-  }, [loadAssessment, session]);
+    void loadAssessment().catch((caught) => {
+      if (!returnToListIfDeleted(caught)) {
+        setPageError(caught instanceof Error ? caught.message : '読み込みに失敗しました。');
+      }
+    });
+  }, [loadAssessment, returnToListIfDeleted, session]);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
     if (inFlightRef.current) await inFlightRef.current;
@@ -219,6 +236,7 @@ export function AssessmentPage() {
         }
         return true;
       } catch (caught) {
+        if (returnToListIfDeleted(caught)) return false;
         setSaveError(caught instanceof Error ? caught : new Error('保存に失敗しました。'));
         setSavedMessage('保存できていません');
         return false;
@@ -232,7 +250,7 @@ export function AssessmentPage() {
     } finally {
       if (inFlightRef.current === request) inFlightRef.current = null;
     }
-  }, [applyAssessment, applyForm]);
+  }, [applyAssessment, applyForm, returnToListIfDeleted]);
 
   useEffect(() => {
     if (!dirty || !assessment || assessment.readOnly || saveError) return;
@@ -368,7 +386,9 @@ export function AssessmentPage() {
       showToast(current.status === 'done' ? 'レポートを更新しました。' : 'レポートを作成しました。');
       navigate(`/reports/${current.id}`);
     } catch (caught) {
-      setPageError(caught instanceof Error ? caught.message : 'レポートを作成できませんでした。');
+      if (!returnToListIfDeleted(caught)) {
+        setPageError(caught instanceof Error ? caught.message : 'レポートを作成できませんでした。');
+      }
     } finally {
       setCompleting(false);
     }
@@ -400,7 +420,9 @@ export function AssessmentPage() {
       applyAssessment({ ...assessment, child: { ...assessment.child, goals } });
       setEditingGoals(false);
     } catch (caught) {
-      setGoalsError(caught instanceof Error ? caught.message : '目標を保存できませんでした。');
+      if (!returnToListIfDeleted(caught)) {
+        setGoalsError(caught instanceof Error ? caught.message : '目標を保存できませんでした。');
+      }
     } finally {
       setGoalsSaving(false);
     }
@@ -416,7 +438,9 @@ export function AssessmentPage() {
       showToast('下書きを破棄しました。');
       navigate(`/children/${current.childId}`);
     } catch (caught) {
-      setPageError(caught instanceof Error ? caught.message : '下書きを破棄できませんでした。');
+      if (!returnToListIfDeleted(caught)) {
+        setPageError(caught instanceof Error ? caught.message : '下書きを破棄できませんでした。');
+      }
     }
   }
 
@@ -514,7 +538,12 @@ export function AssessmentPage() {
               <div className={styles.goalsEditor}>
                 <div className={styles.sectionHeader}>
                   <div><strong>ご家族・本人の目標</strong><p className={styles.muted}>変更内容はお子さま情報に保存され、完了時に今回の記録へ写されます。</p></div>
-                  {!assessment.readOnly && !editingGoals ? <button className={styles.compactButton} type="button" onClick={() => setEditingGoals(true)}>編集</button> : null}
+                  {!assessment.readOnly && !editingGoals ? (
+                    <div className={styles.compactActions}>
+                      {assessment.seqNo === 1 ? <button className={styles.compactButton} type="button" onClick={() => setShowGoalImport(true)}>入会アンケートから取り込む</button> : null}
+                      <button className={styles.compactButton} type="button" onClick={() => setEditingGoals(true)}>編集</button>
+                    </div>
+                  ) : null}
                 </div>
                 {editingGoals ? (
                   <>
@@ -647,6 +676,16 @@ export function AssessmentPage() {
           confirmLabel="下書きを破棄する"
           onCancel={() => setConfirmDiscard(false)}
           onConfirm={() => { setConfirmDiscard(false); void discardDraft(); }}
+        />
+        <SpreadsheetGoalImportDialog
+          open={showGoalImport}
+          onCancel={() => setShowGoalImport(false)}
+          onImport={(goals) => {
+            setGoalsText(goals.join('\n'));
+            setGoalsError(null);
+            setEditingGoals(true);
+            setShowGoalImport(false);
+          }}
         />
         <ConfirmDialog
           open={localRestore !== null}

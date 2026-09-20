@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, notExists, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 
@@ -417,11 +417,22 @@ export async function setArchiveState(env: Env, childId: string, archived: boole
   await db.update(children).set({ archivedAt: archived ? new Date().toISOString() : null, updatedAt: new Date().toISOString() }).where(eq(children.id, childId)).run();
 }
 
-export async function deleteChildIfEmpty(env: Env, childId: string) {
+export async function deleteChildBeforeFirstReport(env: Env, childId: string) {
   const db = dbFor(env);
   try {
-    const deleted = await db.delete(children).where(eq(children.id, childId)).returning({ id: children.id }).get();
-    return Boolean(deleted);
+    const deleteUnreportedAssessments = db.delete(assessments).where(and(
+      eq(assessments.childId, childId),
+      notExists(
+        db.select({ id: reports.id })
+          .from(reports)
+          .where(eq(reports.assessmentId, assessments.id)),
+      ),
+    ));
+    const deleteChild = db.delete(children).where(eq(children.id, childId));
+
+    // D1 batch は1トランザクション。完了処理と競合してレポートが先に作られた場合も全体を戻す。
+    await db.batch([deleteUnreportedAssessments, deleteChild]);
+    return true;
   } catch (error) {
     if (isForeignKeyConstraintError(error)) {
       return false;
