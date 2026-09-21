@@ -120,12 +120,16 @@ function withoutExtInput(data: AssessmentData): AssessmentData {
 
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
 function hasAnyInput(form: AssessmentFormState) {
-  const { lv, ppi, observations, observationNotes, engagement, envSupports, wants, copm, memo, ppiNote } = form.data;
+  const {
+    lv, ppi, observations, observationNotes, engagement, envSupports,
+    troubles, wants, copm, memo, ppiNote,
+  } = form.data;
   return Boolean(
     Object.keys(lv).length
     || Object.keys(ppi).length
     || Object.keys(engagement).length
     || envSupports.length
+    || troubles.length
     || wants.length
     || copm.length
     || Object.values(observations).some((selected) => selected?.length)

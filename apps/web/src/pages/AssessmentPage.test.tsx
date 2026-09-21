@@ -255,6 +255,33 @@ describe('アセスメント入力', () => {
     }, { timeout: 2000 });
   });
 
+  it('作っただけの下書きは確認なしで破棄する', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/assessments/:id" element={<AssessmentPage />} />
+        <Route path="/children/:id" element={<p>子どもページです</p>} />
+      </Routes>,
+      { route: '/assessments/assessment-1' },
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '下書きを破棄' }));
+
+    expect(await screen.findByText('子どもページです')).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+  });
+
+  it('お困りごとだけ選んだ下書きでも、破棄の前に確認を出す', async () => {
+    renderAssessmentPage();
+    const troubles = await screen.findByRole('region', { name: 'お子さまのお困りごと' });
+    fireEvent.click(within(troubles).getByRole('checkbox', { name: /転びやすい・つまずきやすい/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: '下書きを破棄' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('下書きを破棄しますか？');
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+  });
+
   it('共有先で削除済みになったアセスメントは担当一覧へ戻す', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
       error: { code: 'not_found', message: 'アセスメントが見つかりません。' },

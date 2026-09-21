@@ -80,7 +80,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     }
     setBusy(true);
     setError(null);
-    const saved = await guard.save();
+    const saved = await guard.save().catch(() => false);
     setBusy(false);
     if (!saved) {
       setError('保存できませんでした。通信を確認するか、保存せずに移動してください。');

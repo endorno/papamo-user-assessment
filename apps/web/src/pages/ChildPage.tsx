@@ -452,7 +452,7 @@ export function ChildPage() {
                     <textarea value={goalsText} onChange={(event) => setGoalsText(event.target.value)} rows={5} aria-label="目標（1行1項目）" />
                     <small className={goalCount > COPM_MAX ? styles.fieldError : styles.muted}>1行に1件、{COPM_MAX}件まで（現在 {goalCount}件）</small>
                     <div className={styles.inlineActions}>
-                      <button className={styles.primaryButton} type="button" onClick={() => void saveGoals()} disabled={busy || goalCount > 5}>保存</button>
+                      <button className={styles.primaryButton} type="button" onClick={() => void saveGoals()} disabled={busy || goalCount > COPM_MAX}>保存</button>
                       <button className={styles.secondaryButton} type="button" onClick={() => { setGoalsText(child.goals.join('\n')); setEditingGoals(false); }}>キャンセル</button>
                     </div>
                   </>

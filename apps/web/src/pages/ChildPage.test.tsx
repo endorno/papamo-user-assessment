@@ -139,6 +139,21 @@ describe('子どもページ', () => {
     expect(within(management).queryByRole('button', { name: '自分の担当一覧から外す' })).not.toBeInTheDocument();
   });
 
+  it('目標がCOPMの上限（4件）を超えている間は保存できない', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
+    renderChildPage();
+
+    const goals = await screen.findByRole('region', { name: '今期の目標' });
+    fireEvent.click(within(goals).getByRole('button', { name: '編集' }));
+    const textarea = within(goals).getByLabelText('目標（1行1項目）');
+
+    fireEvent.change(textarea, { target: { value: '目標1\n目標2\n目標3\n目標4\n目標5' } });
+    expect(within(goals).getByRole('button', { name: '保存' })).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: '目標1\n目標2\n目標3\n目標4' } });
+    expect(within(goals).getByRole('button', { name: '保存' })).toBeEnabled();
+  });
+
   it('共有先で削除済みの子どもを開いた場合は担当一覧へ戻す', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({
       error: { code: 'not_found', message: 'お子さまが見つかりません。' },

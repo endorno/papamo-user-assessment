@@ -6,6 +6,7 @@ import {
   childrenClearResponseSchema,
   childrenResponseSchema,
   EXERCISES,
+  isValidShareCode,
   LEVEL_NOT_MEASURED,
   LEVEL_NOT_POSSIBLE,
   sampleChildCreateResponseSchema,
@@ -234,7 +235,7 @@ export function HomePage() {
 
   async function importChild(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session || shareCode.length !== 9) return;
+    if (!session || !isValidShareCode(shareCode)) return;
     setImporting(true);
     setImportError(null);
     try {
@@ -319,7 +320,8 @@ export function HomePage() {
       if (failed > 0) {
         setSampleError(`${succeeded}名を追加し、${failed}名は失敗しました。もう一度実行すると追加分だけ増えます。`);
       }
-      showToast(`${succeeded}名のサンプルを追加しました。`);
+      // 1件も作れなかったときは失敗の表示だけを残す。
+      if (succeeded > 0) showToast(`${succeeded}名のサンプルを追加しました。`);
     } catch (caught) {
       setSampleError(caught instanceof Error ? caught.message : '一覧を更新できませんでした。');
     } finally {
@@ -404,7 +406,7 @@ export function HomePage() {
                   autoComplete="off"
                   inputMode="text"
                 />
-                <button className={styles.primaryButton} type="submit" disabled={shareCode.length !== 9 || importing}>
+                <button className={styles.primaryButton} type="submit" disabled={!isValidShareCode(shareCode) || importing}>
                   {importing ? '取り込み中…' : '取り込む'}
                 </button>
               </div>
