@@ -3,8 +3,9 @@
 ## 0. まず読むもの（優先順）
 
 1. このファイル全体
-2. `reference/design-mock.html` — PdM**承認済みのUI/UX**。画面構成・文言・配色・挙動の参考にする。実際に実装する機能は実装のしやすさ、仕様のシンプルさを優先し、最初から複雑にしない。
-3. `reference/papamo-lesson-admin/` — **既存のコーチ向けサイト**。レッスン内容の管理・構築を行う。本ツールの認証はこのレッスン管理ツールの認証と共通化する。メインのコーチ管理はレッスン管理ツール側で行い、このツールでログイン・ログアウトのみ行う。
+2. `reference/design-mock-v2.html` — PdM が作った**最新の項目定義**。到達ラダー・見えた動作・取り組みの発達・ご家族/本人の目標（COPM）・ご家庭のお困り度・レポートの構成はこちらが正。1ページ運用前提のため、画面の作りまでは真似しない。
+3. `reference/design-mock.html` — PdM**承認済みのUI/UX**。画面構成・配色・挙動の参考にする。項目そのものが v2 と食い違う場合は v2 を採る。実際に実装する機能は実装のしやすさ、仕様のシンプルさを優先し、最初から複雑にしない。
+4. `reference/papamo-lesson-admin/` — **既存のコーチ向けサイト**。レッスン内容の管理・構築を行う。本ツールの認証はこのレッスン管理ツールの認証と共通化する。メインのコーチ管理はレッスン管理ツール側で行い、このツールでログイン・ログアウトのみ行う。
 
 `reference/` 配下は参照専用。ビルドにもテストにも含めない。
 
@@ -24,12 +25,17 @@
 | 用語                 | 意味                                                                                                 |
 | ------------------ | -------------------------------------------------------------------------------------------------- |
 | 種目 (exercise)      | 観察課題。`post` ラインウォーク / `eyeh` お手玉キャッチ / `hand` グーパータッチ が基本3種。`sacc` あしあとものまね / `inhi` 信号ゲーム が4・5種目目 |
-| Lv                 | 各種目の到達レベル。**0〜20 の整数、必須**。「未実施」「測れなかった」は存在しない（Lv0＝導入前）                                             |
-| 帯 (band)           | Lv をまとめた段階（例：17cm一巡 / 8.5cm一巡）。マスタで定義                                                              |
-| つまずき (errs)        | 種目観察中に見えた典型エラー。種目ごとの固定リストから複数選択                                                                    |
+| Lv                 | 各種目の到達レベル。**上限は種目ごと**（`post`/`eyeh`/`hand` は 30、`sacc`/`inhi` は 20）。`0`＝未実施（今回は測っていない）、`-1`＝実施不可（取り組めなかった）。未入力（`undefined`）とは区別する |
+| 帯 (band)           | Lv をまとめた段階（例：17cm一巡 / 8.5cm一巡 / VOR / パスート）。マスタで定義                                                              |
+| 見えた動作 (observations) | 種目観察中に見えた動き。種目ごとの固定リストから複数選択＋自由記入欄1つ                                                                    |
+| 取り組みの発達 (engagement) | 参加の持続／必要な支援／課題への向かい方／切り替えと立て直し の4軸×5段階。未評価あり                                                        |
+| 環境調整 (envSupports) | 取り組みやすくなった条件。4グループ×5項目の複数選択。順序尺度ではなく profile                                                          |
+| できるようになりたいこと (wants) | 達成したい具体的なこと。22項目から最大4つ                                                                                 |
+| 目標 (copm)          | COPM形式の目標。最大4件、各件に 遂行度／満足度／親御さんの重要度（1〜10）                                                             |
+| 神経ドメイン (domain)    | 困りごとの背景にある力。DN 1〜7。困りごとの各項目が内部でここに紐づく                                                                 |
+| 育ちのピラミッド          | 感覚（いちばん下）から学習・情緒（いちばん上）までの5段。レポートで「いま育てたい土台」を示す                                                    |
 | 困りごと (troubles)    | 保護者ヒアリングで確認する日常の困りごと。年齢帯（`sch` 就学 / `pre` 未就学）別のカテゴリ×3項目                                           |
 | PPI                | ご家庭の負担度。5設問 × 0〜5                                                                                  |
-| 計画 (plan)          | 3か月の運動計画。テンプレートから1つ選ぶ                                                                              |
 | 開放 (unlockExt)     | 4・5種目目を有効にすること。子ども単位で **一度有効にしたら以降ずっと有効**                                                          |
 | 共有コード (shareCode)  | 子どもを別のコーチに引き継ぐためのコード。通常コードとオーナー移譲コードの2種類                                                            |
 | オーナー (owner)       | その子どもに対する唯一の責任コーチ。リンク解除ができない側                                                                      |
@@ -69,9 +75,12 @@
 - 1つの子どもに **下書き（draft）は同時に1件まで**。
 - 入力画面は **1ビュー**（モック参照）。コーチが保護者にヒアリングしながらその場で入力するため、順不同で編集でき、**変更のたびに自動保存**。
 - 目標は子ども登録時ではなく、初回アセスメントで設定する。初回だけ、入会時Googleフォームの回答セルをスプレッドシートからコピーし、専用ダイアログへ貼り付けて目標欄へ一括入力できる。
-- 全種目（3 または 5）の Lv が確定するまで **レポートを作れない**。当日測れない種目があれば下書きのまま閉じ、後日続きから入力する。
+- 全種目（3 または 5）の到達が **選ばれる** までレポートを作れない。選択肢は Lv1〜（種目ごとの上限）と「未実施」「実施不可」で、**未入力のまま残っているとレポートを作れない**。当日測れない種目は「未実施」を選ぶか、下書きのまま閉じて後日続きから入力する。
+- 未実施・実施不可の種目はレーダーでは中心に寄せて描き、優先テーマ・強みの対象から外す。レポートには「できないという意味ではありません」と注記する。
+- 取り組みの発達・環境調整・できるようになりたいこと・目標（COPM）は **レポート作成の必須条件にしない**。入力があった分だけレポートに出す。
 - 4・5種目目：表示上の目安は入会6か月以降だが、**有効化はコーチ判断**。新規アセスメント作成時のチェックで開放し、開放後は子ども単位で永続（以降のアセスメントは自動的に5種目）。未開放の間は入力不可・アルゴリズム対象外だが、**レポートには「これから加わる種目」として必ず表示**する。
-- ご家庭の負担度（PPI）は **5設問すべてに回答が必要**。0 は「ほぼ感じない」という回答であり、未回答とは区別する（レポートを作るには全問の回答が要る）。
+- ご家庭のお困り度（PPI）は **5設問すべてに回答が必要**。0 は「ほぼ感じない」という回答であり、未回答とは区別する（レポートを作るには全問の回答が要る）。
+- **3か月の運動計画（テンプレート選択）は持たない**。design-mock-v2 に無い概念のため廃止した（2026-09-21）。コーチ所見メモは内部用として残す。
 - 比較対象は **直前の完了アセスメントのみ**（選択UIなし）。
 - 一覧の「次回まであとN日」警告は **予定日の14日前** から（予定日 = 直前の完了アセスメントの実施日 `assessed_on` + 3か月）。アーカイブ済みの子どもは催促に出ない。
 - 「SVに引き継ぐ」チェックはモックUIにあるが **実装しない**。通知先がなく、フラグだけ残っても運用されないため（将来メール／Slack通知とセットで検討する）。
@@ -123,7 +132,7 @@
 ├── packages/
 │   └── shared/                  # 依存ゼロ（zod のみ）。API/web 両方から import
 │       └── src/
-│           ├── master/          # 種目ラダー・困りごと・PPI・計画テンプレ・学年（§6）
+│           ├── master/          # 種目ラダー・見えた動作・取り組みの発達・目標・困りごと・PPI・学年（§6）
 │           ├── schema/          # zod スキーマ & 型（Child, Assessment, Report...）
 │           ├── domain/          # 純粋関数：状態判定・次回予定日・帯判定・差分
 │           └── report/          # ReportGenerator インターフェース & RuleBasedReportGenerator（§7）
@@ -227,19 +236,23 @@ reports           id PK, assessment_id UNIQUE → assessments.id, generator ('ru
 
 ```ts
 {
-  lv: { post?: number, eyeh?: number, hand?: number, sacc?: number, inhi?: number }, // 0..20、未入力は undefined
-  errs: Partial<Record<ExerciseKey, string[]>>,
+  lv: { post?: number, eyeh?: number, hand?: number, sacc?: number, inhi?: number }, // -1..種目ごとの上限、未入力は undefined
+  observations: Partial<Record<ExerciseKey, string[]>>,   // 見えた動作（選択）
+  observationNotes: Partial<Record<ExerciseKey, string>>, // 見えた動作（自由記入）
+  engagement: { dur?: number, sup?: number, mot?: number, rec?: number },  // 0..4、未評価は undefined
+  envSupports: string[],         // 環境調整のキー
   troubles: string[],            // マスタの困りごと文言（age_group に対応するセットのもの）
+  wants: string[],               // できるようになりたいことの id（最大4）
+  copm: { text, memo, performance, satisfaction, importance }[],  // 最大4、採点は 1..10
   ppi: { time?: number, emo?: number, soc?: number, fut?: number, nav?: number },  // 0..5、未回答は undefined
   ppiNote: string,
-  plan: PlanKey | null,
   memo: string,
-  goals: string[]                // 完了時に children.goals からコピーされるスナップショット
+  goals: string[]                // 完了時に copm の目標文言からコピーされるスナップショット
 }
 
 ```
 
-zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問・`plan` が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。`goals` はクライアントから送らせず、`complete` 時にサーバーが `children.goals` をコピーする。
+zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。`goals` はクライアントから送らせず、`complete` 時にサーバーが `copm` の目標文言をコピーする（COPM が空なら `children.goals` を使う）。あわせて `children.goals` も COPM の文言で更新し、次の回の初期値にする。
 
 設計上の注意
 
@@ -263,11 +276,15 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 
 すべて `reference/design-mock.html` の `<script>` 冒頭にある定数を **そのまま** 移植する（文言を変えない）。
 
-- `exercises.ts` — 5種目の定義。モックの `AX` が正。1種目のフィールドは `k / core / ic / ex（種目名）/ pn（保護者向けの力の名前）/ nm（臨床名）/ grow / build[] / chg3[] / teaser（4・5種目目のみ）/ bands[] / errs[] / lt[20]（ラダー。Lv1〜20 に対応する課題文）`。Lv0 のラベルは定数 `LV0`（`'導入前（Lv1の課題がまだ成立しない）'`）。
-- `troubles.ts` — `CATSET`（`sch` / `pre` × カテゴリ5 × 3項目）。**チェックされた困りごとは文言そのものを保存する**（§5）ため、文言変更＝過去データとの突き合わせ不能。変更時は PdM 承認に加えて移行方針が必要。
+- `exercises.ts` — 5種目の定義。`design-mock-v2.html` の `AX` が正。1種目のフィールドは `key / core / icon / name（種目名）/ parentName（保護者向けの力の名前）/ clinicalName / summary / about / grow / maxLevel / pyramidRoot / pyramidRelated / build[] / changes3m[] / links[] / changes6m[] / observations[]（見えた動作）/ bands[] / errorPatterns[] / ladder[]`。到達の特別値は `LEVEL_NOT_MEASURED`（0＝未実施）と `LEVEL_NOT_POSSIBLE`（-1＝実施不可）。
+- `ladders.ts` — 到達ラダー。v2 の `LT` をそのまま移植（3種目は30段、後発2種目は20段）。
+- `troubles.ts` — `sch` / `pre` × カテゴリ5 × 3項目。各項目は `text` と `domain`（DN の id）を持つ。**チェックされた困りごとは文言そのものを保存する**（§5）ため、文言変更＝過去データとの突き合わせ不能。変更時は PdM 承認に加えて移行方針が必要。就学／未就学の統合は検討中で、統合までは文言を据え置く。
+- `domains.ts` — 神経ドメイン（DN 1〜7）と育ちのピラミッド（5段）。各ドメインは `priorityKey`（主に支える種目）・`pyramid`・`parentLabel` / `parentText`（保護者向けの平易な言い換え）を持つ。
+- `engagement.ts` — 取り組みの発達（4軸×5段階）と環境調整（4グループ×5項目）。
+- `goals.ts` — できるようになりたいこと（22項目・最大4）と COPM の採点定義（1〜10、最大4件）。
+- `report-copy.ts` — レポートの固定文言（リスク・成長のサイン・免責）と、ルール未確定箇所の一覧 `TUNING_NOTES`。
 - `ppi.ts` — 5設問（`time / emo / soc / fut / nav`）。**5問すべて回答必須**（§2.3）。
 - `grades.ts` — 学年マスタ（モックには無い。新規に定義する）。`k0 未就園 / k1 年少 / k2 年中 / k3 年長 / e1..e6 小学1〜6年生 / j1..j3 中学1〜3年生` を **この順** で並べ、各要素に `name`（表示名）・`ageHint`（一般論の目安年齢。例 `e1` → `'6〜7歳'`）・`ageGroup`（`k*` → `pre`、`e*`・`j*` → `sch`）を持つ。進級は配列の添字で計算する（§5）。
-- `plans.ts` — 計画テンプレート（初期は `base` / `select` / `pre` の3種）。`nm / w（期間）/ items[]`。
 - `version.ts` — `MASTER_VERSION`。
 
 マスタ文言の変更は PdM 承認事項。エージェントが独断で言い回しを変えない。
@@ -303,39 +320,53 @@ export interface ReportGenerator {
 {
   kind: 'first' | 'comparison',
   generator: string, masterVersion: string, generatedAt: string,
-  header: { childName, honorific, grade, ageHint, seqNo, assessedOn, prevAssessedOn?, coachName },
-  levels: { key, lv, prevLv?, delta?, band, ladderLabel }[],        // 未開放種目は含めない
-  upcomingExercises: { key, name, parentName, teaser }[],           // 未開放の4・5種目目（開放済みなら空）
-  priorities: { key, parentName, lv, grow, build[] }[],             // 優先テーマ（§7.2 の分割ルール）
-  strengths: { key, parentName, lv }[],
-  changes3m?: string[],                                             // comparison のみ
-  troubles: { current: string[], gone?: string[], stayed?: string[], added?: string[] },
-  link: { lowestKey, text },                                        // 困りごととの見立てのつながり
-  ppi: { current: PPI, previous?: PPI, note: string },
-  plan: { key, name, window, items[] } | null,
-  outlook: string[],                                                // 3か月後にこう変わるはず
-  nextDue: 'YYYY-MM-DD',
-  coach: { strategies: { key, lv, band, nextLv, nextLabel, errs[] }[], memo: string }  // 子どもページ用
+  header: { childName, honorific, grade, ageHint, joinedOn?, seqNo, assessedOn, prevAssessedOn?, coachName },
+  levels: { key, name, parentName, lv, maxLv, measured, prevLv?, delta?, band, ladderLabel }[],  // 未開放種目は含めない
+  unmeasured: { key, name, upcoming, notPossible }[],        // 今回測っていない種目（図の注記）
+  conditionNotes: { key, name, notes[] }[],                  // 当日の様子（指示理解の難しさ など）
+  upcomingExercises: { key, name, parentName, about }[],     // 未開放の4・5種目目
+  priorities: { key, parentName, lv, maxLv, grow, build[] }[],
+  strengths: { key, parentName, lv, maxLv }[],
+  engagement: { key, title, subtitle, level, levelCount, label, prevLevel?, delta? }[],
+  envSupports: { group, items[] }[],
+  changes3m?: string[],                                      // comparison のみ
+  troubles: { current[], byCategory[], gone?, stayed?, added? },
+  domainHits: { id, title, parentLabel, parentText, pyramid, troubles[], verdict, priority... }[],
+  rootDomain: { id, title, parentLabel, parentText } | null,
+  proprioceptionNote: boolean,                               // 力加減の基準（固有覚）の所見を出すか
+  risks: string[],
+  pyramid: { rows[], highlighted[], root, rootTierLabel, related[], sourceKey },
+  link: { lowestKey, text },
+  ppi: { current: PPI, previous?: PPI, note },
+  roadmap: { month3Build[], month3Changes[], month6Links[], month6Changes[] },
+  wants: { id, group, icon, text, short, menu }[],
+  copm: { text, memo, performance, satisfaction, importance, previous?, performanceDelta?, satisfactionDelta? }[],
+  growthSigns: string[], watchPoints: string[],
+  nextDue: 'YYYY-MM-DD', nextReview: 'YYYY-MM-DD',           // 3か月・6か月レビューの目安日
+  tuning: { key, label, note }[],                            // 「アルゴリズム調整中」を出す箇所
+  coach: { strategies: { key, lv, band, nextLv, nextLabel, observations[], note }[], memo }  // 子どもページ用
 }
-
 ```
 
-### 7.1.1 保護者向けレポートのシート構成（モック `viewReport()` 準拠）
+### 7.1.1 保護者向けレポートのシート構成（`design-mock-v2.html` 準拠）
 
-印刷して3枚。フロントはこの順で `.sheet` を並べる。
+印刷して4枚。フロントはこの順で `.sheet` を並べる。
 
 | シート | 見出し | 載せる `ReportContent` のフィールド |
 | --- | --- | --- |
-| Page 1 | 初回『◯◯ちゃんの現在地と強み』／比較『◯◯ちゃんの3か月の変化』 | `header` / レーダー（`levels` + 前回値）/ `link.text` の導入文 / 到達レベル一覧表（`levels` + `upcomingExercises`）/ `changes3m`（比較のみ）/ `priorities` / `strengths` / `upcomingExercises`（未開放のときだけ枠で表示） |
-| Page 2 | 初回『今のお困りごとと、その理由』／比較『困りごとと、ご家庭の負担の変化』 | `troubles`（初回はカテゴリ別、比較は gone/stayed/added のピル）/ `link` / `ppi` |
-| Page 3 | 『これからの3か月』 | `plan` / `priorities[].build` / `outlook` / `nextDue`（ミニタイムライン。未開放かつ次回で半年を超えるなら「🔓 半年目以降、4・5種目目を追加」を添える） |
+| Page 1 | 初回『◯◯ちゃんの現在地と強み』／比較『◯◯ちゃんの3か月の変化』 | `header` / レーダー（`levels`）/ `unmeasured`・`conditionNotes` の注記 / 到達レベル一覧表（`levels` + `upcomingExercises`）/ `changes3m`（比較のみ）/ `priorities` / `strengths` / `engagement`・`envSupports` / `upcomingExercises`（未開放のときだけ枠で表示） |
+| Page 2 | 『今のお困りごとと、その理由』／比較『困りごとと、ご家庭の負担の変化』 | `troubles`（初回はカテゴリ別、比較は gone/stayed/added のピル）/ `domainHits` の表 / `risks` / `rootDomain` / `proprioceptionNote` / `pyramid` |
+| Page 3 | 『◯◯ちゃんの6か月成長ロードマップ』 | 現在地（`levels` + `strengths`）→ `roadmap.month3*` → `roadmap.month6*` → 目指す未来（`wants` + `copm`）。4本を色分けし、矢印でつなぐ |
+| Page 4 | 『これから一緒に見ていくこと』 | `growthSigns` / `watchPoints` / `wants` / `copm` の表 / `ppi` / `nextDue`・`nextReview` のミニタイムライン |
 
-子どもページの「今期のレッスン戦略」は `coach.strategies` と `plan`、`coach.memo` を使う（レポートには出さない）。
+子どもページの「今期のレッスン戦略」は `coach.strategies` と `coach.memo` を使う（レポートには出さない）。
 
 ### 7.2 ルールベース実装 `RuleBasedReportGenerator`（id: `rule_v1`）
 
-- `reference/design-mock.html` の `analyze()` / `strategyHTML()` / `deltaTable()` / `viewReport()` 内の組み立てロジックを純粋関数として移植する。**正は design-mock.html**。
-- 優先テーマと強みの分割はモックの `analyze()` に従う：測定済み種目を Lv 昇順に並べ、`n = min(3, max(1, 種目数 - 1))` 件を優先テーマ、残りを Lv 降順で強みにする（3種目なら優先2・強み1、5種目なら優先3・強み2）。`link.lowestKey` は最小 Lv の種目。
+- `reference/design-mock-v2.html` の `build()` 内の組み立てロジックを純粋関数として移植する。**正は design-mock-v2.html**。
+- 優先テーマと強みの分割はモックの分割に従う：**Lv1 以上で実際に測れた種目だけ**を Lv 昇順に並べ、`n = min(3, max(1, 測定済み種目数 - 1))` 件を優先テーマ、残りを Lv 降順で強みにする。`link.lowestKey` は最小 Lv の種目。未実施・実施不可の種目はどちらにも入れない。
+- 困りごとは項目ごとの `domain` で神経ドメインへ集約し、`強く一致`（主軸種目が下位半分かつ Lv6 以下）→ `一致`（下位半分かつ Lv10 以下）→ `未測定`（主軸種目が未実施、または帯の条件に未到達）→ `不一致` の順に並べる。最初の `強く一致` / `一致` が `rootDomain`。
+- **ルールが未確定の箇所は `tuning` に載せ、レポート画面に「アルゴリズム調整中」を表示する**。勝手に決め打ちせず、決まったら `TUNING_NOTES` から外す。現在の対象は、2回目以降の比較・取り組みの発達の差分・COPM の再採点・未就学児の困りごとの紐づけ・優先テーマの決め方（種目ごとの上限差の補正）。
 - **同 Lv のタイブレークは `AX` の定義順**（post → eyeh → hand → sacc → inhi）。JS の安定ソートに暗黙に頼らず、比較関数に明示する。
 - 完全に決定的であること（同じ入力 → 同じ出力）。乱数・日時依存を入れない（`generatedAt` は呼び出し側から注入）。
 - ユニットテストでスナップショットを固定する（§10）。
@@ -378,11 +409,11 @@ export interface ReportGenerator {
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
 | POST   | `/children/:id/archive`     | アーカイブ（退会）。owner のみ。下書きが残っていても可（下書きごと隠れる）                                                                                                                 |
 | POST   | `/children/:id/unarchive`   | 復元。owner のみ                                                                                                                                              |
-| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`plan` の初期値（前回コピー。初回は `ageGroup` から `pre`/`base`）はサーバーが埋める。`ext_unlocked` の子どもは `unlockExt` を true に強制 |
+| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`wants`・`copm` の初期値（前回コピー。初回の `copm` は `children.goals`）はサーバーが埋める。`ext_unlocked` の子どもは `unlockExt` を true に強制 |
 | GET    | `/assessments/:id`          | 単体取得（前回の summary を同梱）                                                                                                                                     |
 | PATCH  | `/assessments/:id`          | 自動保存。`{ assessedOn?, unlockExt?, data }` を **全体置換**（部分マージしない）。`ext_unlocked` の子どもは `unlockExt` を true に強制。後続のアセスメントが存在する回は 409                              |
 | DELETE | `/assessments/:id`          | 下書きの破棄。`status='draft'` のときだけ許可（done は 409）。誤って作った下書きを消して前の回の編集に戻るための唯一の手段                                                                               |
-| POST   | `/assessments/:id/complete` | 検証（全種目 Lv 確定・PPI 全5設問・plan 必須）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書き）。後続のアセスメントが存在する回は 409                        |
+| POST   | `/assessments/:id/complete` | 検証（全種目の到達が選択済み・PPI 全5設問）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書き）。後続のアセスメントが存在する回は 409                        |
 | GET    | `/assessments/:id/report`   | レポート取得                                                                                                                                                    |
 
 
@@ -394,7 +425,7 @@ export interface ReportGenerator {
 
 モックの `stateOf()` を移植。優先順：`draft`（入力中 n/m）→ `due`（次回まで14日以内 or 超過）→ `first`（未実施）→ `ok`（次回予定日）。
 
-- 分母 `m` = **種目数（3 または 5）+ 3**（困りごと・負担度・計画）。分子 `n` = Lv が確定した種目数 + 困りごと1件以上 + 負担度が **5問すべて回答済み** + 計画が選択済み。モックの `filledCount` は「どれか1問でも 1 以上」で判定しているが、0 は正当な回答なので回答済みかどうかで数える（§2.3）。
+- 分母 `m` = **種目数（3 または 5）+ 2**（困りごと・お困り度）。分子 `n` = 到達が選ばれた種目数 + 困りごと1件以上 + お困り度が **5問すべて回答済み**。モックの `filledCount` は「どれか1問でも 1 以上」で判定しているが、0 は正当な回答なので回答済みかどうかで数える（§2.3）。
 - 次回予定日 = **直前の完了アセスメントの `assessed_on` + 3か月**（`completed_at` ではない）。日付の比較は Asia/Tokyo の今日で行う。
 - アーカイブ済みの子どもは一覧・催促の対象外。
 
@@ -418,8 +449,8 @@ export interface ReportGenerator {
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称（なしを含む）・**学年**・入会日（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | 育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コードの表示、目標の編集。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
-| `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、0〜20 グリッド、前回Lvの点線枠、ラダー展開、下部固定バー（未決定の種目名 / レポートを作る）。初回は目標欄にスプレッドシート貼り付けの一括取り込みを表示。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
-| `/reports/:id`     | 保護者向けレポート    | 初回 / 比較の2レイアウト。印刷/PDF                                                                                                   |
+| `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、「未実施／実施不可」ボタン＋Lv1〜上限のグリッド、前回Lvの点線枠、ラダー展開、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
+| `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
 
 
 ### 9.2 実装ルール
@@ -431,10 +462,12 @@ export interface ReportGenerator {
 - ページ離脱時に未保存があれば `beforeunload` で警告。
 - 新しいアセスメントを始めるボタンは、**前の回が編集できなくなる**ことを確認ダイアログで伝えてから作成する（§2.5）。
 - レーダー・タイムラインは SVG を自前で描く（モックの `radar()` を React 化）。チャートライブラリは入れない。
-- 印刷用 CSS は `styles/print.css`。`.sheet` を A4 1ページ相当にし `page-break-after: always`（保護者向けレポートは3枚構成）。
+- 印刷用 CSS は `styles/print.css`。`.sheet` を A4 1ページ相当にし `page-break-after: always`（保護者向けレポートは4枚構成）。
 - 文言・順序・色はモックに合わせる。デザイントークンは `:root` 変数をそのまま移植し、フォント（Zen Kaku Gothic New）も同じものを使う。改善案があればコードではなく Issue/PR 説明に書く。
 - 学年・年齢の表示は **「小学1年生（6〜7歳）」** の形（年齢は `ageHint` の参考値。§2.4）。学年は表示のたびに今日の年度で算出するので、4/1 を跨げば自動で上がる。
-- 目標の初回設定・編集はアセスメント画面の基本情報から行い、保存先は常に子ども（`PATCH /children/:id`）。初回のみ、Googleスプレッドシートで選択した目標セル（行または列）をタブ・改行区切りで最大5件まで取り込める。その回のレポートには完了時点のスナップショットが載る。
+- 目標の入力はアセスメント画面の「ご家族・本人の目標」1か所（COPM表、最大4件）。保存先はアセスメントで、完了時にサーバーが目標文言を子ども（`children.goals`）へ同期し、次の回の初期値にする。子どもページからの編集も引き続き `PATCH /children/:id`。
+- 事前アンケートの取り込みは「保護者と確認して記入」エリアの頭に置き、**お困りごと・目標・ご家庭のお困り度の3つ**をまとめて入れる。列名の行（`trouble` / `want` / `goal` / `ppi_time`〜`ppi_nav` / `ppi_note`）を含めて貼り付けると各欄へ振り分け、列名が無ければ従来どおり目標として扱う。回答が無かった項目には触らず、コーチの手入力を消さない。
+- レポートのレーダーは大きく出す（1枚目の主役）。「これから加わる種目」は枠ではなく1行の注記に留める。育ちのピラミッドは段ごとに幅を変えて（38 / 56 / 74 / 88 / 100%）実際に三角形に見せる。6か月ロードマップは4本を色分け（現在地=緑 / 3か月後=オレンジ / 6か月後=青 / 目指す未来=ピンク）し、矢印でつなぐ。
 - ご家庭の負担度は **未選択で始める**（モックのスライダー初期値0は使わない）。0〜5 のボタンで選ばせ、未回答が残っていれば下部バーに「あと N 問」を出してレポート作成を止める。
 - アクセシビリティ：タップ領域 44px 以上、フォーカスリング必須、色だけで意味を伝えない（▲▼ とテキストを併記）。
 
