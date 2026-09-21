@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 
 import {
   childImportResponseSchema,
+  childrenClearResponseSchema,
   childrenResponseSchema,
   EXERCISES,
   LEVEL_NOT_MEASURED,
@@ -10,6 +11,7 @@ import {
   sampleChildCreateResponseSchema,
   sampleDataStatusResponseSchema,
   todayInJst,
+  type ChildrenClearResponse,
   type ChildView,
   type SampleDataProfile,
   type SampleDataStatusResponse,
@@ -43,6 +45,16 @@ function randomSampleProfile(): SampleDataProfile {
 function sampleProfiles(count: number): SampleDataProfile[] {
   if (count === 1) return [randomSampleProfile()];
   return Array.from({ length: count }, (_, index) => SAMPLE_PROFILE_CYCLE[index % SAMPLE_PROFILE_CYCLE.length]!);
+}
+
+/** 削除とリンク解除は結果が違うので、起きたことだけを伝える。 */
+function clearResultMessage({ deleted, unlinked }: ChildrenClearResponse) {
+  if (deleted > 0 && unlinked > 0) {
+    return `オーナーの${deleted}名を記録ごと削除し、${unlinked}名を担当から外しました。`;
+  }
+  if (deleted > 0) return `オーナーの${deleted}名を記録ごと削除しました。`;
+  if (unlinked > 0) return `${unlinked}名を担当から外しました。`;
+  return '担当のお子さまはいませんでした。';
 }
 
 function formatShareCodeInput(value: string) {
@@ -167,6 +179,9 @@ export function HomePage() {
   const [sampleProgress, setSampleProgress] = useState({ completed: 0, total: 0, failed: 0 });
   const [sampleError, setSampleError] = useState<string | null>(null);
   const [generatingSamples, setGeneratingSamples] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   const loadChildren = useCallback(async (archived = false) => {
     if (!session) return;
@@ -313,6 +328,27 @@ export function HomePage() {
     }
   }
 
+  async function clearChildren() {
+    if (!session || clearing) return;
+    setClearing(true);
+    setClearError(null);
+    try {
+      const response = await apiRequest<unknown>('/dev-tools/children', session, { method: 'DELETE' });
+      const parsed = childrenClearResponseSchema.safeParse(response);
+      if (!parsed.success) throw new Error('削除結果を読み込めませんでした。');
+      setConfirmingClear(false);
+      setShowArchived(false);
+      setArchivedChildren([]);
+      setFilter('');
+      await loadChildren();
+      showToast(clearResultMessage(parsed.data));
+    } catch (caught) {
+      setClearError(caught instanceof Error ? caught.message : '削除に失敗しました。');
+    } finally {
+      setClearing(false);
+    }
+  }
+
   // 取り込み・復元の直後だけ場所を示す。ずっと光らせない。
   useEffect(() => {
     if (!highlightedId) return;
@@ -331,6 +367,7 @@ export function HomePage() {
   const todoChildren = visibleChildren.filter((child) => child.latestAssessment !== null && (child.state?.order ?? 2) < 2);
   const settledChildren = visibleChildren.filter((child) => (child.state?.order ?? 2) >= 2);
   const showFilter = children.length >= FILTER_THRESHOLD;
+  const ownedCount = children.filter((child) => child.role === 'owner').length;
 
   return (
     <div className={styles.app}>
@@ -487,6 +524,29 @@ export function HomePage() {
                 </p>
               ) : null}
               {sampleError ? <p className={styles.error} role="alert">{sampleError}</p> : null}
+
+              <div className={styles.devToolsDanger}>
+                <p className={styles.devToolsWarning} role="note">
+                  <strong>⚠ 取り消せない操作です</strong>
+                  担当一覧を空にします。自分がオーナーのお子さま（アーカイブ中も含む）は、アセスメント・レポートごと削除します。
+                  ほかのコーチがオーナーのお子さまは担当リンクだけ外すので、記録は相手側に残ります。
+                  {sampleDataStatus.environment === 'staging'
+                    ? 'ここはステージング環境です。ほかの人が確認中のデータが含まれていないか確かめてください。'
+                    : 'ここはローカル環境です。'}
+                </p>
+                <button
+                  className={styles.devToolsDangerButton}
+                  type="button"
+                  disabled={clearing || generatingSamples}
+                  onClick={() => {
+                    setClearError(null);
+                    setConfirmingClear(true);
+                  }}
+                >
+                  担当の子どもをすべて削除
+                </button>
+                {clearError ? <p className={styles.error} role="alert">{clearError}</p> : null}
+              </div>
             </div>
           </details>
         ) : null}
@@ -502,6 +562,26 @@ export function HomePage() {
         error={sampleError}
         onCancel={() => setSampleCount(null)}
         onConfirm={() => void createSampleChildren()}
+      />
+      <ConfirmDialog
+        open={confirmingClear}
+        title="担当の子どもをすべて削除しますか？"
+        message="開発用の操作です。自分がオーナーのお子さまは、アセスメント・レポートごと元に戻せない形で削除します。"
+        confirmLabel="すべて削除する"
+        tone="danger"
+        busy={clearing}
+        detail={
+          <>
+            削除（オーナー）：一覧の{ownedCount}名 ＋ アーカイブ中のお子さま
+            <br />
+            担当から外すだけ：一覧の{children.length - ownedCount}名
+            <br />
+            環境：{sampleDataStatus?.environment === 'staging' ? 'ステージング' : 'ローカル'}
+          </>
+        }
+        error={clearError}
+        onCancel={() => setConfirmingClear(false)}
+        onConfirm={() => void clearChildren()}
       />
     </div>
   );

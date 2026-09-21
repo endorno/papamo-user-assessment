@@ -215,6 +215,7 @@ describe('担当の子ども一覧', () => {
       if (url.endsWith('/api/dev-tools/sample-data')) {
         return response({
           enabled: true,
+          environment: 'local',
           ready: true,
           backgroundCoachCount: 15,
           presets: [1, 10, 30],
@@ -242,5 +243,42 @@ describe('担当の子ども一覧', () => {
     expect(profiles.filter((profile) => profile === 'short')).toHaveLength(2);
     expect(profiles.filter((profile) => profile === 'new')).toHaveLength(1);
     expect(maxActiveRequests).toBeLessThanOrEqual(3);
+  });
+
+  it('開発環境では確認のうえ、オーナーの子どもだけ記録ごと削除する', async () => {
+    let cleared = false;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/dev-tools/sample-data')) {
+        return response({
+          enabled: true,
+          environment: 'staging',
+          ready: true,
+          backgroundCoachCount: 15,
+          presets: [1, 10, 30],
+        });
+      }
+      if (url.endsWith('/api/dev-tools/children') && init?.method === 'DELETE') {
+        cleared = true;
+        return response({ deleted: 1, unlinked: 1 });
+      }
+      return response({ children: cleared ? [] : [draftChild, { ...settledChild, role: 'member' as const }] });
+    }));
+
+    renderHomePage();
+    fireEvent.click(await screen.findByText('開発用：サンプルデータ'));
+    fireEvent.click(screen.getByRole('button', { name: '担当の子どもをすべて削除' }));
+
+    // 取り消せない操作なので、確認なしでは消さない。
+    expect(cleared).toBe(false);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('削除（オーナー）：一覧の1名');
+    expect(dialog).toHaveTextContent('担当から外すだけ：一覧の1名');
+    expect(dialog).toHaveTextContent('ステージング');
+
+    fireEvent.click(screen.getByRole('button', { name: 'すべて削除する' }));
+    await waitFor(() => expect(screen.getByRole('status'))
+      .toHaveTextContent('オーナーの1名を記録ごと削除し、1名を担当から外しました'));
+    expect(screen.queryByText('そうた')).not.toBeInTheDocument();
   });
 });

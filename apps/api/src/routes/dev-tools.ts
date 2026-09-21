@@ -1,4 +1,5 @@
 import {
+  childrenClearResponseSchema,
   sampleChildCreateRequestSchema,
   sampleChildCreateResponseSchema,
   sampleDataStatusResponseSchema,
@@ -9,6 +10,7 @@ import type { AppVariables, Env } from '../env';
 import { internalError, jsonError } from '../http/errors';
 import { nonProductionToolsEnabled } from '../services/non-production';
 import {
+  clearChildrenOfCoach,
   createSampleChild,
   sampleDataStatus,
   SampleDataServiceError,
@@ -31,6 +33,7 @@ devToolsRoutes.get('/sample-data', async (context) => {
     const status = await sampleDataStatus(context.env);
     return context.json(sampleDataStatusResponseSchema.parse({
       enabled: true,
+      environment: context.env.APP_ENV,
       presets: [1, 10, 30],
       ...status,
     }));
@@ -63,5 +66,14 @@ devToolsRoutes.post('/sample-child', async (context) => {
       return jsonError(context, 'conflict', caught.message, 409);
     }
     return internalError(context, caught, 'dev_tools.create_sample_child', 'サンプルのお子さまを作成できませんでした。');
+  }
+});
+
+devToolsRoutes.delete('/children', async (context) => {
+  try {
+    const cleared = await clearChildrenOfCoach(context.env, context.get('coach').id);
+    return context.json(childrenClearResponseSchema.parse(cleared));
+  } catch (caught) {
+    return internalError(context, caught, 'dev_tools.clear_children', '担当のお子さまを削除できませんでした。');
   }
 });

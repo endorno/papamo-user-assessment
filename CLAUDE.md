@@ -51,6 +51,7 @@
 - 内部エラーは構造化JSONで記録する。ログに入力本文や子どもの名前などの個人情報を含めない。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。
+- 開発用の一括削除（`DELETE /dev-tools/children`）は担当一覧を空にする操作。自分がオーナーの子どもはアーカイブ中も含めてアセスメント・レポートごと消し、ほかのコーチがオーナーの子どもは `child_coaches` の自分の行だけ消す。他コーチの一覧から勝手に子どもを消さない。`prev_assessment_id` は RESTRICT なので、先に参照を NULL にしてから回をまとめて消す。レポートと担当紐づきは CASCADE で落ちる。
 - コーチのID管理は `reference/papamo-lesson-admin`＝「メニュー構築サイト」の責務。画面の文言でも「コーチ管理サイト」ではなく「メニュー構築サイト」と書く。
 - ステージングでもアプリ内のメールアドレス許可リストは持たず、lesson-admin と共用する Supabase Auth でログインできるユーザーを受け入れる。service role / secret key、Admin Auth API、コーチなりすましは導入しない。
 - ステージングの公開先は `user-assessment-staging.heyasupo-lab.com`。`papamo-user-assessment-staging` Worker と APAC 配置の専用D1を使い、lesson-admin のステージングSupabaseを共用する。デプロイはGit連携せず `pnpm run deploy:staging` で手動実行し、D1マイグレーションは事前に別コマンドで適用する。

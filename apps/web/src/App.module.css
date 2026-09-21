@@ -618,3 +618,58 @@
 .devToolsContent > .error {
   margin-top: 12px;
 }
+
+/* 取り消せない操作なので、サンプル追加とは見た目からはっきり分ける。 */
+.devToolsDanger {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.devToolsWarning {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #efc1bb;
+  border-radius: var(--r);
+  background: var(--red-soft);
+  color: var(--ink2);
+  font-size: 0.86rem;
+}
+
+.devToolsWarning strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--red);
+}
+
+.devToolsDangerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 11px 18px;
+  border: 1px solid var(--red);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--red);
+  font: inherit;
+  font-weight: 700;
+}
+
+.devToolsDangerButton:hover:not(:disabled) {
+  background: var(--red);
+  color: #fff;
+}
+
+.devToolsDangerButton:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.devToolsDangerButton:disabled {
+  opacity: 0.55;
+}
+
+.devToolsDanger > .error {
+  margin: 10px 0 0;
+}

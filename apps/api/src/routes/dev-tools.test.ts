@@ -80,6 +80,7 @@ describe('開発用データAPI', () => {
     expect(statusResponse.status).toBe(200);
     await expect(statusResponse.json()).resolves.toMatchObject({
       enabled: true,
+      environment: 'local',
       ready: false,
       backgroundCoachCount: 0,
       presets: [1, 10, 30],
@@ -115,5 +116,71 @@ describe('開発用データAPI', () => {
       childId: expect.any(String),
       profile: 'new',
     });
+  });
+
+  it('本番では担当一覧の一括削除も404にする', async () => {
+    const id = crypto.randomUUID();
+    const api = client(id, `${id}@example.com`);
+    await request(api, environment(), '/me', {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: '本番テストコーチ2' }),
+    });
+
+    const response = await request(api, environment(), '/dev-tools/children', { method: 'DELETE' });
+    expect(response.status).toBe(404);
+  });
+
+  it('ローカルではオーナーの子どもだけ履歴ごと消し、共有で受け取った子どもはリンクだけ外す', async () => {
+    const currentEnv = environment({ APP_ENV: 'local', NON_PRODUCTION_TOOLS_ENABLED: 'true' });
+    const ownerId = crypto.randomUUID();
+    const memberId = crypto.randomUUID();
+    const ownerApi = client(ownerId, `${ownerId}@example.com`);
+    const memberApi = client(memberId, `${memberId}@example.com`);
+    for (const [id, name] of [[ownerId, 'オーナーコーチ'], [memberId, '片付けコーチ']] as const) {
+      await upsertCoach(currentEnv, { id, email: `${id}@example.com` });
+      await updateCoachDisplayName(currentEnv, id, name);
+    }
+    for (let index = 1; index <= 15; index += 1) {
+      const suffix = index.toString().padStart(2, '0');
+      await upsertCoach(currentEnv, {
+        id: `seed-coach-${suffix}`,
+        email: `seed-coach-${suffix}@example.invalid`,
+      });
+    }
+
+    // 完了済みの回とレポートが積み重なった子どもでも消せることを確かめる。
+    for (const profile of ['long', 'new'] as const) {
+      const created = await request(memberApi, currentEnv, '/dev-tools/sample-child', {
+        method: 'POST',
+        body: JSON.stringify({ profile }),
+      });
+      expect(created.status).toBe(201);
+    }
+
+    // ほかのコーチがオーナーの子どもを共有コードで受け取っておく。
+    const shared = await request(ownerApi, currentEnv, '/dev-tools/sample-child', {
+      method: 'POST',
+      body: JSON.stringify({ profile: 'short' }),
+    });
+    const { childId: sharedChildId } = await shared.json() as { childId: string };
+    const detail = await request(ownerApi, currentEnv, `/children/${sharedChildId}`);
+    const { child } = await detail.json() as { child: { shareCode: string } };
+    const imported = await request(memberApi, currentEnv, '/children/import', {
+      method: 'POST',
+      body: JSON.stringify({ code: child.shareCode }),
+    });
+    expect(imported.status).toBe(200);
+
+    const response = await request(memberApi, currentEnv, '/dev-tools/children', { method: 'DELETE' });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deleted: 2, unlinked: 1 });
+
+    const memberList = await request(memberApi, currentEnv, '/children');
+    await expect(memberList.json()).resolves.toEqual({ children: [] });
+
+    // オーナー側の子どもは記録ごと残る。
+    const ownerList = await request(ownerApi, currentEnv, '/children');
+    const { children: ownerChildren } = await ownerList.json() as { children: { id: string }[] };
+    expect(ownerChildren.map((row) => row.id)).toEqual([sharedChildId]);
   });
 });

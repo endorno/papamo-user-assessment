@@ -1,4 +1,4 @@
-import { asc, like } from 'drizzle-orm';
+import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
@@ -210,6 +210,44 @@ export async function sampleDataStatus(env: Env) {
     ready: backgroundCoachCount >= REQUIRED_BACKGROUND_COACH_COUNT,
     backgroundCoachCount,
   };
+}
+
+/**
+ * 非本番専用。ログイン中コーチの担当一覧を空にする。
+ * オーナーの子どもは記録ごと消し、ほかのコーチがオーナーの子どもは担当リンクだけ外す。
+ * サンプルを入れすぎたときのやり直し用なので、アーカイブ中の子どもも対象にする。
+ */
+export async function clearChildrenOfCoach(env: Env, coachId: string) {
+  const db = dbFor(env);
+  const rows = await db
+    .select({ childId: childCoaches.childId, role: childCoaches.role })
+    .from(childCoaches)
+    .where(eq(childCoaches.coachId, coachId))
+    .all();
+  const ownedIds = rows.filter((row) => row.role === 'owner').map((row) => row.childId);
+  const linkedIds = rows.filter((row) => row.role !== 'owner').map((row) => row.childId);
+
+  const statements: BatchItem<'sqlite'>[] = [];
+  if (ownedIds.length > 0) {
+    // prev_assessment_id は RESTRICT。回どうしの参照を先に切ってからまとめて消す。
+    // reports は assessments の、child_coaches は children の CASCADE で一緒に消える。
+    statements.push(
+      db.update(assessments).set({ prevAssessmentId: null }).where(inArray(assessments.childId, ownedIds)),
+      db.delete(assessments).where(inArray(assessments.childId, ownedIds)),
+      db.delete(children).where(inArray(children.id, ownedIds)),
+    );
+  }
+  if (linkedIds.length > 0) {
+    statements.push(db.delete(childCoaches).where(and(
+      eq(childCoaches.coachId, coachId),
+      inArray(childCoaches.childId, linkedIds),
+    )));
+  }
+  if (statements.length > 0) {
+    await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
+  }
+
+  return { deleted: ownedIds.length, unlinked: linkedIds.length };
 }
 
 export async function createSampleChild(
