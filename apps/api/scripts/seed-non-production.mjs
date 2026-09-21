@@ -1,32 +1,23 @@
-import { spawnSync } from 'node:child_process';
+import {
+  executeSqlFile,
+  isNonProductionTarget,
+  readConfirmation,
+  STAGING_NAME,
+} from './lib/non-production-d1.mjs';
 
 const target = process.argv[2];
-const confirmationIndex = process.argv.indexOf('--confirm');
-const confirmation = process.argv.find((argument) => argument.startsWith('--confirm='))?.slice('--confirm='.length)
-  ?? (confirmationIndex >= 0 ? process.argv[confirmationIndex + 1] : undefined);
-const stagingName = 'papamo-user-assessment-staging';
 
-if (target !== 'local' && target !== 'staging') {
+if (!isNonProductionTarget(target)) {
   console.error('対象は local または staging を指定してください。');
   process.exit(1);
 }
 
-if (target === 'staging' && confirmation !== stagingName) {
-  console.error(`ステージングを初期化するには --confirm ${stagingName} を指定してください。`);
+if (target === 'staging' && readConfirmation(process.argv) !== STAGING_NAME) {
+  console.error(`ステージングを初期化するには --confirm ${STAGING_NAME} を指定してください。`);
   process.exit(1);
 }
 
-const wranglerArguments = [
-  'exec',
-  'wrangler',
-  'd1',
-  'execute',
-  'DB',
-  ...(target === 'local' ? ['--local'] : ['--env', 'staging', '--remote']),
-  '--file',
-  'seeds/non-production.sql',
-];
-const result = spawnSync('pnpm', wranglerArguments, { stdio: 'inherit' });
+const result = executeSqlFile(target, 'seeds/non-production.sql');
 
 if (result.error) {
   console.error('Wrangler を起動できませんでした。', result.error);

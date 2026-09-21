@@ -12,6 +12,8 @@
     "db:migrate:production": "wrangler d1 migrations apply DB --remote",
     "db:seed:local": "node scripts/seed-non-production.mjs local",
     "db:seed:staging": "node scripts/seed-non-production.mjs staging",
+    "db:reset:local": "node scripts/reset-non-production.mjs local",
+    "db:reset:staging": "node scripts/reset-non-production.mjs staging",
     "types:worker": "wrangler types worker-configuration.d.ts --env-interface WorkerBindings --include-runtime false",
     "test": "vitest run --config vitest.config.ts",
     "lint": "eslint .",

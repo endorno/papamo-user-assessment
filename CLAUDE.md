@@ -50,7 +50,8 @@
 - WorkersのBinding型は `apps/api/worker-configuration.d.ts` を `wrangler types` で生成し、手書きしない。
 - 内部エラーは構造化JSONで記録する。ログに入力本文や子どもの名前などの個人情報を含めない。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
-- 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。
+- 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`seeds/non-production.sql` でも `prev_assessment_id` を先に NULL にしてから回を消す（RESTRICT のため一括 DELETE だけでは外部キー違反になる）。
+- 非本番リセット（`db:reset:local` / `db:reset:staging`）はコーチ行も含めて全テーブルを空にし、マイグレーション直後の状態に戻す。新規ログインの挙動確認用。対象は `local` / `staging` だけを受け付け、実行前に対象D1名を表示して y/N で確認する（ステージングは `--confirm papamo-user-assessment-staging` も必須、非対話実行は中止）。本番D1へ向かう引数は組み立てない。
 - 開発用の一括削除（`DELETE /dev-tools/children`）は担当一覧を空にする操作。自分がオーナーの子どもはアーカイブ中も含めてアセスメント・レポートごと消し、ほかのコーチがオーナーの子どもは `child_coaches` の自分の行だけ消す。他コーチの一覧から勝手に子どもを消さない。`prev_assessment_id` は RESTRICT なので、先に参照を NULL にしてから回をまとめて消す。レポートと担当紐づきは CASCADE で落ちる。
 - コーチのID管理は `reference/papamo-lesson-admin`＝「メニュー構築サイト」の責務。画面の文言でも「コーチ管理サイト」ではなく「メニュー構築サイト」と書く。
 - ステージングでもアプリ内のメールアドレス許可リストは持たず、lesson-admin と共用する Supabase Auth でログインできるユーザーを受け入れる。service role / secret key、Admin Auth API、コーチなりすましは導入しない。

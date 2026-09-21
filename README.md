@@ -72,6 +72,14 @@ pnpm --filter @papamo/api db:seed:local
 
 `db:seed:local` はローカルD1の子ども、担当紐づき、アセスメント、レポートをすべて削除します。実際のログインで作られたコーチ行と表示名は残し、ログイン不能な背景コーチ15名だけを作り直します。背景コーチは一覧規模・担当関係の確認用であり、Googleログイン用アカウントではありません。
 
+新規コーチのログインや表示名登録の流れを試したいときは、リセットでマイグレーション直後の状態に戻します。シードと違いコーチ行も削除するため、実行前に対象データベース名を表示して y/N で確認します。
+
+```bash
+pnpm --filter @papamo/api db:reset:local
+```
+
+スキーマとマイグレーション履歴は残るので、リセット後に `db:migrate:local` をやり直す必要はありません。対象は `local` と `staging` だけで、本番D1を指す実行経路は用意していません。
+
 共有コードの取り込みとオーナー移譲は、実在する2つのGoogleテストアカウントを別々のブラウザプロファイルで同時にログインして確認します。
 
 1. プロファイルAで子どもを開き、通常の共有コードをコピーする
@@ -96,6 +104,12 @@ pnpm run deploy:staging
 
 ```bash
 pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
+```
+
+ステージングもマイグレーション直後の状態に戻せます。y/N の確認に加えて、確認文字列を必須にしています。
+
+```bash
+pnpm --filter @papamo/api db:reset:staging -- --confirm papamo-user-assessment-staging
 ```
 
 `deploy:staging` は shared・web・api をビルドしてから `wrangler deploy --env staging` を実行します。D1 マイグレーションは自動実行しないため、DB 変更があるときは先に `pnpm db:migrate:staging` を実行してください。Google OAuth と Supabase の設定を含む初回手順は `docs/staging-deployment.md` を参照してください。

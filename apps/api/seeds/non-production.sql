@@ -1,5 +1,7 @@
 -- 非本番環境専用。子ども関連データを全削除し、背景コーチを作り直す。
 DELETE FROM reports;
+-- prev_assessment_id は RESTRICT。回どうしの参照を先に切ってからまとめて消す。
+UPDATE assessments SET prev_assessment_id = NULL;
 DELETE FROM assessments;
 DELETE FROM child_coaches;
 DELETE FROM children;
