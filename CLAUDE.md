@@ -51,6 +51,7 @@
 - 内部エラーは構造化JSONで記録する。ログに入力本文や子どもの名前などの個人情報を含めない。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。
+- コーチのID管理は `reference/papamo-lesson-admin`＝「メニュー構築サイト」の責務。画面の文言でも「コーチ管理サイト」ではなく「メニュー構築サイト」と書く。
 - ステージングでもアプリ内のメールアドレス許可リストは持たず、lesson-admin と共用する Supabase Auth でログインできるユーザーを受け入れる。service role / secret key、Admin Auth API、コーチなりすましは導入しない。
 - ステージングの公開先は `user-assessment-staging.heyasupo-lab.com`。`papamo-user-assessment-staging` Worker と APAC 配置の専用D1を使い、lesson-admin のステージングSupabaseを共用する。デプロイはGit連携せず `pnpm run deploy:staging` で手動実行し、D1マイグレーションは事前に別コマンドで適用する。
 - 共有・オーナー移譲の確認には、2つの実Googleテストアカウントを別ブラウザプロファイルで使う。背景コーチはログイン用途に使わない。

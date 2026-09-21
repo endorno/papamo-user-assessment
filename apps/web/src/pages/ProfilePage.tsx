@@ -52,7 +52,7 @@ export function ProfilePage() {
               <div className={styles.formField}>
                 <label htmlFor="profile-email">ログイン中のメールアドレス</label>
                 <input id="profile-email" value={me.email} readOnly />
-                <small>アカウント情報の変更はコーチ管理サイトで行ってください。</small>
+                <small>アカウント情報の変更はメニュー構築サイトで行ってください。</small>
               </div>
               <div className={styles.formField}>
                 <label htmlFor="profile-name">表示名</label>

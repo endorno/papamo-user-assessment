@@ -26,7 +26,7 @@ export function LoginPage() {
         <p className={styles.eyebrow}>コーチ向けアセスメント・レポートツール</p>
         <h1 id="login-title">コーチとしてログイン</h1>
         <p className={styles.description}>
-          へやすぽ コーチ管理と同じ Google アカウントでログインできます。
+          メニュー構築サイトと同じ Google アカウントでログインできます。
         </p>
         <button
           className={styles.primaryButton}
@@ -42,7 +42,7 @@ export function LoginPage() {
           </p>
         ) : null}
         <p className={styles.notice}>
-          コーチの追加・変更・退職の手続きは、コーチ管理サイトで行ってください。
+          コーチの追加・変更・退職の手続きは、メニュー構築サイトで行ってください。
         </p>
       </section>
     </main>
