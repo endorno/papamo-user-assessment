@@ -239,9 +239,9 @@ describe('担当の子ども一覧', () => {
     fireEvent.click(screen.getByRole('button', { name: '追加する' }));
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('10名のサンプルを追加しました'));
-    expect(profiles.filter((profile) => profile === 'long')).toHaveLength(7);
+    expect(profiles.filter((profile) => profile === 'long')).toHaveLength(6);
     expect(profiles.filter((profile) => profile === 'short')).toHaveLength(2);
-    expect(profiles.filter((profile) => profile === 'new')).toHaveLength(1);
+    expect(profiles.filter((profile) => profile === 'new')).toHaveLength(2);
     expect(maxActiveRequests).toBeLessThanOrEqual(3);
   });
 

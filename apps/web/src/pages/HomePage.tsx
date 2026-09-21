@@ -29,8 +29,8 @@ import styles from '../App.module.css';
 /** これ以上増えると目で探すのが辛くなるので、しぼり込みを出す。 */
 const FILTER_THRESHOLD = 8;
 const SAMPLE_PROFILE_CYCLE: SampleDataProfile[] = [
-  'long', 'long', 'long', 'long', 'long', 'long', 'long',
-  'short', 'short', 'new',
+  'long', 'long', 'long', 'long', 'long', 'long',
+  'short', 'short', 'new', 'new',
 ];
 const SAMPLE_CREATE_CONCURRENCY = 3;
 
@@ -38,14 +38,20 @@ function randomSampleProfile(): SampleDataProfile {
   const value = new Uint32Array(1);
   crypto.getRandomValues(value);
   const percentage = (value[0] ?? 0) % 10;
-  if (percentage < 7) return 'long';
-  if (percentage < 9) return 'short';
+  if (percentage < 6) return 'long';
+  if (percentage < 8) return 'short';
   return 'new';
 }
 
 function sampleProfiles(count: number): SampleDataProfile[] {
   if (count === 1) return [randomSampleProfile()];
   return Array.from({ length: count }, (_, index) => SAMPLE_PROFILE_CYCLE[index % SAMPLE_PROFILE_CYCLE.length]!);
+}
+
+function sampleSeedCommand(environment: SampleDataStatusResponse['environment']) {
+  return environment === 'staging'
+    ? 'pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging'
+    : 'pnpm --filter @papamo/api db:seed:local';
 }
 
 /** 削除とリンク解除は結果が違うので、起きたことだけを伝える。 */
@@ -494,7 +500,7 @@ export function HomePage() {
             <div className={styles.devToolsContent}>
               <p>
                 ログイン中のコーチに、架空のお子さまと履歴を追加します。10名につき
-                「3年分×7名・短期×2名・新規×1名」の構成です。
+                「完了6回×6名・完了1〜2回×2名・新規×2名」の構成です。
               </p>
               {sampleDataStatus.ready ? (
                 <div className={styles.devToolsActions}>
@@ -515,8 +521,8 @@ export function HomePage() {
                 </div>
               ) : (
                 <p className={styles.devToolsNotice} role="status">
-                  背景コーチが{sampleDataStatus.backgroundCoachCount}名です。先に
-                  <code>pnpm --filter api db:seed:local</code> を実行してください。
+                  オーナー移譲後や複数コーチ担当のサンプルも作るため、背景コーチが{sampleDataStatus.backgroundCoachCount}名必要です。先に
+                  <code>{sampleSeedCommand(sampleDataStatus.environment)}</code> を実行してください。
                 </p>
               )}
               {generatingSamples ? (

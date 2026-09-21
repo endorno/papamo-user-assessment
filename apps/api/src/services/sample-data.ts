@@ -109,8 +109,8 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 function assessmentCount(profile: SampleDataProfile, random: Random): number {
-  if (profile === 'long') return 12;
-  if (profile === 'short') return randomInt(random, 1, 5);
+  if (profile === 'long') return 6;
+  if (profile === 'short') return randomInt(random, 1, 3);
   return 0;
 }
 
@@ -257,7 +257,7 @@ export async function createSampleChild(
   if (backgroundCoaches.length < REQUIRED_BACKGROUND_COACH_COUNT) {
     throw new SampleDataServiceError(
       'not_ready',
-      '先に非本番用シードを実行して、背景コーチを作成してください。',
+      'オーナー移譲後や複数コーチ担当のサンプルも作るため、先に非本番用シードを実行して背景コーチを作成してください。',
     );
   }
 

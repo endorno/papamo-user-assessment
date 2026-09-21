@@ -28,7 +28,7 @@ describe('非本番用サンプルデータ', () => {
     });
   });
 
-  it('長期プロフィールに3年分の完了アセスメントとレポートを作る', async () => {
+  it('長期プロフィールに6回分の完了アセスメントとレポートを作る', async () => {
     const owner = await upsertCoach(testEnv, {
       id: crypto.randomUUID(),
       email: `${crypto.randomUUID()}@example.com`,
@@ -53,10 +53,10 @@ describe('非本番用サンプルデータ', () => {
       'SELECT status, seq_no AS seqNo, data FROM assessments WHERE child_id = ? ORDER BY seq_no DESC LIMIT 1',
     ).bind(created.childId).first<{ status: string; seqNo: number; data: string }>();
 
-    expect(assessmentCount?.count).toBe(12);
-    expect(reportCount?.count).toBe(12);
+    expect(assessmentCount?.count).toBe(6);
+    expect(reportCount?.count).toBe(6);
     expect(membershipCount?.count).toBe(2);
-    expect(latest).toMatchObject({ status: 'done', seqNo: 12 });
+    expect(latest).toMatchObject({ status: 'done', seqNo: 6 });
     expect(JSON.parse(latest!.data)).toMatchObject({
       lv: expect.objectContaining({ post: expect.any(Number), sacc: expect.any(Number) }),
       ppi: expect.objectContaining({ time: expect.any(Number), nav: expect.any(Number) }),

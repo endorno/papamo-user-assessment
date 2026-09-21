@@ -61,7 +61,7 @@
 - ステージングでもアプリ内のメールアドレス許可リストは持たず、lesson-admin と共用する Supabase Auth でログインできるユーザーを受け入れる。service role / secret key、Admin Auth API、コーチなりすましは導入しない。
 - ステージングの公開先は `user-assessment-staging.heyasupo-lab.com`。`papamo-user-assessment-staging` Worker と APAC 配置の専用D1を使い、lesson-admin のステージングSupabaseを共用する。デプロイはGit連携せず `pnpm run deploy:staging` で手動実行し、D1マイグレーションは事前に別コマンドで適用する。
 - 共有・オーナー移譲の確認には、2つの実Googleテストアカウントを別ブラウザプロファイルで使う。背景コーチはログイン用途に使わない。
-- サンプル10名の内訳は長期7（完了12回）、短期2（完了1〜4回）、新規1（空または下書き）で固定する。Webからの生成リクエストは最大3並列とし、途中失敗した分を隠さない。
+- サンプル10名の内訳は長期6（完了6回）、短期2（完了1〜2回）、新規2（空または下書き）で固定する。Webからの生成リクエストは最大3並列とし、途中失敗した分を隠さない。
 
 ## テスト
 
