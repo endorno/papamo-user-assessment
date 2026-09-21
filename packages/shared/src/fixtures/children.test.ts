@@ -63,7 +63,6 @@ describe('承認モックのフィクスチャ', () => {
       priorities: report.priorities.map(({ key }) => key),
       strengths: report.strengths.map(({ key }) => key),
       upcoming: report.upcomingExercises.map(({ key }) => key),
-      plan: report.plan?.key,
       nextDue: report.nextDue,
     }))).toMatchInlineSnapshot(`
       [
@@ -91,7 +90,6 @@ describe('承認モックのフィクスチャ', () => {
             },
           ],
           "nextDue": "2026-08-30",
-          "plan": "base",
           "priorities": [
             "eyeh",
             "post",
@@ -128,7 +126,6 @@ describe('承認モックのフィクスチャ', () => {
             },
           ],
           "nextDue": "2026-11-29",
-          "plan": "select",
           "priorities": [
             "eyeh",
             "hand",
@@ -177,7 +174,6 @@ describe('承認モックのフィクスチャ', () => {
             },
           ],
           "nextDue": "2026-09-20",
-          "plan": "select",
           "priorities": [
             "inhi",
             "sacc",
@@ -203,14 +199,13 @@ describe('承認モックのフィクスチャ', () => {
         lv: assessment.data.lv,
         troubles: assessment.data.troubles,
         ppi: assessment.data.ppi,
-        plan: assessment.data.plan,
       }));
 
     expect(stateOf({ archivedAt: null, assessments }, '2026-09-05')).toEqual({
       key: 'draft',
-      label: 'アセスメント入力中（2/6）',
+      label: 'アセスメント入力中（2/5）',
       filled: 2,
-      total: 6,
+      total: 5,
       order: 0,
     });
   });

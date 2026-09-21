@@ -5,14 +5,18 @@ import {
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
   assessmentDataPatchSchema,
+  migrateAssessmentData,
+  parseStoredAssessmentData,
+  parseStoredCompletedData,
   CORE_EXERCISE_KEYS,
   EXT_EXERCISE_KEYS,
+  COPM_MAX,
+  COPM_SCORE_DEFAULT,
   gradeAt,
   MASTER_VERSION,
   PPI_QUESTIONS,
-  PLANS,
   reportContentSchema,
-  TROUBLE_CATEGORIES,
+  troubleItemsOf,
   todayInJst,
   type AssessmentData,
   type AssessmentDataPatch,
@@ -43,12 +47,11 @@ function dbFor(env: Env) {
 }
 
 function parseData(value: string): AssessmentData {
-  const parsed = JSON.parse(value) as unknown;
-  return assessmentDataDraftSchema.parse(parsed);
+  return parseStoredAssessmentData(JSON.parse(value));
 }
 
 function parseCompletedData(value: string): CompletedAssessmentData {
-  return assessmentDataCompletedSchema.parse(JSON.parse(value));
+  return parseStoredCompletedData(JSON.parse(value));
 }
 
 async function membership(env: Env, childId: string, coachId: string) {
@@ -129,15 +132,34 @@ function writableMutationCondition(
   );
 }
 
-function initialData(previous: CompletedAssessmentData | null, ageGroup: 'pre' | 'sch'): AssessmentData {
-  const validTroubles = new Set<string>(TROUBLE_CATEGORIES[ageGroup].flatMap((category) => category.items));
+// 前回の回から引き継ぐのは「聞き直す前の初期値」だけ。Lv・PPI・所見は毎回まっさらにする。
+function initialData(
+  previous: CompletedAssessmentData | null,
+  ageGroup: 'pre' | 'sch',
+  childGoals: string[],
+): AssessmentData {
+  const validTroubles = new Set(troubleItemsOf(ageGroup));
+  // 目標は前回の COPM を引き継ぐ。初回は子どもに登録済みの目標を初期値にする。
+  const copm = previous?.copm.length
+    ? previous.copm.map((goal) => ({ ...goal }))
+    : childGoals.slice(0, COPM_MAX).map((text) => ({
+        text,
+        memo: '',
+        performance: COPM_SCORE_DEFAULT,
+        satisfaction: COPM_SCORE_DEFAULT,
+        importance: COPM_SCORE_DEFAULT,
+      }));
   return {
     lv: {},
-    errs: {},
+    observations: {},
+    observationNotes: {},
+    engagement: {},
+    envSupports: [],
     troubles: previous?.troubles.filter((trouble) => validTroubles.has(trouble)) ?? [],
+    wants: previous?.wants ? [...previous.wants] : [],
+    copm,
     ppi: {},
     ppiNote: '',
-    plan: previous?.plan ?? (ageGroup === 'pre' ? 'pre' : 'base'),
     memo: '',
     goals: [],
   };
@@ -175,6 +197,7 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
         { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
         today,
       ).ageGroup,
+      JSON.parse(child.goals) as string[],
     )),
     revision: 1,
     mutationId: id,
@@ -230,6 +253,8 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
             lv: previousData.lv,
             troubles: previousData.troubles,
             ppi: previousData.ppi,
+            engagement: previousData.engagement,
+            copm: previousData.copm,
           };
         })()
       : null,
@@ -263,12 +288,14 @@ function nextUnlockExt(
 function withoutClosedExtData(data: AssessmentData, unlockExt: boolean): AssessmentData {
   if (unlockExt) return data;
   const lv = { ...data.lv };
-  const errs = { ...data.errs };
+  const observations = { ...data.observations };
+  const observationNotes = { ...data.observationNotes };
   for (const key of EXT_EXERCISE_KEYS) {
     delete lv[key];
-    delete errs[key];
+    delete observations[key];
+    delete observationNotes[key];
   }
-  return { ...data, lv, errs };
+  return { ...data, lv, observations, observationNotes };
 }
 
 export async function patchAssessment(
@@ -294,7 +321,8 @@ export async function patchAssessment(
     const existingData = parseCompletedData(assessment.data);
     const completedDataResult = assessmentDataCompletedSchema.safeParse({
       ...draftData,
-      goals: existingData.goals,
+      // 目標の正はCOPM表。完了済みの回を編集したときもここから取り直す。
+      goals: goalTextsOf(draftData, existingData.goals),
     });
     if (!completedDataResult.success) {
       throw new AssessmentServiceError('validation', '完了済みの記録に必要な入力をすべて残してください。');
@@ -360,13 +388,17 @@ export async function deleteAssessment(env: Env, assessmentId: string, coachId: 
   if (affectedRows(result) !== 1) throw concurrentUpdateError();
 }
 
+/** レポートに載せる目標。COPM表が空なら子どもに登録済みの目標を使う。 */
+function goalTextsOf(data: AssessmentData, fallback: string[]): string[] {
+  return data.copm.length ? data.copm.map((goal) => goal.text) : fallback;
+}
+
 function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
   const requiredKeys: ExerciseKey[] = unlockExt ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS] : [...CORE_EXERCISE_KEYS];
   const missing = requiredKeys.filter((key) => data.lv[key] === undefined);
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
   if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
-  if (!data.plan || !(data.plan in PLANS)) throw new AssessmentServiceError('validation', '3か月の運動計画を選択してください。');
-  const validTroubles = new Set<string>(TROUBLE_CATEGORIES[ageGroup].flatMap((category) => category.items));
+  const validTroubles = new Set(troubleItemsOf(ageGroup));
   if (!data.troubles.every((trouble) => validTroubles.has(trouble))) throw new AssessmentServiceError('validation', '困りごとの選択内容を確認してください。');
 }
 
@@ -471,8 +503,14 @@ async function persistCompletedAssessment(input: {
     content: JSON.stringify(input.report),
     updatedAt: input.updatedAt,
   });
-  const childUnlock = db.update(children).set({
-    extUnlocked: true,
+  // 4・5種目目の開放と、COPMで整理した目標を子どもへ反映する。
+  const goalsJson = JSON.stringify(input.data.goals);
+  const childChanges = {
+    ...(input.unlockExt && !input.child.extUnlocked ? { extUnlocked: true } : {}),
+    ...(goalsJson === input.child.goals ? {} : { goals: goalsJson }),
+  };
+  const childUpdate = db.update(children).set({
+    ...childChanges,
     updatedAt: input.updatedAt,
   }).where(and(
     eq(children.id, input.child.id),
@@ -486,7 +524,7 @@ async function persistCompletedAssessment(input: {
   const results = await db.batch([
     assessmentUpdate,
     reportUpsert,
-    ...(input.unlockExt && !input.child.extUnlocked ? [childUnlock] : []),
+    ...(Object.keys(childChanges).length ? [childUpdate] : []),
   ]);
   if (affectedRows(results[0]) !== 1) throw concurrentUpdateError();
 }
@@ -495,10 +533,13 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   const assessment = await assessmentOrThrow(env, assessmentId);
   const child = await ensureWritable(env, assessment, coach.id);
   if (expectedUpdatedAt && expectedUpdatedAt !== assessment.updatedAt) throw concurrentUpdateError();
-  const draftData = assessmentDataDraftSchema.safeParse(JSON.parse(assessment.data));
+  const draftData = assessmentDataDraftSchema.safeParse(migrateAssessmentData(JSON.parse(assessment.data)));
   if (!draftData.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const unlockExt = child.extUnlocked || assessment.unlockExt;
-  const completedData = { ...draftData.data, goals: JSON.parse(child.goals) as string[] };
+  const completedData = {
+    ...draftData.data,
+    goals: goalTextsOf(draftData.data, JSON.parse(child.goals) as string[]),
+  };
   const data = assessmentDataCompletedSchema.safeParse(completedData);
   if (!data.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const ageGroup = gradeAt(
@@ -538,9 +579,31 @@ export async function getReport(env: Env, assessmentId: string, coachId: string)
   if (report.assessmentRevision !== assessment.revision) {
     throw new Error(`レポートとアセスメントの版が一致しません: ${assessmentId}`);
   }
+  const stored = reportContentSchema.safeParse(JSON.parse(report.content));
   return {
-    report: reportContentSchema.parse(JSON.parse(report.content)),
+    // 旧版の形で保存されたレポートは、同じ記録から読むたびに作り直して返す
+    // （生成は決定的なので内容は変わらない）。保存し直すのは次の編集・完了のとき。
+    report: stored.success ? stored.data : await regenerateStoredReport(env, assessment),
     childId: assessment.childId,
     assessmentId: assessment.id,
   };
+}
+
+async function regenerateStoredReport(env: Env, assessment: typeof assessments.$inferSelect) {
+  const child = await childOrThrow(env, assessment.childId);
+  const coach = await coachOrThrow(env, assessment.coachId);
+  const previous = await previousForReport(env, assessment);
+  return generateReport({
+    env,
+    child,
+    coach,
+    assessment: {
+      seqNo: assessment.seqNo,
+      assessedOn: assessment.assessedOn,
+      unlockExt: assessment.unlockExt,
+      data: parseCompletedData(assessment.data),
+    },
+    previous,
+    generatedAt: assessment.updatedAt,
+  });
 }

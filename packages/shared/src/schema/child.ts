@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { exerciseKeySchema, gradeCodeSchema, honorificSchema } from './assessment';
+import { exerciseKeySchema, gradeCodeSchema, honorificSchema, storedLevelSchema } from './assessment';
 import { reportContentSchema } from './report';
 
 export const childListStateSchema = z.discriminatedUnion('key', [
@@ -36,7 +36,7 @@ export const latestAssessmentViewSchema = z.object({
   status: z.enum(['draft', 'done']),
   assessedOn: z.string(),
   unlockExt: z.boolean(),
-  lv: z.record(exerciseKeySchema, z.number().int().min(0).max(20).optional()),
+  lv: z.record(exerciseKeySchema, storedLevelSchema.optional()),
 });
 
 export const childViewSchema = z.object({

@@ -13,6 +13,7 @@ import {
   getReport,
   patchAssessment,
 } from './assessments';
+import { MASTER_VERSION } from '@papamo/shared';
 import type { Env } from '../env';
 
 const testEnv = env as Env & { TEST_MIGRATIONS: D1Migration[] };
@@ -46,11 +47,10 @@ function completedInput(unlockExt = false) {
       hand: 5,
       ...(unlockExt ? { sacc: 6, inhi: 7 } : {}),
     },
-    errs: {},
+    observations: {},
     troubles: ['転びやすい・つまずきやすい'],
     ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
     ppiNote: '',
-    plan: 'pre' as const,
     memo: '',
   };
 }
@@ -82,18 +82,16 @@ describe('アセスメントサービス', () => {
     const created = await createAssessment(testEnv, child.id, coach.id, false);
     const draft = JSON.parse(created.data) as {
       lv: Record<string, number | undefined>;
-      errs: Record<string, string[]>;
+      observations: Record<string, string[]>;
       troubles: string[];
       ppi: Record<string, number | undefined>;
       ppiNote: string;
-      plan: 'base' | 'select' | 'pre' | null;
       memo: string;
       goals: string[];
     };
     draft.lv = { post: 3, eyeh: 4, hand: 5 };
     draft.ppi = { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 };
     draft.troubles = ['転びやすい・つまずきやすい'];
-    draft.plan = 'pre';
     const { goals: _draftGoals, ...editableDraft } = draft;
     const saved = await patchAssessment(testEnv, created.id, coach.id, {
       data: editableDraft,
@@ -150,7 +148,7 @@ describe('アセスメントサービス', () => {
     });
   });
 
-  it('必須のLv・PPI・計画が揃わない状態では完了できない', async () => {
+  it('必須のLv・PPIが揃わない状態では完了できない', async () => {
     const { coach, child } = await createFixture('めい');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const missingLevel = await patchAssessment(testEnv, assessment.id, coach.id, {
@@ -171,11 +169,13 @@ describe('アセスメントサービス', () => {
     });
     await expect(completeAssessment(testEnv, assessment.id, coach)).rejects.toMatchObject({ code: 'validation' });
 
+    // 到達が「未実施」でも、選ばれてさえいれば完了できる。
     await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { ...completedInput(), plan: null },
+      data: { ...completedInput(), lv: { post: 0, eyeh: -1, hand: 5 } },
       updatedAt: missingPpi.updatedAt,
     });
-    await expect(completeAssessment(testEnv, assessment.id, coach)).rejects.toMatchObject({ code: 'validation' });
+    const { report } = await completeAssessment(testEnv, assessment.id, coach);
+    expect(report.levels.map(({ key, lv }) => [key, lv])).toEqual([['post', 0], ['eyeh', -1], ['hand', 5]]);
   });
 
   it('古い更新日時による上書きを競合として拒否する', async () => {
@@ -263,19 +263,50 @@ describe('アセスメントサービス', () => {
     const assessment = await createAssessment(testEnv, child.id, coach.id, true);
     const unlocked = await patchAssessment(testEnv, assessment.id, coach.id, {
       unlockExt: true,
-      data: { lv: { post: 3, sacc: 6, inhi: 7 }, errs: { sacc: ['見本と足の位置が違う'] } },
+      data: { lv: { post: 3, sacc: 6, inhi: 7 }, observations: { sacc: ['目だけでなく頭ごと動かして探す'] } },
       updatedAt: assessment.updatedAt,
     });
     expect(unlocked.unlockExt).toBe(true);
 
     const closed = await patchAssessment(testEnv, assessment.id, coach.id, {
       unlockExt: false,
-      data: { lv: { post: 3, sacc: 6, inhi: 7 }, errs: { sacc: ['見本と足の位置が違う'] } },
+      data: { lv: { post: 3, sacc: 6, inhi: 7 }, observations: { sacc: ['目だけでなく頭ごと動かして探す'] } },
       updatedAt: unlocked.updatedAt,
     });
     expect(closed.unlockExt).toBe(false);
     expect(closed.data.lv).toEqual({ post: 3 });
-    expect(closed.data.errs.sacc).toBeUndefined();
+    expect(closed.data.observations.sacc).toBeUndefined();
+  });
+
+  it('旧版の形で保存された回も開けて、レポートを作り直して返す', async () => {
+    const { coach, child } = await createFixture('のぞみ');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await saveCompletedInput(coach, assessment);
+    await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
+
+    // マスタを design-mock-v2 にそろえる前の形に書き戻す（つまずきは旧文言、新項目はなし）。
+    const legacyData = JSON.stringify({
+      lv: { post: 3, eyeh: 4, hand: 5 },
+      errs: { post: ['幅からはみ出す'] },
+      troubles: ['転びやすい・つまずきやすい'],
+      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
+      ppiNote: '',
+      memo: '',
+      goals: ['転びにくくなってほしい'],
+    });
+    await testEnv.DB.prepare('UPDATE assessments SET data = ? WHERE id = ?').bind(legacyData, assessment.id).run();
+    await testEnv.DB.prepare('UPDATE reports SET content = ? WHERE assessment_id = ?')
+      .bind(JSON.stringify({ kind: 'first', levels: [] }), assessment.id)
+      .run();
+
+    const reopened = await getAssessment(testEnv, assessment.id, coach.id);
+    expect(reopened.data.lv).toEqual({ post: 3, eyeh: 4, hand: 5 });
+    expect(reopened.data.observations).toEqual({});
+    expect(reopened.data.copm.map(({ text }) => text)).toEqual(['転びにくくなってほしい']);
+
+    const { report } = await getReport(testEnv, assessment.id, coach.id);
+    expect(report.masterVersion).toBe(MASTER_VERSION);
+    expect(report.levels.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
   });
 
   it('子どもが開放済みなら下書きでも4・5種目目を閉じられない', async () => {

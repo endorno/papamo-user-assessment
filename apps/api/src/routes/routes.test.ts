@@ -129,11 +129,10 @@ describe('API ルート結合', () => {
       body: JSON.stringify({
         data: {
           lv: { post: 3, eyeh: 4, hand: 5 },
-          errs: {},
+          observations: {},
           troubles: ['転びやすい・つまずきやすい'],
           ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
           ppiNote: '',
-          plan: 'pre',
           memo: '',
         },
         updatedAt: detail.updatedAt,
@@ -304,7 +303,7 @@ describe('API ルート結合', () => {
       method: 'PATCH',
       body: JSON.stringify({
         assessedOn: '2026-09-31',
-        data: { errs: { post: ['マスタにないつまずき'] } },
+        data: { observations: { post: ['マスタにない見えた動作'] } },
         updatedAt: assessment.updatedAt,
       }),
     });

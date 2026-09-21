@@ -9,7 +9,6 @@ export interface AssessmentProgress {
   lv: Partial<Record<ExerciseKey, number>>;
   troubles: string[];
   ppi: Partial<Record<(typeof PPI_QUESTIONS)[number]['key'], number>>;
-  plan: string | null;
 }
 
 export interface ChildStatusInput {
@@ -32,8 +31,7 @@ export function assessmentProgress(input: AssessmentProgress): { filled: number;
   const levels = keys.filter((key) => input.lv[key] !== undefined).length;
   const trouble = input.troubles.length > 0 ? 1 : 0;
   const ppi = PPI_QUESTIONS.every(({ key }) => input.ppi[key] !== undefined) ? 1 : 0;
-  const plan = input.plan ? 1 : 0;
-  return { filled: levels + trouble + ppi + plan, total: keys.length + 3 };
+  return { filled: levels + trouble + ppi, total: keys.length + 2 };
 }
 
 export function stateOf(

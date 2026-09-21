@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 
 import {
-  assessmentDataDraftSchema,
+  parseStoredAssessmentData,
   formatShareCode,
   generateShareCode,
   gradeAt,
@@ -62,7 +62,7 @@ function assessmentProgressFrom(row: {
   unlockExt: boolean;
   data: string;
 }): ChildAssessmentProgress {
-  const data = assessmentDataDraftSchema.parse(JSON.parse(row.data));
+  const data = parseStoredAssessmentData(JSON.parse(row.data));
   return {
     id: row.id,
     seqNo: row.seqNo,
@@ -72,7 +72,6 @@ function assessmentProgressFrom(row: {
     lv: data.lv,
     troubles: data.troubles,
     ppi: data.ppi,
-    plan: data.plan,
   };
 }
 

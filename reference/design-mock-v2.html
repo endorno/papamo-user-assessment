@@ -1,0 +1,1556 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>へやすぽ 育ちマップ ｜ 初回判定レポート生成（5種目版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F4F6F2;--surface:#fff;--ink:#1B2A2A;--muted:#5F706D;--line:#E4E8E2;--brand:#2F7D6E;--brand-ink:#1E5C50;--grow-ink:#A65E23;
+ --vest:#DA8541;--cere:#2F7D6E;--par:#8267AE;--front:#5E9E5E;--disp:"Zen Maru Gothic",sans-serif;--body:"Zen Kaku Gothic New",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.6}
+.wrap{max-width:900px;margin:0 auto;padding:24px 16px 60px}
+.rpthead{font-family:var(--disp);font-weight:900;font-size:1.35rem;margin:0 0 2px}
+.rptsub{color:var(--muted);font-size:.85rem;margin:0 0 16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 4px 16px rgba(27,42,42,.04);margin-bottom:16px}
+h2{font-family:var(--disp);font-weight:900;font-size:.92rem;margin:0 0 10px}
+h2 .sub{font-weight:400;font-size:.75rem;color:var(--muted);margin-left:6px}
+.inp{display:grid;grid-template-columns:1fr;gap:14px}@media(min-width:820px){.inp{grid-template-columns:1fr 1fr}}
+.fld{font-size:.8rem;color:var(--muted)}
+.fld input,.fld textarea{width:100%;margin-top:3px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:var(--body);font-size:.86rem;background:#fff}
+.fld textarea{min-height:60px;resize:vertical}
+/* 種目入力ブロック */
+.tk{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:12px;background:#FCFDFB}
+.tk-h{display:flex;gap:8px;align-items:flex-start;margin-bottom:7px}
+.tk-h .dot{width:10px;height:10px;border-radius:50%;flex:none;margin-top:6px}
+.tk-h b{flex:1;font-family:var(--disp);font-size:.88rem;line-height:1.35}
+.tk-h b span{display:block;font-weight:400;font-size:.72rem;color:var(--muted)}
+.selrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.selrow label{font-size:.72rem;color:var(--muted)}
+select{padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;font-family:var(--disp);font-weight:700;font-size:.82rem;background:#fff;color:var(--ink)}
+.bandtag{display:inline-block;font-family:var(--disp);font-weight:700;font-size:.7rem;color:#fff;border-radius:5px;padding:1px 7px;margin-top:5px}
+.errbox{border:1px dashed var(--line);border-radius:9px;padding:7px 10px;background:#fff;margin-top:8px}
+.errbox .errhd{font-size:.74rem;color:var(--brand-ink);font-family:var(--disp);font-weight:700;margin-bottom:3px;display:flex;justify-content:space-between}
+.errbox .errhd em{font-style:normal;font-weight:400;font-size:.68rem;color:var(--muted)}
+.errbox textarea{width:100%;margin-top:4px;min-height:58px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-family:var(--body);font-size:.83rem;resize:vertical}
+.goalwrap{position:relative;margin-top:3px}
+.goalwrap textarea{width:100%;padding:7px 9px 7px 26px;border:1px solid var(--line);border-radius:8px;
+ font-family:var(--body);font-size:.86rem;line-height:1.75;background:#fff;resize:vertical;min-height:76px;display:block}
+.goalbul{position:absolute;top:7px;left:9px;width:16px;pointer-events:none;font-size:.86rem;line-height:1.75;color:#2F7D6E}
+.goalbul span{display:block;height:1.75em}
+.phase{margin-left:auto;font-size:.68rem;font-family:var(--disp);font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap}
+.phase.core{background:#EAF3EC;color:#2E7D4F;border:1px solid #BFD9C6}
+.phase.late{background:#F1F2F0;color:#8A948E;border:1px solid #DDE2DC}
+.tk-h{display:flex;align-items:center;gap:7px}
+.lvtxt{font-size:.76rem;color:var(--muted);display:inline-block;margin-left:2px}
+select.lvsel{max-width:100%}
+.selrow{align-items:center}
+.errbox input{margin-right:6px;accent-color:var(--brand)}
+.errbox .no{color:#B9C2BD}
+/* ================= 4ページ本体レイアウト ================= */
+/* 画面でもA4×4ページと同じ体裁で見せる（1段組・A4相当の幅） */
+.sheet{display:block}
+.sheet .pg{width:100%;max-width:768px;margin:0 auto 18px;min-height:1040px;display:flex;flex-direction:column}
+.sheet .pgfoot{margin-top:auto;padding-top:14px}
+@media(max-width:820px){.sheet .pg{min-height:0}}
+.pg{background:#fff;border:1px solid #DCE3DB;border-radius:12px;padding:34px 22px 30px;margin:0 0 18px;position:relative}
+.pgbadge{position:absolute;top:0;left:0;background:#2E8B57;color:#fff;font-family:var(--disp);font-size:.72rem;font-weight:700;
+ padding:5px 14px;border-radius:12px 0 12px 0;letter-spacing:.02em}
+.pgttl{font-family:var(--disp);font-size:1.4rem;font-weight:700;color:#1F2E28;line-height:1.35;margin:4px 0 2px}
+.pgmeta{font-size:.76rem;color:var(--muted)}
+.pgtop{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.pgfoot{text-align:center;font-size:.68rem;color:#A8B3AE;margin-top:20px;font-family:var(--disp)}
+.pgnum{font-family:var(--disp);font-size:.9rem;font-weight:700;color:#2E8B57;display:inline-flex;align-items:center;
+ justify-content:center;width:19px;height:19px;border-radius:50%;border:1.6px solid #2E8B57;margin-right:6px;font-size:.72rem}
+.sech{font-family:var(--disp);font-weight:700;font-size:.94rem;color:#1F2E28;margin:16px 0 8px;display:flex;align-items:center}
+.pg .sech:first-of-type{margin-top:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.g2{grid-template-columns:1fr}}
+.bx{border:1px solid;border-radius:10px;padding:11px 13px}
+.bx .bxh{font-family:var(--disp);font-weight:700;font-size:.85rem;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.bx ul{margin:0;padding-left:1.05em;font-size:.8rem;line-height:1.75}
+.bx li{margin:0}
+.bx-A{background:#F0F5FC;border-color:#C4D8F0}.bx-A .bxh{color:#2F6FB5}
+.bx-B{background:#F6F1FA;border-color:#DCCBEA}.bx-B .bxh{color:#7B4FA8}
+.bx-C{background:#FDF3EA;border-color:#F0D6B8}.bx-C .bxh{color:#C87220}
+.bx-D{background:#EDF6F3;border-color:#BFDDD4}.bx-D .bxh{color:#22705F}
+.bx-E{background:#F0F7EE;border-color:#CBE2C4}.bx-E .bxh{color:#3E7C3A}
+.bx-warn{background:#FEF4EF;border-color:#F2CDB9}.bx-warn .bxh{color:#C0512A}
+.bx-note{background:#F3F8F4;border-color:#CFE2D3}.bx-note .bxh{color:#2E8B57}
+.tb2{width:100%;border-collapse:collapse;font-size:.78rem}
+.tb2 th{background:#EEF2EF;color:#4A5A54;font-family:var(--disp);font-weight:700;text-align:left;padding:7px 9px;border:1px solid #DCE3DB}
+.tb2 td{padding:7px 9px;border:1px solid #DCE3DB;vertical-align:top;line-height:1.6}
+.rowic{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+ border:1.6px solid;background:#fff;font-size:.72rem;margin-right:6px;vertical-align:-4px}
+.tb2 td.f{font-weight:700;color:#1F2E28;white-space:nowrap}
+.rm{display:grid;grid-template-columns:1fr 16px 1fr 16px 1fr 16px 1fr;gap:5px;align-items:stretch}
+.rm-ar{display:flex;align-items:center;justify-content:center;color:#E08A2E;font-size:1rem;font-weight:700}
+@media(max-width:760px){.rm{grid-template-columns:1fr 1fr}.rm-ar{display:none}}
+.rm-col{border:1px solid #DCE3DB;border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.rm-h{color:#fff;font-family:var(--disp);font-weight:700;font-size:.8rem;text-align:center;padding:7px 5px;line-height:1.35}
+.rm-b{padding:9px 9px;font-size:.72rem;line-height:1.65;flex:1}
+.rm-b .lbl{font-family:var(--disp);font-weight:700;font-size:.75rem;color:#4A5A54;margin-bottom:4px}
+.rm-sub{margin:8px -10px -9px;padding:8px 10px;border-top:1px dashed #DCE3DB}
+.rm-li{margin:0;padding-left:1em;list-style:none}
+.rm-li li{position:relative;margin:2px 0}
+.rm-li li:before{content:'・';position:absolute;left:-.9em}
+.chk{list-style:none;margin:0;padding:0;font-size:.79rem;line-height:1.85}
+.chk li{position:relative;padding-left:1.4em}
+.chk li:before{content:'✓';position:absolute;left:0;color:#2E8B57;font-weight:700}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:760px){.g3{grid-template-columns:1fr}}
+.rv{border:1px solid #C4D8F0;background:#F7FAFE;border-radius:10px;padding:11px 13px}
+.rv .rvi{border-top:1px dashed #C4D8F0;padding-top:8px;margin-top:8px;font-size:.79rem;line-height:1.6}
+.rv .rvi:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.rv .rvt{font-family:var(--disp);font-weight:700;color:#2F6FB5}
+.strong-tag{display:inline-block;background:#EDF6F3;color:#22705F;border:1px solid #BFDDD4;border-radius:20px;
+ padding:1px 9px;font-size:.72rem;margin:2px 3px 0 0}
+@media print{
+ /* ブラウザの「背景のグラフィック」が既定でオフのため、これを付けないと
+    背景色・枠線・バッジがすべて落ちて白黒同然になる */
+ *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+ html,body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
+/* A4×4ページ印刷時の体裁（採寸のため画面でも適用できるようクラス化） */
+html.prmode .sheet{display:block}
+html.prmode .sheet .pg{display:flex;flex-direction:column;min-height:0}
+/* 主要ブロックを縦に伸ばして紙面を埋める（下側に大きな空白を残さない） */
+html.prmode .pg .rm,html.prmode .pg .g3,html.prmode .pg .g2:not(.pg .bx .g2){flex:1 1 auto}
+html.prmode .pg .rm-col,html.prmode .pg .g3>*,html.prmode .pg .g2>*{display:flex;flex-direction:column}
+html.prmode .pg .g3>*,html.prmode .pg .g2>*{justify-content:flex-start}
+html.prmode .sheet .pgfoot{margin-top:auto;padding-top:10px}
+html.prmode .pg{border:1px solid var(--pgline);border-radius:10px;padding:24px 13px 10px;margin:0;break-after:page;box-sizing:border-box}
+html.prmode .pg:last-child{break-after:auto}
+html.prmode .pgbadge{position:absolute;display:block;border-radius:10px 0 12px 0;margin:0}
+html.prmode .pgttl{font-size:1.2rem}
+html.prmode .sech{margin:9px 0 5px;font-size:.94rem}
+html.prmode .bx{padding:8px 10px}
+html.prmode .bx ul{line-height:1.55}
+html.prmode .bx .bxh{font-size:.83rem;margin-bottom:4px}
+html.prmode .pg .tb2{font-size:.75rem}
+html.prmode .pg .tb2 td,html.prmode .pg .tb2 th{padding:5px 7px}
+html.prmode .radarwrap svg{max-width:305px}
+html.prmode .pg .radarwrap .total{margin-top:3px}
+html.prmode .bar{margin-top:5px}
+html.prmode .pg .pr-note,html.prmode .pg .disc{font-size:.71rem;line-height:1.6}
+html.prmode .g2,html.prmode .g3{gap:9px}
+/* 1枚（A3横）モード */
+/* ================= レポート面 トーン＆マナー（モック準拠） =================
+   ・親御さん向けレポート（.pg 配下）にのみ適用。コーチ用の見た目は変えない
+   ・書体は角ゴ（Zen Kaku Gothic New）に統一。丸ゴはブランド署名のみ
+   ・面はほぼ白、色は「枠線と見出し」で使う。塗りは淡く
+   ========================================================================= */
+.pg{--pgreen:#1F9D55;--pgink:#2B3A34;--pgline:#DEE3DE;
+ background:#fff;border:1px solid var(--pgline);border-radius:10px;color:var(--pgink);
+ font-family:var(--body);letter-spacing:.01em}
+.pg b,.pg strong{font-weight:700}
+.pgbadge{background:var(--pgreen);font-family:var(--body);font-weight:700;letter-spacing:.04em;
+ padding:6px 15px;border-radius:10px 0 10px 0;font-size:.73rem}
+.pgttl{font-family:var(--body);font-weight:700;color:#1E2A25;letter-spacing:.01em}
+.pgfoot{font-family:var(--disp);letter-spacing:.14em;color:#B3BCB6}
+.pgnum{border-color:var(--pgreen);color:var(--pgreen);font-weight:700;font-family:var(--body)}
+.sech{font-family:var(--body);font-weight:700;font-size:1rem;color:#1E2A25}
+.pg .bx{border-width:1.5px;border-radius:9px}
+.pg .bx .bxh{font-family:var(--body);font-weight:700;font-size:.87rem}
+.bx-A{background:#F2F7FD;border-color:#B9D3F0}
+.bx-B{background:#F8F4FC;border-color:#D6C6E8}
+.bx-C{background:#FEF6EE;border-color:#F2D3B2}
+.bx-D{background:#F0F8F5;border-color:#B6DBCF}
+.bx-E{background:#F3F9F1;border-color:#C3E0BB}
+.bx-warn{background:#FEF5F0;border-color:#F0C4AE}.bx-warn .bxh{color:#C8452A}
+.bx-note{background:#F6FAF6;border-color:#CFE3D2}.bx-note .bxh{color:var(--pgreen)}
+.pg .tb2{font-size:.79rem}
+.pg .tb2 th{background:#F0F2F0;color:#54615B;font-family:var(--body);font-weight:700;border-color:#DEE3DE;padding:8px 10px}
+.pg .tb2 td{border-color:#DEE3DE;padding:8px 10px}
+.pg .tb2 td.f{color:#1E2A25}
+.pg .bar .btr{background:#EBEEEA;height:13px;border-radius:7px}
+.pg .bar .bfl{border-radius:7px}
+.pg .bar .bnm{color:#54615B;font-size:.79rem}
+.pg .bar .bvl{font-family:var(--body)}
+.rm-h{font-family:var(--body);font-weight:700;letter-spacing:.02em}
+.rm-col{border-color:var(--pgline);border-radius:8px}
+.rm-b .lbl{font-family:var(--body);font-weight:700;color:#3D4A44}
+.rm-sub{border-top-color:#E5E9E4}
+.pg .chk li:before{color:var(--pgreen)}
+.rv{border-color:#B9D3F0;background:#F7FAFE;border-width:1.5px;border-radius:9px}
+.rv .rvt{font-family:var(--body);font-weight:700}
+.rvrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:7px}
+@media(max-width:640px){.rvrow{grid-template-columns:1fr}}
+.rvc{border-left:3px solid #B9D3F0;padding:2px 0 2px 9px;font-size:.82rem;line-height:1.55}
+.rvn{color:var(--muted);font-size:.73rem;margin-top:1px}
+.pg .pr-note,.pg .disc{color:#77837D;font-size:.74rem;line-height:1.7}
+.pg .radarwrap .scale{color:#8A948E}
+.pg .radarwrap .total{font-family:var(--body);font-weight:700;color:var(--pgreen)}
+.pg .radarwrap .total span{font-size:1.5rem}
+.strong-tag{background:#F3F9F1;color:#3E7C3A;border-color:#C3E0BB}
+.agetabs{display:flex;gap:7px;margin:0 0 9px}
+.agetab{padding:6px 16px;border:1px solid var(--line);background:#fff;border-radius:20px;cursor:pointer;
+ font-family:var(--disp);font-size:.8rem;font-weight:700;color:var(--muted)}
+.agetab.on{background:#2F7D6E;border-color:#2F7D6E;color:#fff}
+.mx-i.edge .mx-m{color:#DA8541}
+.pyr{margin-top:10px}
+.pyr-row{display:flex;justify-content:center;gap:5px;flex-wrap:nowrap;margin:0 auto 5px}
+.pyr-row.t5{width:38%}.pyr-row.t4{width:54%}.pyr-row.t3{width:72%}.pyr-row.t2{width:88%}.pyr-row.t1{width:100%}
+.pyr-row>*{flex:1 1 0;text-align:center}
+@media(max-width:600px){.pyr-row.t5{width:52%}.pyr-row.t4{width:68%}.pyr-row.t3{width:84%}.pyr-row.t2{width:94%}}
+.pyr-b{background:#EEF2EC;border:1px solid var(--line);border-radius:8px;padding:5px 6px;font-size:.74rem;
+ font-family:var(--body);font-weight:500;line-height:1.25;color:#54615B}
+@media(max-width:600px){.pyr-b{font-size:.64rem;padding:5px 3px}}
+.pyr-b.hot{background:#F7EBDA;border-color:#D9AE72;color:#A65E23;font-weight:700}
+.pyr-b.hot.root{background:#A65E23;color:#fff;border-color:#A65E23}
+.pyr-baselbl{text-align:center;font-size:.72rem;color:var(--muted);margin-top:5px}
+.csvcard{border-color:#B9D3F0;background:#F7FAFE}
+.csvrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.csvrow input[type=file]{font-size:.82rem}
+.csvstat{margin-top:8px;font-size:.79rem;color:var(--muted);line-height:1.6}
+.csvstat.ok{color:#1E5C50;font-weight:700}
+.csvstat.ng{color:#B0392B}
+.csvhelp{margin-top:8px;font-size:.76rem;color:var(--muted)}
+.csvhelp summary{cursor:pointer;font-family:var(--disp)}
+.csvhelp div{margin-top:5px;line-height:1.7}
+.csvhelp code{background:#EEF2EF;padding:1px 5px;border-radius:4px;font-size:.72rem}
+/* 事前アンケートで埋まる欄：コーチの手入力を前提としない */
+.survey{position:relative;background:#F4F5F4}
+.survey::after{content:'事前アンケートから取り込み';position:absolute;top:10px;right:14px;
+ background:#DDE2DC;color:#6B7873;font-family:var(--disp);font-size:.68rem;padding:2px 10px;border-radius:20px}
+.survey.filled{background:#F7FAFE}
+.survey.filled::after{content:'取り込み済み';background:#D6E7F7;color:#2F6FB5}
+.survey .tbox,.survey #wantBox,.survey #ppiBox,.survey .agetabs{opacity:.72}
+.survey.filled .tbox,.survey.filled #wantBox,.survey.filled #ppiBox,.survey.filled .agetabs{opacity:1}
+.wantbox{border:1px solid #CFE3D3;background:#F7FAF7;border-radius:9px;padding:10px 12px;margin-bottom:4px}
+.wantbox>b{font-family:var(--disp);font-size:.82rem;color:#1E5C50}
+.wantbox>b span{font-weight:400;font-size:.72rem;color:var(--muted);margin-left:5px}
+#wantBox{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin:6px 0 5px;align-items:start}
+.wanth{font-family:var(--disp);font-weight:700;font-size:.74rem;color:#1E5C50;border-bottom:1px solid #CFE3D3;padding-bottom:2px;margin-bottom:2px}
+@media(max-width:640px){#wantBox{grid-template-columns:1fr}}
+.wantl{display:block;font-size:.8rem;line-height:1.9;cursor:pointer}
+.wantl input{margin-right:6px;accent-color:#2F7D6E}
+.wanttag{display:inline-block;background:#EDF6F3;color:#22705F;border:1px solid #BFDDD4;border-radius:20px;padding:2px 10px;font-size:.76rem;margin:3px 5px 0 0}
+.cpwrap{overflow-x:auto;margin-top:6px}
+table.cptbl{border-collapse:collapse;width:100%;min-width:680px;font-size:.76rem;table-layout:fixed}
+table.cptbl th,table.cptbl td{border:1px solid #C9D0CB;padding:4px 5px;vertical-align:middle}
+table.cptbl thead th{background:#EEF2EF;color:#3D4A44;font-family:var(--disp);font-weight:700;text-align:center;line-height:1.4;font-size:.76rem}
+table.cptbl thead th span{font-weight:400;font-size:.68rem;color:#7C8983}
+table.cptbl th.cgrp{background:#EEF2EF}
+table.cptbl th.cgrp2{background:#EEF2EF}
+table.cptbl th.cnar{background:#EEF2EF;width:14%}
+tr.rcon td{background:#fff}
+table.cptbl td.cnum{text-align:center;width:13%;padding:5px 4px}
+.cpta{width:100%;border:0;background:transparent;font-family:var(--body);font-size:.76rem;line-height:1.5;resize:vertical;padding:2px}
+.cpta.auto{color:#2F6B5E;background:#F4F9F5}
+.cpta:focus{outline:2px solid #9BC4B6;border-radius:4px;background:#fff}
+.cpsel{padding:3px 2px;border:1px solid var(--line);border-radius:6px;font-size:.78rem;width:100%}
+table.cpout{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:2px}
+table.cpout th,table.cpout td{border:1px solid #C9D0CB;padding:6px 8px;vertical-align:middle}
+table.cpout thead th{background:#EEF2EF;color:#3D4A44;font-family:var(--disp);font-weight:700;text-align:center;line-height:1.4;font-size:.76rem}
+table.cpout thead th span{font-weight:400;font-size:.68rem;color:#7C8983}
+table.cpout td.cgo{font-weight:700;color:#1E2A25;line-height:1.55}
+table.cpout td.cme{color:#4A5A54;line-height:1.6;font-size:.76rem}
+table.cpout td.cnm{text-align:center;font-family:var(--disp);font-weight:700;font-size:1rem}
+@media print{table.cpout{font-size:.73rem}table.cpout th,table.cpout td{padding:4px 6px}}
+.cpsh{font-size:.78rem;color:#2F6B5E;margin:1px 0 2px}
+.stg{background:#F7DDDD;color:#C0392B;border-radius:20px;padding:1px 8px;font-size:.7rem;font-family:var(--disp)}
+.cpdf{font-size:.7rem;font-weight:700;margin-left:3px}
+.cpdf.up{color:#2F7D6E}.cpdf.dn{color:#C0392B}
+.cpmemo{font-size:.78rem;color:#4A5A54;line-height:1.65;margin:2px 0 5px;padding-left:9px;border-left:2px solid var(--line)}
+.cpnum{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:4px}
+.cpi{display:flex;align-items:baseline;gap:5px}
+.cpk{font-size:.75rem;color:#54615B}
+.cpi b{font-size:1.02rem;font-family:var(--disp)}
+.cpd{font-size:.68rem;color:var(--muted)}
+.cpcard{border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-top:8px;background:#fff}
+.cpcard .cpt2{font-family:var(--disp);font-weight:700;font-size:.85rem;margin-bottom:3px}
+.eprow{border-top:1px solid var(--line);padding:9px 0}.eprow:first-child{border-top:0}
+.epq{font-size:.83rem}.epsub{font-size:.72rem;color:var(--muted);margin-left:7px}
+.epsel{width:100%;margin-top:4px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:.83rem;font-family:var(--body)}
+.modbox{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.modbox>b{font-family:var(--disp);font-size:.78rem;color:#4A5A54}
+.envg{margin-top:7px}.envg:first-child{margin-top:2px}
+.envh{font-family:var(--disp);font-weight:700;font-size:.76rem;margin-bottom:1px}
+#modBox{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+@media(max-width:640px){#modBox{grid-template-columns:1fr}}
+.modl{display:block;font-size:.8rem;line-height:1.85;cursor:pointer}
+.modl input{margin-right:6px;accent-color:#2F7D6E}
+.modnote{font-size:.72rem;color:var(--muted);margin-top:4px;line-height:1.6}
+.epbar{display:flex;align-items:center;gap:9px;margin-top:7px}
+.epbar .en{flex:0 0 8.6em;font-size:.79rem;text-align:right;color:#54615B}
+.epbar .et{flex:1;display:flex;gap:3px}
+.epbar .es{flex:1;height:13px;border-radius:4px;background:#EDEFEA}
+.epbar .ev{flex:0 0 2.2em;font-size:.78rem;font-weight:700}
+.eptxt{font-size:.78rem;color:#4A5A54;margin:3px 0 0 9.6em;line-height:1.55}
+@media(max-width:600px){.eptxt{margin-left:0}.epbar .en{flex-basis:6.4em}}
+.modtag{display:inline-block;background:#EDF6F3;color:#22705F;border:1px solid #BFDDD4;border-radius:20px;padding:2px 10px;font-size:.74rem;margin:3px 4px 0 0}
+.pprow{border-top:1px solid var(--line);padding:9px 0}.pprow:first-child{border-top:0}
+.ppq{font-size:.82rem;line-height:1.5}.ppdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.ppsel{display:flex;align-items:center;gap:9px;margin-top:5px;padding-left:15px}
+.ppsel select{padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:.85rem}
+.ppend{font-size:.7rem;color:var(--muted)}
+.bar{display:flex;align-items:center;gap:9px;margin-top:8px}
+.bar .bnm{flex:0 0 8.4em;font-size:.8rem;text-align:right}
+.bar .btr{flex:1;height:15px;background:#EDEFEA;border-radius:8px;overflow:hidden}
+.bar .bfl{height:100%;border-radius:8px}
+.bar .bvl{flex:0 0 2.6em;font-size:.82rem;font-weight:700}
+.barleg{display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted);margin:9px 0 0 9.4em}
+.escbox{margin-top:11px;border:1px solid #E0C9A4;background:#FBF5EA;border-radius:10px;padding:9px 12px;font-size:.8rem}
+.escbox label{cursor:pointer}.escbox input{margin-right:6px;accent-color:#B0392B}
+.escnote{color:var(--muted);font-size:.74rem;margin-top:4px;line-height:1.55}
+.escnote .todo{color:#B0392B;letter-spacing:1px}
+.famrow{border-top:1px solid var(--line);padding:9px 0}.famrow:first-child{border-top:0}
+.famrow .fdo{font-size:.79rem;margin-top:5px;color:var(--ink)}
+.famrow .fng{font-size:.75rem;margin-top:3px;color:#8A5A52}
+.flagbox{margin-top:7px;font-size:.76rem;color:var(--muted)}
+.flagbox b{display:block;color:#4A5A54;font-family:var(--disp);font-size:.74rem;margin-bottom:3px}
+.flagbox label{display:block;cursor:pointer;line-height:1.85}
+.flagbox label.vf{color:#8a6d12}
+.flagbox input{margin-right:5px;accent-color:#2F7D6E}
+.flagbox label.vf input{accent-color:#C9A227}
+.tbox{margin-top:5px;border:1px solid var(--line);border-radius:10px;background:#fff;max-height:330px;overflow:auto;padding:4px 10px}
+.tgrp{font-family:var(--disp);font-weight:700;font-size:.76rem;color:#fff;border-radius:6px;padding:1px 8px;display:inline-block;margin:9px 0 3px}
+.tbox label{display:block;font-size:.82rem;padding:2px 0 2px 3px;cursor:pointer}
+.tbox input{margin-right:6px;accent-color:var(--brand)}
+.btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+button{padding:10px 18px;border-radius:9px;border:1px solid var(--brand-ink);background:var(--brand-ink);color:#fff;font-family:var(--disp);font-weight:700;font-size:.86rem;cursor:pointer}
+button.g{background:transparent;color:var(--brand-ink)}
+.tabs{display:flex;gap:8px;margin:6px 0 14px}
+.tabs button{border-radius:20px;padding:8px 18px;border:1.5px solid var(--line);background:#fff;color:var(--muted)}
+.tabs button.on{background:var(--brand-ink);color:#fff;border-color:var(--brand-ink)}
+.view{display:none}.view.on{display:block}
+.radarwrap{display:flex;flex-direction:column;align-items:center}
+.legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;font-size:.74rem;color:var(--muted);margin-top:6px}
+.legend b{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
+.legend i{display:inline-block;width:16px;height:0;border-top:2px dashed #9AA6A2;margin-right:4px;vertical-align:middle}
+.scale{font-size:.72rem;color:var(--muted);margin-top:4px;text-align:center}
+.total{font-family:var(--disp);font-weight:900;color:var(--brand-ink);text-align:center;margin-top:6px}.total span{font-size:1.4rem}
+table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:10px}
+td,th{padding:6px 5px;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-family:var(--disp);font-size:.75rem;color:var(--muted);border-top:none}
+td .d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+td .lg{font-size:.73rem;color:var(--muted)}
+.up{color:#1E5C50;font-family:var(--disp);font-weight:900}
+.dn{color:#B0392B;font-family:var(--disp);font-weight:900}
+.read{border:1.5px solid #233A38;border-radius:14px;overflow:hidden;margin-top:14px}
+.rh{background:#233A38;color:#EAF1EE;font-family:var(--disp);font-weight:900;font-size:.84rem;padding:8px 15px}
+.rb{padding:13px 15px;font-size:.82rem}
+.errlist{background:#F7F9F6;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:.82rem}
+.errlist b{font-family:var(--disp)}.errlist ul{margin:4px 0 0;padding-left:1.1em}
+.badge{font-family:var(--disp);font-weight:700;font-size:.72rem;border-radius:6px;padding:1px 8px;color:#fff;display:inline-block}
+.warn{background:#F3EEDD;border-left:4px solid #C9A227;border-radius:8px;padding:10px 13px;margin-top:10px;font-size:.81rem}
+.warn b{color:#8a6d12}
+.plan2{display:grid;grid-template-columns:1fr;gap:11px}@media(min-width:760px){.plan2{grid-template-columns:1fr 1fr}}
+.plan2>div{border-radius:12px;padding:12px 14px;font-size:.83rem}
+.plan2 .p3{background:#EAF3EF;border:1px solid #9BC4B6}.plan2 .p6{background:#EAF0F5;border:1px solid #9BB8CE}
+.plan2 b:first-child{font-family:var(--disp);font-size:.86rem;display:block;margin-bottom:2px}
+.coachmemo{border:1.5px solid #6E56A0;border-radius:14px;overflow:hidden;margin-top:14px}
+.cm-h{background:#6E56A0;color:#fff;font-family:var(--disp);font-weight:900;font-size:.84rem;padding:8px 15px;display:flex;justify-content:space-between}
+.cm-b{padding:13px 15px;font-size:.82rem}
+.pr-sec{background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px;margin-bottom:14px}
+.pr-h{font-family:var(--disp);font-weight:900;font-size:.95rem;margin-bottom:8px}.pr-h .ic{margin-right:5px}
+.pr-lead{font-size:.84rem;margin:6px 0 0}
+.pr-ul{margin:5px 0;padding-left:1.1em;font-size:.83rem}.pr-ul li{margin-bottom:3px}
+.pr-note{font-size:.75rem;color:var(--muted);margin-top:7px}
+.pr-div{border:none;border-top:1px dashed var(--line);margin:12px 0}
+.pr-callout{background:#F7F3E9;border:1px solid #E0D2B4;border-radius:11px;padding:11px 13px;font-size:.83rem;margin-top:9px}
+.pr-callout .cta{font-family:var(--disp);font-weight:700;color:var(--grow-ink)}
+.pr-time{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}@media(min-width:760px){.pr-time{grid-template-columns:1fr 1fr}}
+.pr-stage{border-radius:12px;padding:11px 13px;font-size:.83rem}
+.pr-stage.s3{background:#EAF3EF;border:1px solid #9BC4B6}.pr-stage.s6{background:#EAF0F5;border:1px solid #9BB8CE}
+.pr-stage .tt{font-family:var(--disp);font-weight:900;margin-bottom:3px}
+.axcard{border-top:1px solid var(--line);padding:10px 0 9px;display:flex;gap:11px;align-items:flex-start}
+.axcard:first-child{border-top:none}
+.axcard .lv{font-family:var(--disp);font-weight:900;font-size:1.25rem;min-width:56px;text-align:center;line-height:1.1}
+.axcard .nm{font-family:var(--disp);font-weight:700;font-size:.88rem}
+.axcard .nm .d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.axcard .nm .exname{font-family:var(--body);font-weight:400;font-size:.72rem;color:var(--muted);margin-left:7px}
+.axcard .delta{font-size:.74rem;font-family:var(--disp);font-weight:700;margin-left:6px}
+.pyr{margin-top:10px}
+.pyr-row{display:flex;justify-content:center;gap:5px;flex-wrap:nowrap;margin:0 auto 5px}
+.pyr-row.t5{width:38%}.pyr-row.t4{width:54%}.pyr-row.t3{width:72%}.pyr-row.t2{width:88%}.pyr-row.t1{width:100%}
+.pyr-row>*{flex:1 1 0;text-align:center}
+@media(max-width:600px){.pyr-row.t5{width:52%}.pyr-row.t4{width:68%}.pyr-row.t3{width:84%}.pyr-row.t2{width:94%}}
+.pyr-b{background:#EEF2EC;border:1px solid var(--line);border-radius:8px;padding:5px 6px;font-size:.74rem;font-family:var(--disp);line-height:1.25}
+@media(max-width:600px){.pyr-b{font-size:.64rem;padding:5px 3px}}
+.pyr-b.hot{background:#F7EBDA;border-color:#D9AE72;color:var(--grow-ink);font-weight:700}
+.pyr-b.hot.root{background:var(--grow-ink);color:#fff;border-color:var(--grow-ink)}
+.pyr-baselbl{text-align:center;font-size:.72rem;color:var(--muted);margin-top:5px}
+.disc{font-size:.73rem;color:var(--muted);margin-top:12px}
+.dev{background:#FBEEEA;border:1px solid #E2B4A9;border-radius:10px;padding:9px 12px;font-size:.78rem;margin-bottom:12px}
+.dev b{font-family:var(--disp);color:#B0392B}
+@media print{
+ html,body{background:#fff;margin:0;padding:0}
+ .wrap{max-width:none;margin:0;padding:0}
+ .noprint{display:none!important}
+ .view{display:none}
+ .view.on{display:block;margin:0}
+ /* カード全体では分割を止めない。ページ高を超えると1ページ目が空白になるため */
+ .card,.pr-sec,.read,.coachmemo{box-shadow:none;break-inside:auto}
+ /* 分割を避けるのは1ページに収まる小単位のみ */
+ .axcard,.pr-callout,.pr-stage,.warn,.errlist,.pyr,.pr-time,.plan2,tr,li{break-inside:avoid}
+ /* 見出し直後での改ページを防ぐ */
+ .rpthead,.rptsub,.pr-h,.rh,.cm-h,h2{break-after:avoid}
+ .rpthead{margin-top:0}
+ svg{break-inside:avoid}
+}
+</style><style>@page{margin:9mm 8mm}</style>
+</head><body><div class="wrap">
+
+<div class="noprint">
+
+<div class="card">
+<h2>1. 基本情報</h2>
+<div class="inp">
+ <label class="fld">お名前<input id="f-name" value="へやすぽ次郎"></label>
+ <label class="fld">年齢<select id="f-age" style="width:100%;margin-top:3px"></select></label>
+ <label class="fld">学年<select id="f-grade" style="width:100%;margin-top:3px"></select></label>
+ <label class="fld">性別<select id="f-sex" style="width:100%;margin-top:3px">
+  <option value="m" selected>男の子（くん）</option><option value="f">女の子（ちゃん）</option>
+  <option value="n">選ばない（さん）</option></select></label>
+ <label class="fld">実施日<input id="f-date" type="date"></label>
+ <label class="fld">担当コーチ<input id="f-coach" value=""></label>
+</div>
+</div>
+
+
+<div class="card csvcard">
+<h2>事前アンケートの取り込み<span class="sub">保護者が回答したCSVを読み込むと、④お子さまのお困りごと／⑤できるようになりたいこと／⑥ご家庭のお困り度に自動反映されます</span></h2>
+<div class="csvrow">
+ <input type="file" id="f-csv" accept=".csv,text/csv">
+ <button class="g" type="button" onclick="clearSurvey()">取り込みを解除して手入力に戻す</button>
+</div>
+<div id="csvStat" class="csvstat">まだ取り込んでいません。取り込むまでは、コーチが手入力できます。</div>
+<details class="csvhelp"><summary>CSVの形式</summary>
+ <div>1行目にヘッダー、2行目に回答を1件。列名は次のとおり（順不同・不足列は無視されます）。<br>
+ <code>ageset</code>＝sch または pre／<code>trouble</code>＝お困りごとの項目テキストを「｜」区切り／<code>want</code>＝できるようになりたいことのIDを「｜」区切り（w1,w2…）／<code>ppi_time,ppi_emo,ppi_soc,ppi_fut,ppi_nav</code>＝0〜5／<code>ppi_note</code>＝一番負担な場面</div>
+</details>
+</div>
+
+<div class="card">
+<h2>2. 初回判定｜到達レベル<span class="sub">入会時は上の3種目。「あしあとものまね」「信号ゲーム」は半年目以降、土台が安定してから追加する</span></h2>
+<div id="lvBox"></div>
+</div>
+
+<div class="card">
+<h2>3. 取り組みの発達<span class="sub">運動レベルとは別に、どう取り組めたかを記録。3か月後に同じ設問で差分を見る</span></h2>
+<div id="epBox"></div>
+<div class="modbox"><b>環境調整（今回きいた条件・複数選択可）</b>
+ <div id="modBox"></div>
+ <div class="modnote">これは高い低いではなく、<b>この子が取り組みやすくなる条件</b>の記録です。段階として扱わず、<b>次のレッスンで何を用意するか</b>の引き継ぎとして使います。</div>
+</div>
+</div>
+
+<div class="card survey" id="cd-trouble">
+<h2>4. お子さまのお困りごと<span class="sub">保護者聞き取り。年齢帯を選んでからチェック</span></h2>
+<div class="agetabs" id="ageTabs"></div>
+<div class="tbox" id="troubleBox"></div>
+</div>
+
+<div class="card">
+<h2>5. ご家族・本人の目標<span class="sub">COPM形式。最大4つまで。3か月後に同じ設問で採点し直し、差分を出す</span></h2>
+<div class="wantbox survey" id="cd-want"><b>できるようになりたいこと<span>（複数選択可）</span></b>
+ <div id="wantBox"></div>
+ <div class="modnote"><span id="wantStat">選択 0/4</span><br>お困りごと（いま困っていること）とは別に、<b>達成したい具体的なこと</b>を<b>最大4つ</b>選びます。選ぶと下の目標欄に<b>仮の文言</b>が入るので、ご家族の言葉に書き換えてください。</div>
+</div>
+<p class="pr-note" style="margin:10px 0 10px">「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんの重要度</b>は、取り組む順番を決めるために使います。</p>
+<div id="copmBox"></div>
+</div>
+
+<div class="card survey" id="cd-ppi">
+<h2>6. ご家庭のお困り度<span class="sub">親御さん自身の負担・不安・迷いを0〜5で。3か月後に同じ設問で測り直す</span></h2>
+<div id="ppiBox"></div>
+<label class="fld" style="display:block;margin-top:11px">いま一番負担に感じている場面をひとつ<textarea id="f-ppinote" placeholder="例：朝、着替えから家を出るまで毎日40分以上かかる"></textarea></label>
+<div class="escbox">
+ <label><input type="checkbox" id="f-esc"><b>⚑ 単独で判断せずSVへ引き継ぐ</b></label>
+ <div class="escnote">判断に迷う内容が出た場合は必ずチェック。コーチが自分で抱えない。<br>
+ <b>引き継ぎ先（要記入・全コーチ共通）：<span class="todo">＿＿＿＿＿＿＿＿＿＿</span></b></div>
+</div>
+<label class="fld" style="display:block;margin-top:11px">コーチ所見メモ（内部用）<textarea id="f-memo"></textarea></label>
+<div class="btns">
+ <button onclick="build()">レポートを作る</button>
+ <button class="g" onclick="pr()">印刷 / PDF（A4×4ページ）</button>
+ <button class="g" onclick="expJSON()">初回値を書き出す（3か月後の比較用に保存）</button>
+</div>
+</div>
+
+<div class="tabs" id="tabs" style="display:none">
+ <button id="tb-p" class="on" onclick="sw('p')">親御さん向けレポート</button>
+ <button id="tb-c" onclick="sw('c')">コーチ用</button>
+</div>
+</div>
+
+<div id="v-p" class="view on"></div>
+<div id="v-c" class="view"></div>
+</div>
+
+<script>
+/* ============================================================
+   5種目＝5軸。各種目は Lv1〜20 のラダーを持ち、
+   帯（band）ごとに主となる神経領域が切り替わる。
+   hub：レーダー描画色＝その種目の代表領域（帯の主軸とは別物）
+   ============================================================ */
+/* 4ハブ（前庭・小脳・頭頂・前頭）は表示から撤去。内部の帯定義には残すが色・名称は出さない */
+const AXC='#2F7D6E';
+const HEX=new Proxy({},{get:()=>AXC});
+
+const AX=[
+{k:'post',mx:30,core:1,chk:[{t:'体が左右や前後に大きく揺れる'},{t:'膝を曲げて重心を落とす'},{t:'指示理解の難しさ',v:1}],ic:'🧍',build:['体の軸を安定させる','片足で支える時間を伸ばす','動きながら姿勢を戻す'],chg3:['姿勢が崩れるまでの時間が延びる','座り直しの回数が減る','食事や机で伏せることが減る'],link:['姿勢を保ちながら手を使う','動きながら見る'],chg6:['長い時間の授業を最後まで座っていられる','動いても字が乱れにくくなる'],nm:'姿勢制御/動的バランス',pn:'からだを支える力',ex:'ラインウォーク',hub:'vest',hiLv:15,
+ lg:'狭い足場で体の軸を保ち、頭を動かしても崩れない',
+ about:'狭い足場のうえで体の軸を保ち、ぐらついても立て直しながら進む力です。高レベル帯では、頭を動かしながらでも視線と歩みを同時に保てるかを見ます。姿勢に力を使わずに済むほど、見ることや考えることに集中しやすくなります。',
+ grow:'体を支えること自体に力を使っている段階です。長く座る場面や、動きながら見る場面で崩れやすく、疲れやすくなります。筋力の問題ではなく、姿勢を自動で保つ感覚がこれから育つところです。',
+ fixed:true,
+ bands:[
+  {to:7, nm:'17cm一巡',   hub:'cere', why:'幅17cmのまま、方向 → 視覚（自由視・注視固定・閉眼）を順に負荷。Lv7で言語の二重課題を加える'},
+  {to:14,nm:'8.5cm一巡',  hub:'vest', why:'幅8.5cmで同じ系列を反復。17cm帯との到達差が足場の狭さの影響量。Lv13・14は二重課題つき'},
+  {to:20,nm:'VOR',        hub:'vest', why:'頭を動かしても的から視線を外さない。垂直→水平の順に負荷し、各系列の最後に二重課題を置く'},
+  {to:26,nm:'パスート',   hub:'cere', why:'頭は止めたまま、動く的を目だけで追う（追従性眼球運動）。垂直→水平＋二重課題'},
+  {to:30,nm:'VORc・言語負荷',hub:'front',why:'目の条件はVORc水平で固定し、言語課題の重さだけを上げる（しりとり→条件つき→交互カテゴリー→逆唱）'}],
+ errs:[
+  {n:1,c:'保持物',t:'頭上物の落下（Lv5〜14）'},
+  {n:2,c:'範囲',  t:'幅逸脱：足の内側縁が幅の外に出る'},
+  {n:3,c:'形式',  t:'接地離開：踵とつま先の間が1足長以上あく（Lv3〜。Lv1〜2は接地不問のため計上しない）'},
+  {n:4,c:'条件',  t:'条件違反：閉眼で目を開ける／注視固定・VORで視線が的から外れる'},
+  {n:5,c:'代償',  t:'ステップ戦略：幅外へ踏み出す／停止する／後進で振り返る'},
+  {n:6,c:'中断',  t:'転倒・支持：手や膝が床につく／保護者が支える'}]},
+
+{k:'eyeh',mx:30,core:1,chk:[{t:'投げる高さや方向がばらつく',pro:1},{t:'指示理解の難しさ',v:1}],ic:'👀',build:['飛んでくるものを目で追う','手を出すタイミングを合わせる','左右の手を分けて使う'],chg3:['キャッチが安定してくる','投げる方向のばらつきが減る','目をそらさず追える場面が増える'],link:['目で追いながら体を動かす','球技や縄跳びに参加する'],chg6:['ボール遊びに自分から入っていける','体育の活動に前向きになる'],nm:'目と手/左右の連携',pn:'見て合わせる力',ex:'お手玉キャッチ',hub:'par',hiLv:13,
+ lg:'落ちてくる位置とタイミングを見積もり、両手・左右で受ける',
+ about:'物がどこに、いつ来るかを見積もって手を合わせる力です。高レベル帯では、両手を同時に使ったり、体の真ん中をまたいで左右に持ち替えたりする動きが加わります。',
+ grow:'距離やタイミングの見積もりが立ちにくく、キャッチがずれる・物にぶつかるという形で出やすくなります。左右の手を別々に使い分ける動きも、これから育つ段階です。',
+ bands:[
+  {to:4, nm:'反応（相手投げ）',hub:'par', why:'相手が投げた対象への視線定位とタイミング合わせ。広げる→丸める→タオルの順に猶予が減る'},
+  {to:8, nm:'一人操作・巧緻', hub:'cere',why:'自分で投げた結果を見て受ける。逆手で左右入れ替え、3点キャッチで手指の巧緻性が加わる'},
+  {to:12,nm:'お手玉・注意選択',hub:'front',why:'重さのある対象。さらに投げる瞬間の合図でボールかティッシュかを選ぶ、注意の選択と持続'},
+  {to:16,nm:'片手・左右操作', hub:'par', why:'片手操作の安定性と左右の受け渡し。正中線をまたぐ処理が加わる'},
+  {to:21,nm:'両手協調・自然落下',hub:'cere',why:'両手同時操作とタイミング一致。自然落下は投げる動作がないぶん予測の手がかりが減る'},
+  {to:26,nm:'付加課題・切替', hub:'front',why:'投げてから別動作を挟み、再び対象へ注意を戻す。注意の切り替え'},
+  {to:30,nm:'ボディイメージ・回転',hub:'vest',why:'背面キャッチと回転。視覚に頼れない位置での身体図式と、回転後の空間再定位'}],
+ errs:[
+  {n:1,c:'保持物',t:'—（保持物なし。該当なし）',na:true},
+  {n:2,c:'範囲',  t:'投げる高さ・位置が毎回ばらつき、規定の範囲に収まらない'},
+  {n:3,c:'形式',  t:'キャッチ形式が指定と違う（両手／片手／クロスが守られない）'},
+  {n:4,c:'条件',  t:'規定回数・順序を満たさない（5回連続などが続かない）'},
+  {n:5,c:'代償',  t:'体ごと大きく移動して捕る／目で追わず胸や腹で受ける'},
+  {n:6,c:'中断',  t:'落球が連続して課題が成立しない／中断する'}]},
+
+{k:'hand',mx:30,core:1,chk:[{t:'大きく頭を動かす'},{t:'両手同時操作が難しい'}],ic:'✋',build:['手の形を素早く作る','力の入れ加減・抜き加減','見てから動くまでを短くする'],chg3:['手の形の作り直しが減る','力加減を調整できる','道具の扱いが乱暴でなくなる'],link:['書く・切るなど道具の操作につなげる','考えながら手を動かす'],chg6:['筆圧が安定してくる','工作や道具の扱いがスムーズになる'],nm:'反応選択/運動の切替',pn:'考えて動かす力',ex:'グーパータッチ',hub:'cere',hiLv:8,
+ lg:'相手の手を見て、決まりに合わせて出す手を選ぶ',
+ about:'相手の手を見て、出す手をすばやく選ぶ力です。はじめは見たとおりの形をつくり、高レベル帯では「勝つ」「負ける」など決まりに合わせて出す手を選び直します。速さではなく、正しく選べるかを見ています。',
+ grow:'つい出しやすい手が先に出てしまったり、決まりは分かっていても手が追いつかなかったりします。手先の器用さではなく、出す手を選び直す働きがこれから育つところです。',
+ bands:[
+  {to:5, nm:'目と手の連携',   hub:'par', why:'視線定位と基本的な目と手の協調。両手化・移動・振り向きで視線移動の距離が増える'},
+  {to:9, nm:'手形の切り替え', hub:'cere',why:'手の形の切り替えと選択肢の増加。注意の切り替えと配置の判断'},
+  {to:15,nm:'じゃんけん選択', hub:'front',why:'相手の手を見て勝つ／負ける手を選ぶ。直感的反応の抑制とルール保持'},
+  {to:24,nm:'左右別課題',     hub:'front',why:'右手と左手で異なるルールを同時処理。干渉の抑制と切り替え'},
+  {to:30,nm:'視空間対応・交差',hub:'par', why:'交差した位置関係の中で対応する手を選ぶ。視空間座標変換'}],
+ errs:[
+  {n:1,c:'保持物',t:'タオルの上から足が落ちる'},
+  {n:2,c:'範囲',  t:'必要以上の身体移動で代償する／立ち位置が毎回動く'},
+  {n:3,c:'形式',  t:'手の形が不完全・出した後に作り直す'},
+  {n:4,c:'条件',  t:'勝つ／負ける／あいこのルールを取り違える'},
+  {n:5,c:'代償',  t:'相手の手を見てから明らかに遅れて出す／左右を同じ手にそろえる'},
+  {n:6,c:'中断',  t:'ルールが保持できず課題が成立しない／中断する'}]},
+
+{k:'sacc',mx:20,core:0,chk:[{t:'目だけでなく頭ごと動かして探す'},{t:'反応するのに2秒以上かかる'},{t:'指示理解の難しさ',v:1}],ic:'🧠',build:['見本を見て同じ形をつくる','目だけで探す','順番を覚えておく'],chg3:['指でなぞらずに探せる','見本を見て真似できる','探し物にかかる時間が短くなる'],link:['黒板からノートへ写す','読む・写すの速さにつなげる'],chg6:['板書を写す時間が短くなる','音読で行を飛ばしにくくなる'],nm:'視空間探索/運動企画',pn:'見つけて覚える力',ex:'あしあとものまね',hub:'front',hiLv:11,
+ lg:'見本の姿勢を再現し、探し出し、順番を覚えておく',
+ about:'見本と同じ足の位置・向きをつくる力から始まり、高レベル帯では、たくさん並んだ見本の中から目的のものを探し出し、その順番を覚えておく力までを見ます。読む・写す・探すという場面を支えています。',
+ grow:'見本の形を写し取るのに時間がかかったり、探し当てた順番を覚えておけなかったりします。板書や教科書で「どこを見ればいいか」を探す場面で疲れやすくなります。',
+ bands:[
+  {to:5, nm:'注視・注意持続', hub:'front',why:'刺激数の増加に対する注視・姿勢認識・注意の持続'},
+  {to:7, nm:'追従性',        hub:'cere', why:'縦・横の追従性眼球運動（パスート）。旧「視線の安定」軸に相当'},
+  {to:10,nm:'跳躍性・回転',  hub:'cere', why:'縦・横の跳躍性眼球運動（サッケード）と回転。視線移動の切り替え'},
+  {to:15,nm:'視覚探索・選択',hub:'par',  why:''},
+  {to:20,nm:'WM・逆順',      hub:'front',why:'逆順・奇偶・指定数字逆唱。ワーキングメモリと情報処理'}],
+ errs:[
+  {n:1,c:'保持物',t:'—（保持物なし。20クリア後のバランスチャレンジ時のみ計上）',na:true},
+  {n:2,c:'範囲',  t:'見本と足の位置・向きが違う'},
+  {n:3,c:'形式',  t:'ポーズが完成しない・途中で崩れる'},
+  {n:4,c:'条件',  t:'指定された順序・ルールと違う順で進む'},
+  {n:5,c:'代償',  t:'頭ごと動かして探す／指でなぞる／声に出して数える'},
+  {n:6,c:'中断',  t:'中断する／支援者が指示を繰り返す必要がある'}]},
+
+{k:'inhi',mx:20,core:0,chk:[{t:'合図より先に動いてしまう'},{t:'反応するのに2秒以上かかる'},{t:'指示理解の難しさ',v:1}],ic:'⛔',build:['合図で止まる','ルールの切り替えに気づく','待つ時間を伸ばす'],chg3:['合図より先に動くことが減る','ルールの変更についていける','負けたあとの立て直しが早くなる'],link:['集団のルールの中で動く','気持ちの切り替えにつなげる'],chg6:['順番を待てる場面が増える','切り替えに時間がかからなくなる'],nm:'反応抑制/ルールの切替',pn:'止まる・切り替える力',pnw:['止まる・','切り替える力'],ex:'信号ゲーム',hub:'front',hiLv:11,
+ lg:'合図に合わせて動く・止まる、決まりが変わったら変える',
+ about:'合図に合わせて動く・止まる力です。高レベル帯では、途中で決まりが変わっても、それに合わせて反応を変えられるかを見ます。順番を待つ、気持ちを切り替えるという場面につながります。',
+ grow:'合図より先に動いてしまったり、いちど決めたやり方から切り替えにくかったりします。わざとではなく、動きを止めておく働きと、決まりを差し替える働きがこれから育つ段階です。',
+ bands:[
+  {to:5, nm:'反応速度・ルール',hub:'front',why:'色刺激に対する反応速度と基本的なルール理解'},
+  {to:10,nm:'聴覚・視聴覚統合',hub:'par',  why:''},
+  {to:15,nm:'記憶・ルール変更',hub:'front',why:'色系列の記憶・逆行、実施中のルール変更。認知の切り替えとWM'},
+  {to:18,nm:'二重課題',       hub:'front',why:'しりとりと並行して色課題を実施。処理資源の分割'},
+  {to:20,nm:'ストループ',     hub:'front',why:'言葉と色の不一致下での反応抑制。実行機能の上限'}],
+ errs:[
+  {n:1,c:'保持物',t:'—（修正版では保持物なし。旧版Lv17・18の頭上タオル使用時のみ）',na:true},
+  {n:2,c:'範囲',  t:'足踏みが止まる／立ち位置が大きく動く'},
+  {n:3,c:'形式',  t:'反応の形が指定と違う（止まる／ゆっくり／ジャンプ／しゃがむの取り違え）'},
+  {n:4,c:'条件',  t:'ルール変更後も前のルールで反応する'},
+  {n:5,c:'代償',  t:'合図より先に動く（予測反応）／支援者の口元や手元を見て待つ'},
+  {n:6,c:'中断',  t:'課題を放棄する／指示が通らず成立しない'}]}
+];
+const LT={"post": ["17cm｜前進｜自由視", "17cm｜前進｜タンデム｜自由視｜頭上物", "17cm｜後進｜タンデム｜自由視｜頭上物", "17cm｜前進・後進｜タンデム｜注視固定｜頭上物", "17cm｜前進｜タンデム｜閉眼｜頭上物", "17cm｜後進｜タンデム｜閉眼｜頭上物", "17cm｜前進・後進｜タンデム｜自由視｜頭上物＋二重課題（動物3つなど）", "8.5cm｜前進｜タンデム｜自由視｜頭上物", "8.5cm｜後進｜タンデム｜自由視｜頭上物", "8.5cm｜前進・後進｜タンデム｜注視固定｜頭上物", "8.5cm｜前進｜タンデム｜閉眼｜頭上物", "8.5cm｜後進｜タンデム｜閉眼｜頭上物", "8.5cm｜前進・後進｜タンデム｜自由視｜頭上物＋二重課題（しりとり／動物5つなど）", "8.5cm｜前進・後進｜タンデム｜閉眼｜頭上物＋二重課題（しりとり／動物5つなど）", "8.5cm｜前進｜タンデム｜VOR垂直", "8.5cm｜後進｜タンデム｜VOR垂直", "8.5cm｜前進・後進｜タンデム｜VOR垂直＋二重課題（しりとり）", "8.5cm｜前進｜タンデム｜VOR水平", "8.5cm｜後進｜タンデム｜VOR水平", "8.5cm｜前進・後進｜タンデム｜VOR水平＋二重課題（しりとり）", "8.5cm｜前進｜タンデム｜パスート垂直", "8.5cm｜後進｜タンデム｜パスート垂直", "8.5cm｜前進・後進｜タンデム｜パスート垂直＋二重課題（しりとり）", "8.5cm｜前進｜タンデム｜パスート水平", "8.5cm｜後進｜タンデム｜パスート水平", "8.5cm｜前進・後進｜タンデム｜パスート水平＋二重課題（しりとり）", "8.5cm｜前進｜タンデム｜VORc水平＋しりとり", "8.5cm｜前進｜タンデム｜VORc水平＋条件しりとり（3文字以上・食べ物のみなど）", "8.5cm｜前進｜タンデム｜VORc水平＋交互カテゴリー（動物→食べ物→…）", "8.5cm｜前進｜タンデム｜VORc水平＋数字4桁の逆唱"], "eyeh": ["親が投げた広げたティッシュをキャッチ（目線より高い位置）", "親が投げた丸めたティッシュをキャッチ（目線より高い位置）", "親が投げた広げたタオルをキャッチ（目線より高い位置）", "親が投げた結んだタオルをキャッチ（目線より高い位置）", "一人で広げたティッシュを投げてキャッチ", "一人で広げたティッシュを投げて、投げた手と逆の手でキャッチ", "一人で投げて、親指・人差し指・中指の3点でキャッチ", "一人で投げて、逆の手の3点でキャッチ", "お手玉を両手で投げて両手でキャッチ", "お手玉を片手で投げて両手でキャッチ", "ボールの上にティッシュを置いて親が投げ、落ちてくるティッシュを掴む", "ボールの上にティッシュを置いて親が投げ、指定された方を掴む（合図は投げる瞬間）", "お手玉を片手で投げて片手でキャッチ", "左右それぞれで5回連続で片手キャッチ", "目線の高さまで上げて左右に渡す", "腕をクロスした状態でボールを落として素早くキャッチ", "両手同時に投げて両手同時にキャッチ", "手のひらを下向きにタオルを持ち、落としてキャッチ（片手）", "親がタオルを下向きに持ち落としてキャッチ（合図あり・肩の高さ）", "親がタオルを下向きに持ち落としてキャッチ（合図なし・肩の高さ）", "同時に投げて左右の腕をクロスしてキャッチ", "両手で投げて、頭をタッチしてキャッチ", "両手で投げて、頭→肩をタッチしてキャッチ", "両手で投げて、頭→肩をタッチして腕をクロスしてキャッチ", "両手でタオルを下向きに持ち、落としてキャッチ", "親が両手でタオルを下向きに持ち落としてキャッチ（合図なし・肩の高さ）", "自分でタオルを投げて背面でキャッチ", "親が投げたタオルを背面キャッチ", "両手同時に投げ、その場で回転し両手同時にキャッチ", "片手で投げたタオルをその場で回転してキャッチ"], "hand": ["パータッチ片手／手の移動なし", "パータッチ片手／手の移動あり", "パータッチ両手／手の移動なし", "パータッチ両手／手の移動あり", "パータッチ両手／後ろ向きから振り向きタッチ", "グーパー／手の移動なし", "グーパー／手の移動あり", "グーチョキパー／手の移動なし", "グーチョキパー／手の移動あり", "じゃんけんに勝つ／両手同じ", "じゃんけんに勝つ／不規則課題", "じゃんけんに勝つ／不規則課題＋移動あり", "じゃんけんに負ける／両手同じ", "じゃんけんに負ける／不規則課題", "じゃんけんに負ける／不規則課題＋移動あり", "右手あいこ／左手勝つ・両手同じ", "右手あいこ／左手勝つ・不規則課題", "右手あいこ／左手勝つ・不規則＋移動あり", "右手あいこ／左手負ける・両手同じ", "右手あいこ／左手負ける・不規則課題", "右手あいこ／左手負ける・不規則＋移動あり", "右手勝つ／左手負ける・両手同じ", "右手勝つ／左手負ける・不規則課題", "右手勝つ／左手負ける・両手バラバラ＋移動あり", "両手クロス×あいこ／不規則", "両手クロス×勝つ／不規則", "両手クロス×負ける／不規則", "両手クロス×右手あいこ／左手勝つ・不規則", "両手クロス×右手あいこ／左手負ける・不規則", "両手クロス×右手勝つ／左手負ける・不規則"], "sacc": ["見本1〜3個をまねる", "見本5個", "見本10個", "見本15個", "見本20個", "追従性（縦）", "追従性（横）", "跳躍性（縦）", "跳躍性（横）", "回転（外側・内側スタート）", "数字10まで（正順）", "ランダム配置10まで", "指定数字2つ×5問", "指定数字3つ×5問", "指定数字4つ×5問", "25→1 逆順", "奇数の数字を順番に（1・3・5・7…）", "偶数の数字を順番に（2・4・6・8…）", "指定された数字3つ、逆順", "指定された数字4つ、逆順"], "inhi": ["赤は止まる（1種類のみ提示）", "赤＝止まる／青＝動く", "同ルールでテンポアップ", "赤＝止まる／青＝動く／黄＝ゆっくり", "3種でテンポを上げて10回", "言葉だけの指示（赤／青）", "言葉だけの指示（赤／青／黄）", "色または言葉をランダムで指示（フープ→言葉と切り替わる）", "4色（緑＝ジャンプ）＋ランダム提示", "4色でテンポを上げて10回", "5色（オレンジ＝しゃがむ）を追加", "5色を記憶して実施（「はい」の合図で切り替え）", "4つの色を記憶して逆から実施", "3色でルール変更（「チェンジ」で赤＝ゆっくり／黄＝はやく／青＝止まる）", "3色のルール変更をテンポアップ", "しりとりをしながら5色", "しりとりをしながら5色を逆行", "しりとりをしながら3色＋ルール変更", "しりとりをしながらストループ課題（5色）", "しりとり＋ストループ（5色）＋テンポアップ"]};
+const TIER={'聴覚':1,'前庭覚':1,'固有覚':1,'触覚':1,'視覚':1,
+ '姿勢':2,'バランス':2,'身体の位置':2,'眼球運動':2,
+ '姿勢調整':3,'ボディイメージ':3,'運動のコントロール':3,
+ '目と手の連携':4,'言語機能':4,'学習・情緒／複合運動':5};
+const TIERLBL={1:'いちばん下の段',2:'下から2段目',3:'まん中の段',4:'上から2段目',5:'いちばん上の段'};
+const tierOf=t=>TIERLBL[TIER[t]]||'';
+const upper=t=>Object.keys(TIER).filter(x=>TIER[x]===TIER[t]+1);
+const K=AX.map(a=>a.k);
+const A=k=>AX.find(a=>a.k===k);
+
+/* 表示尺度＝ラダー到達Lvそのもの。換算は行わない */
+const MAXLV=30;  /* レーダーの目盛り上限。種目ごとの上限は AX[].mx */
+/* 帯 */
+const band=(k,v)=>{if(v<=0)return null;return A(k).bands.find(b=>v<=b.to);};
+/* 年齢アンカー Lv5=6歳／Lv10=9歳／Lv15=12歳／Lv20=18歳（ラインウォーク・信号ゲームの定義を全種目に暫定適用） */
+const ANCHOR=[[0,0],[6,5],[9,10],[12,15],[18,20]];
+function expLv(age){
+ const a=parseFloat(age); if(!isFinite(a))return null;
+ if(a>=18)return 20;
+ for(let i=1;i<ANCHOR.length;i++){
+  if(a<=ANCHOR[i][0]){const[x0,y0]=ANCHOR[i-1],[x1,y1]=ANCHOR[i];
+   return Math.round((y0+(y1-y0)*(a-x0)/(x1-x0))*10)/10;}
+ }
+ return 20;
+}
+
+/* ================= お困りごと定義 ================= */
+/* ============================================================
+   Parent Pain Index：ご家庭のお困り度（0〜5・高いほど負担が大きい）
+   子どものレーダーは「外へ広がるほど良い」、こちらは「棒が短くなるほど良い」。
+   向きが逆なので同一レーダーには重ねない。
+   ============================================================ */
+/* ============================================================
+   取り組みの発達（Engagement Profile）
+   運動スキル（Lv）とは独立に、「どう取り組めたか」を記録する。
+   ・EP は順序尺度（0→上ほど自立・般化）。3か月後に同じ設問で差分を出す。
+   ・MOD は順序ではなく「どの手がかりが有効か」の profile。高低ではないため差分は出さない。
+   設計の根拠：
+   - 参加の持続と必要な支援は別軸。長く取り組めても全介助なら発達とは言えない。
+   - 動機の条件は「好きなものしかやらない → 見通しがあればやれる → 苦手でも向かえる」
+     という順で般化する。運動スキルより先に動くことが多く、初期の変化検出に向く。
+   - 情報の入り方を段階化すると「言語優位が上」という誤読を生むため、あえて並列に置く。
+   ============================================================ */
+
+/* ============================================================
+   できるようになりたいこと（複数選択可）
+   お困りごと（いま困っていること）とは別に、達成したい具体的なことを聞く。
+   pk＝対応するへやすぽアシストのメニューパッケージ／ax＝主に支える種目
+   ============================================================ */
+const WANT=[
+ {g:'運動',id:'w1', ic:'🪢',t:'縄跳びが跳べるようになりたい',        pk:'前跳びパッケージ（Lv1〜6）／あやとび・交差とびパッケージ',ax:'post'},
+ {g:'運動',id:'w2', ic:'🤸',t:'鉄棒（逆上がり）ができるようになりたい',pk:'逆上がりパッケージ（Lv1〜）',                      ax:'post'},
+ {g:'運動',id:'w3', ic:'📦',t:'跳び箱が跳べるようになりたい',          pk:'跳び箱パッケージ（Lv1〜5）',                       ax:'post'},
+ {g:'運動',id:'w4', ic:'🤾',t:'マット運動（前転・後転・側転）ができるようになりたい',pk:'前転／後転／ブリッジパッケージ',        ax:'post'},
+ {g:'運動',id:'w5', ic:'🚲',t:'自転車に乗れるようになりたい',          pk:'自転車パッケージ（Lv1〜）',                        ax:'post'},
+ {g:'運動',id:'w6', ic:'🏊',t:'泳げるようになりたい',                  pk:'水泳／クロールパッケージ（Lv1〜5）',                ax:'post'},
+ {g:'運動',id:'w7', ic:'🏃',t:'かけっこが速くなりたい',                pk:'かけっこパッケージ（Lv1〜5）',                     ax:'post'},
+ {g:'運動',id:'w8', ic:'🦘',t:'スキップ・ケンケンができるようになりたい',pk:'スキップ／けんけんパッケージ（Lv1〜5）',           ax:'post'},
+ {g:'運動',id:'w9', ic:'⚾',t:'ボールを投げる・受けるのが上手になりたい',pk:'ボール投げ／キャッチパッケージ（Lv1〜6）',          ax:'eyeh'},
+ {g:'運動',id:'w10',ic:'⚽',t:'ボールを蹴る・打つのが上手になりたい',   pk:'ボールを蹴る／ボールを打つパッケージ（Lv1〜6）',     ax:'eyeh'},
+ {g:'運動',id:'w11',ic:'💃',t:'ダンスの振りを覚えて踊れるようになりたい',pk:'ダンスパッケージ（Lv1〜4）',                       ax:'sacc'},
+ {g:'学習',id:'w12',ic:'✏️',t:'字をきれいに書けるようになりたい',       pk:'書字パッケージ（Lv1〜5）',                         ax:'hand'},
+ {g:'学習',id:'w16',ic:'📋',t:'板書を写すのが間に合うようになりたい',   pk:'ビジョントレーニング／スピードタッチ',              ax:'sacc'},
+ {g:'学習',id:'w17',ic:'📖',t:'音読で行を飛ばさず読めるようになりたい', pk:'ビジョントレーニング／タッチ系（追視）',            ax:'sacc'},
+ {g:'学習',id:'w18',ic:'🪑',t:'授業中に座っていられるようになりたい',   pk:'体幹・全身／低緊張パッケージ',                     ax:'post'},
+ {g:'生活',id:'w13',ic:'🥢',t:'お箸が上手に使えるようになりたい',       pk:'お箸パッケージ（Lv1〜4）',                         ax:'hand'},
+ {g:'生活',id:'w19',ic:'👕',t:'着替え・ボタンが自分でできるようになりたい',pk:'微細運動／手のコントロール',                    ax:'hand'},
+ {g:'生活',id:'w20',ic:'🍚',t:'食事でこぼさず食べられるようになりたい', pk:'体幹・全身／微細運動',                            ax:'post'},
+ {g:'生活',id:'w21',ic:'⏰',t:'朝の支度を自分で進められるようになりたい',pk:'横断（土台づくりを優先）',                        ax:'inhi'},
+ {g:'気持ち・対人',id:'w22',ic:'🔄',t:'順番を待つ・気持ちを切り替えられるようになりたい',pk:'反応ゲーム／だるまさんが転んだ系',   ax:'inhi'},
+ {g:'気持ち・対人',id:'w14',ic:'🏫',t:'体育の授業に自信をもって参加したい',pk:'横断（土台づくりを優先）',                      ax:'post'},
+ {g:'気持ち・対人',id:'w15',ic:'👫',t:'友だちと一緒に遊べるようになりたい',pk:'SST／横断（土台づくりを優先）',                  ax:'inhi'}
+];
+const WANTG=['運動','学習','生活','気持ち・対人'];
+const WANT_MAX=4;
+/* 目標欄に入れる仮の文言。「〜たい」を言い切りに直す */
+const wantGoal=t=>t.replace(/なりたい$/,'なる').replace(/したい$/,'する').replace(/たい$/,'る');
+const wantOn=()=>WANT.filter(w=>document.getElementById('w-'+w.id).checked);
+/* 選んだ「できるようになりたいこと」を、COPMの目標欄へ仮の文言として流し込む。
+   コーチが手で書き換えた行（cp-s{i} が dataset.edited）は上書きしない。 */
+function wantGuard(el){
+ if(wantOn().length>WANT_MAX){el.checked=false;alert('できるようになりたいことは最大'+WANT_MAX+'つまでです。');return;}
+ syncWantToCopm();
+}
+function syncWantToCopm(){
+ const on=wantOn();
+ COPM_ROWS.forEach((r,n)=>{
+  const ta=document.getElementById('cp-s'+r.i);
+  if(!ta||ta.dataset.edited==='1')return;
+  ta.value=on[n]?wantGoal(on[n].t):'';
+  ta.classList.toggle('auto',!!on[n]);
+ });
+ const st=document.getElementById('wantStat');
+ if(st)st.textContent=on.length?`選択 ${on.length}/${WANT_MAX}　→ 下の目標欄に仮の文言を入れました。ご家族の言葉に書き換えてください。`:`選択 0/${WANT_MAX}`;
+}
+const wantShort=t=>t.replace(/ができるようになりたい$/,'').replace(/になりたい$/,'').replace(/ようになりたい$/,'')
+ .replace(/のが上手$/,'').replace(/たい$/,'').replace(/参加し$/,'参加').replace(/^泳げる$/,'泳げるようになる');
+
+/* ============================================================
+   COPM形式の目標設定（最大4件）
+   遂行度／満足度／親御さんの重要度 を 1〜10 で採点。
+   ・遂行度と満足度を分けるのがCOPMの要点。できていても納得していない、
+     できていなくても本人が前向き、という状態を取りこぼさないため。
+   ・重要度は「今回どれに手をつけるか」の並べ替えにのみ使う。
+   ・3か月後に同じ設問で採点し直し、差分（2点以上を意味のある変化とみなす）を見る。
+   ============================================================ */
+const COPMF=[
+ {k:'p1',nm:'遂行度',c:'#2F7D6E'},{k:'s1',nm:'満足度',c:'#8267AE'},
+ {k:'imp',nm:'親御さんの重要度',c:'#DA8541'}
+];
+/* 初回アセスメント版：3か月の短期目標のみ。前回値がないため「3か月前」欄は持たない。
+   再測定版では 最終目標／3か月前／前向き度／★次の3か月 の列が加わる。 */
+const COPM_N=4;
+const COPM_ROWS=[{i:0},{i:1},{i:2},{i:3}];
+const DEFGOAL=[{sh:'',m:'',p1:5,s1:5,imp:5},
+ {sh:'',m:'',p1:5,s1:5,imp:5},
+ {sh:'',m:'',p1:5,s1:5,imp:5},
+ {sh:'',m:'',p1:5,s1:5,imp:5}];
+const gv=id=>+document.getElementById(id).value;
+const copmVals=()=>COPM_ROWS.map(r=>{
+ const sh=document.getElementById('cp-s'+r.i).value.trim();
+ return {i:r.i,t:sh,sh,memo:document.getElementById('cp-m'+r.i).value.trim(),
+  p1:gv('cp-p1'+r.i),s1:gv('cp-s1'+r.i),imp:gv('cp-imp'+r.i)};
+}).filter(g=>g.sh);
+
+const EP=[
+ {k:'dur',ttl:'参加の持続',sub:'どれくらい取り組めたか',c:'#DA8541',
+  lv:['課題の場に入れない／別のことをしている',
+      '課題の一部だけ取り組める（1回だけ・途中まで）',
+      '短時間なら最後まで取り組める（1課題）',
+      '複数の課題を続けて取り組める',
+      'レッスンを通して取り組める']},
+ {k:'sup',ttl:'必要な支援',sub:'どれくらい支えると取り組めるか',c:'#2F7D6E',
+  lv:['体に触れて動かすと取り組める（身体介助）',
+      '一緒に同時にやると取り組める（模倣）',
+      '手本を見せると取り組める',
+      '声かけで取り組める',
+      '最初の説明だけで取り組める']},
+ {k:'mot',ttl:'課題への向かい方',sub:'提示された課題にどう向かえるか',c:'#8267AE',
+  lv:['自分の好きなこと・やり方を中心に取り組む',
+      '好きな要素や環境調整があれば、提示された課題にも取り組める',
+      '提示された課題に取り組める',
+      '苦手・難しい課題にも取り組める',
+      '新しい・苦手・難しい課題にも自分から挑戦できる']},
+ {k:'rec',ttl:'切り替えと立て直し',sub:'うまくいかなかったときの戻り方',c:'#C46A5A',
+  lv:['崩れると戻れない／終了になる',
+      '離れて休むと戻れる',
+      '声かけがあればその場で戻れる',
+      '自分で気持ちを立て直せる',
+      'うまくいかなくても、自分で切り替えて取り組みを続けられる']}
+];
+/* ============================================================
+   環境調整（有効だった条件）
+   順序尺度ではなく profile。高い低いではなく「この子に効いた条件」の記録。
+   段階評価（EP）が「どこまで育ったか」を見るのに対し、こちらは
+   「次のレッスンで何を用意すれば取り組めるか」を次のコーチへ引き継ぐためのもの。
+   ============================================================ */
+const ENV=[
+ {g:'情報の入り方',c:'#2F7D6E',items:[
+  {k:'e-vis',t:'視覚（手本・図・写真を見せる）'},
+  {k:'e-lng',t:'言語（説明・声かけ・数える）'},
+  {k:'e-bod',t:'身体（触れる・介助・一緒に動く）'},
+  {k:'e-dem',t:'実演（やって見せる）'},
+  {k:'e-mrk',t:'目印（線・フープ・置く位置を決める）'}]},
+ {g:'見通しの立て方',c:'#8267AE',items:[
+  {k:'e-tim',t:'タイマー（終わりを時間で示す）'},
+  {k:'e-cnt',t:'回数（「あと3回」と数で示す）'},
+  {k:'e-ord',t:'順番表（やることを先に並べて見せる）'},
+  {k:'e-cho',t:'選択肢（2つから選んでもらう）'},
+  {k:'e-pre',t:'予告（次にやることを先に伝える）'}]},
+ {g:'動機づけ',c:'#DA8541',items:[
+  {k:'e-fav',t:'好きな要素（好きなキャラ・題材・道具）'},
+  {k:'e-cmp',t:'競争（記録・タイムに挑む）'},
+  {k:'e-vs', t:'対決（コーチや保護者と勝負する）'},
+  {k:'e-rol',t:'役割（先生役・お手本役をまかせる）'},
+  {k:'e-sto',t:'ストーリー（設定・ごっこの中に入れる）'}]},
+ {g:'負荷の下げ方',c:'#4A7BA7',items:[
+  {k:'e-sht',t:'短くする（1回を短時間で区切る）'},
+  {k:'e-esy',t:'易しくする（一段下から入る）'},
+  {k:'e-tgt',t:'一緒にやる（同時・模倣で入る）'},
+  {k:'e-qui',t:'静かな環境（刺激を減らす）'},
+  {k:'e-brk',t:'休憩を挟む（離れてから戻る）'}]}
+];
+const envAll=()=>ENV.flatMap(g=>g.items.map(i=>({...i,g:g.g,c:g.c})));
+const envOn=()=>envAll().filter(i=>document.getElementById(i.k).checked);
+
+const PPI=[
+ {k:'time',nm:'時間の負担',c:'#DA8541',
+  q:'お子さんへの対応で、日常生活にどのくらい時間的な負担を感じますか',lo:'ほぼ感じない',hi:'とても大きい'},
+ {k:'emo',nm:'感情の負担',c:'#C46A5A',
+  q:'お子さんへの対応で、イライラ・怒り・疲れをどのくらい感じますか',lo:'ほぼ感じない',hi:'とても大きい'},
+ {k:'soc',nm:'周囲との負担',c:'#8267AE',
+  q:'学校・園や周囲との関係で、お子さんのことでどのくらい負担を感じますか',lo:'ほぼ感じない',hi:'とても大きい'},
+ {k:'fut',nm:'将来への不安',c:'#2F7D6E',
+  q:'お子さんの今後について、どのくらい不安を感じますか',lo:'ほぼ感じない',hi:'とても大きい'},
+ {k:'nav',nm:'情報・判断の迷い',c:'#5E9E5E',
+  q:'お子さんに何をしてあげるべきか、どのくらい迷いを感じますか',lo:'ほぼ迷わない',hi:'とても迷う'}
+];
+const ppiVals=()=>{const o={};PPI.forEach(x=>o[x.k]=+document.getElementById('pp-'+x.k).value);return o;};
+
+/* ============================================================
+   お子さまのお困りごと：保護者に見せる面は「生活場面」5カテゴリ。
+   各項目は内部で神経学ドメイン（DN 1〜7）に紐づけ、解析ロジックは従来どおり。
+   dn = 対応するDNのid
+   ============================================================ */
+/* 年齢帯ごとのお困りごとリスト。カテゴリID(A〜E)と色は共通で、
+   表に出る文言だけを年齢帯で入れ替える。dn は内部の神経ドメイン（1〜7）に対応し、
+   どちらの帯でも7ドメインすべてが最低1項目でカバーされるように選んである。 */
+const CATSET={
+ sch:{lbl:'小学生以上',cats:[
+  {id:'A',ic:'📖',ttl:'学習・学校生活',c:'#8267AE',items:[
+   {t:'行を読み飛ばす／読むところを見失う',dn:4},
+   {t:'黒板を写すのが遅い・間に合わない',dn:3},
+   {t:'ふたつの指示を同時に持っていられない',dn:7}]},
+  {id:'B',ic:'🔄',ttl:'落ち着き・切り替え',c:'#7A6A2E',items:[
+   {t:'順番を待てない／思いついたまま先に動く',dn:7},
+   {t:'いちど始めると切り替えられない',dn:7},
+   {t:'落ち着いて座っていられない',dn:2}]},
+  {id:'C',ic:'🧍',ttl:'姿勢・身体の使い方',c:'#DA8541',items:[
+   {t:'姿勢がすぐ崩れる／机に伏せる',dn:6},
+   {t:'力加減が極端（強すぎる・弱すぎる）',dn:6},
+   {t:'頭や体がよく傾く',dn:3}]},
+  {id:'D',ic:'🤸',ttl:'運動・手先の不器用さ',c:'#2F7D6E',items:[
+   {t:'ボールを投げる・受けるのが苦手',dn:1},
+   {t:'字を書くと線がガタガタ／筆圧が不安定',dn:1},
+   {t:'体育や遊びで、自分がどこに立てばいいか分からない',dn:5}]},
+  {id:'E',ic:'🏠',ttl:'日常生活・生活習慣',c:'#5E9E5E',items:[
+   {t:'朝の支度や着替えに時間がかかる',dn:7},
+   {t:'忘れ物・なくし物が多い',dn:5},
+   {t:'食事のときに姿勢が崩れる／よくこぼす',dn:6}]}
+ ]},
+ pre:{lbl:'未就学児',cats:[
+  {id:'A',ic:'📖',ttl:'見る・手を使う遊び',c:'#8267AE',items:[
+   {t:'絵本を見ているとき、見ているところを見失う',dn:4},
+   {t:'ぬり絵やお絵かきが枠から大きくはみ出す',dn:3},
+   {t:'見本を見ながら積み木やブロックを同じに作れない',dn:5}]},
+  {id:'B',ic:'🔄',ttl:'落ち着き・切り替え',c:'#7A6A2E',items:[
+   {t:'順番を待てない／先に飛び出してしまう',dn:7},
+   {t:'遊びをやめて次に移るのに時間がかかる',dn:7},
+   {t:'じっと座っていられない',dn:2}]},
+  {id:'C',ic:'🧍',ttl:'姿勢・身体の使い方',c:'#DA8541',items:[
+   {t:'床に座るとすぐ崩れる／すぐ寝転がる',dn:6},
+   {t:'力加減が極端（強く抱きつく・物を強く扱う）',dn:6},
+   {t:'座っているときに頭や体がよく傾く',dn:3}]},
+  {id:'D',ic:'🤸',ttl:'運動・遊び',c:'#2F7D6E',items:[
+   {t:'ボール遊びが苦手（投げる・受ける）',dn:1},
+   {t:'ジャンプや片足立ちがふらつく',dn:1},
+   {t:'遊具に自分から近づかない／こわがる',dn:5}]},
+  {id:'E',ic:'🏠',ttl:'日常生活・生活習慣',c:'#5E9E5E',items:[
+   {t:'着替えに時間がかかる／ボタンが苦手',dn:7},
+   {t:'よく物にぶつかる・つまずく',dn:5},
+   {t:'食事でこぼす／姿勢が崩れる',dn:6}]}
+ ]}
+};
+let CATKEY='sch';
+let CAT=CATSET[CATKEY].cats;
+
+const DN=[
+ {id:1,ttl:'運動コントロール',reg:'小脳半球',c:'#2F7D6E',pri:'hand',pyr:'運動のコントロール',pl:'力の加減とタイミングを合わせる力',
+  items:['ボールを投げても距離や方向が毎回バラバラ','リズム運動（縄跳び/手拍子）が合わない','走ると腕と脚の動きがちぐはぐ','字を書くと線がガタガタ','模倣運動が遅い（先生の動きをすぐ真似できない）'],
+  ev:{hand:['手の形が不完全・出した後に作り直す'],eyeh:['投げる高さ・位置が毎回ばらつき、規定の範囲に収まらない','落球が連続して課題が成立しない／中断する'],post:['接地離開：踵とつま先の間が1足長以上あく（Lv4〜）']},
+  why:'予測と結果のズレを小脳半球が修正しきれず、動作の完成度が上がらない状態。運動前野が動きを企画し、小脳半球が誤差を検出して余分な力を削る（登上線維＝誤差信号）。<b>回数を増やすことではなく、ズレに気づいて直せる形にすることが要点</b>。'},
+ {id:2,ttl:'呼吸・自律神経',reg:'小脳虫部',c:'#DA8541',pri:'post',pyr:'前庭覚',pl:'体の力を抜いて切り替える力',
+  items:['緊張するとすぐ息が浅くなる','ちょっとした刺激で過呼吸','落ち着いて座れない','環境変化で強く不安になる','胃痛や吐き気をよく訴える'],
+  ev:{post:['頭上物の落下（Lv5〜14）','ステップ戦略：幅外へ踏み出す／停止する／後進で振り返る']},
+  why:'小脳虫部は姿勢・体幹の安定だけでなく、呼吸と心拍のリズム、覚醒や情動の調整まで担う。運動と呼吸の同期が働かないと、動くたびに息が上がり疲れやすくなる。<b>虫部は足の感覚運動領域と強く結合するため、足からの入力で活性化する</b>。'},
+ {id:3,ttl:'目と首の安定性',reg:'小脳片葉',c:'#B0708F',pri:'post',pyr:'眼球運動',pl:'目と首を一緒に安定させる力',
+  items:['本を読むとすぐ疲れる','画面を見る姿勢が極端に近い','頭がよく傾く','乗り物酔いしやすい','黒板→ノートの視線移動が遅い'],
+  ev:{post:['条件違反：閉眼で目を開ける／注視固定・VORで視線が的から外れる'],sacc:['頭ごと動かして探す／指でなぞる／声に出して数える']},
+  why:'小脳片葉は「見えている世界の動き」と「自分が動いた量」の関係を予測し、誤差を修正する。前庭神経核と組んでVOR（前庭動眼反射）を作り、頭を動かしても像がぶれない状態を保つ。発達は<b>頭部の安定 → 視線の安定 → 移動しながら視線維持 → 動くものを目で追う</b>の順で、順番を飛ばして追視だけを練習しても定着しない。',
+  bandChk:{post:'VOR'}},
+ {id:4,ttl:'視覚入力の精度',reg:'一次視覚野',c:'#5E9E5E',pri:'sacc',pyr:'視覚',pl:'目を素早く正確に動かす力',
+  items:['行を読み飛ばす','文字の形をよく間違える','板書を写すのが遅い','物を見つけられない','図形認識が苦手'],
+  ev:{sacc:['見本と足の位置・向きが違う','頭ごと動かして探す／指でなぞる／声に出して数える']},
+  why:'一次視覚野（V1）は、目から届いた情報を線・向き・明暗といった基本要素に分解する入口。ここが粗いと、見えてはいても<b>運動や判断に使える形になっていない</b>。視力の問題とは別で、その先のV2〜V5（輪郭・動き・背景の識別）へ渡す材料が揃わない状態。'},
+ {id:5,ttl:'空間認知',reg:'頭頂葉—海馬—前頭葉',c:'#8267AE',pri:'eyeh',pyr:'身体の位置',pl:'まわりとの位置関係をつかむ力',
+  items:['よく物にぶつかる','道順を覚えられない','遊びや体育で、自分がどこに立てばいいかわからない','作業の段取りが苦手','遊びのルール理解が遅い'],
+  ev:{eyeh:['キャッチ形式が指定と違う（両手／片手／クロスが守られない）','体ごと大きく移動して捕る／目で追わず胸や腹で受ける'],hand:['必要以上の身体移動で代償する／立ち位置が毎回動く']},
+  why:'身体中心座標——自分の体を基準に空間をとらえる枠組み——が揺れている状態。この座標は<b>周辺視野・前庭覚（重力の向き）・固有受容覚（姿勢）の3つを材料に</b>、前庭皮質から上頭頂小葉へと段階的に作られる。揺れていると、集団の中で何が起きているかを처理しきれず、人の多い場所がつらくなることもある。'},
+ {id:6,ttl:'身体図式',reg:'身体図式',c:'#4A7BA7',pri:'post',pyr:'ボディイメージ',pl:'自分の体の位置と力加減をつかむ力',
+  items:['姿勢がすぐ崩れる','力加減が極端','書字の筆圧が不安定','体の大きさを把握できない','転びやすい'],
+  ev:{post:['幅逸脱：足の内側縁が幅の外に出る','転倒・支持：手や膝が床につく／保護者が支える'],eyeh:['投げる高さ・位置が毎回ばらつき、規定の範囲に収まらない'],hand:['必要以上の身体移動で代償する／立ち位置が毎回動く']},
+  why:'身体図式——言葉にはできない「自分の体の地図」——の更新が滞っている状態。固有受容覚と触覚で作られ、視覚と前庭覚で更新される。<b>更新しないと古い地図のまま動くことになり</b>、姿勢や力の基準が毎回変わる。筋力不足ではない。'},
+ {id:7,ttl:'実行機能・抑制',reg:'前頭前野',c:'#7A6A2E',pri:'inhi',pyr:'学習・情緒／複合運動',pl:'止まる・切り替える・がまんする力',
+  items:['順番を待てない','いちど始めると切り替えられない','思いついたまま先に動く','負けると強く崩れる','ふたつの指示を同時に持てない'],
+  ev:{inhi:['ルール変更後も前のルールで反応する','合図より先に動く（予測反応）／支援者の口元や手元を見て待つ'],hand:['勝つ／負ける／あいこのルールを取り違える']},
+  why:'反応を止めておく機能と、いま使っているルールを差し替える機能の負荷上限が低い状態。<b>姿勢や視覚の負荷が上がると先に崩れる</b>ため、この機能だけを取り出して鍛えるより、土台側の負荷を下げるほうが先。'}
+];
+
+/* ================= メニューバンク（要差し替え） ================= */
+/* ============================================================
+   メニューバンク（へやすぽアシスト実メニューから抽出）
+   base＝3か月（土台づくり）／dev＝6か月（つなげる）
+   選定根拠：Notion「脳神経と運動」NEUROFIT BASIC 基礎①〜⑥
+   - post（前庭・小脳虫部）：小脳虫部は足の感覚運動領域と強く結合 → 足からの入力で活性化する課題を優先
+   - eyeh（小脳半球）：登上線維＝誤差信号。ズレに気づいて直す経験が要る → 投げ方を変えて誤差を作る課題
+   - hand（頭頂・小脳半球）：運動前野＝企画、小脳半球＝誤差修正。分節的な指の動きを含む課題
+   - sacc（V1・頭頂）：発達順は 頭部安定→視線安定→移動しながら視線維持→パスート。順番を飛ばさない
+   - inhi（前頭）：直接ドリルせず、合図つきの全身課題で外発的な停止から入る
+   ============================================================ */
+const MENU={
+ post:{base:['片足タッチ_大人とバランス','飛行機のポーズ','綱渡り','小さなお山に乗る_ゆらゆら','足乗せ歩き(足重ね歩き)_前向き'],
+       dev:['片足_手足を動かす','片足バランス_トイレットペーパーを乗せる','綱渡り_頭の上にタオル','綱渡り_タオルを回しながら','タンデムスタンス_前庭刺激下での動作安定']},
+ eyeh:{base:['ティッシュキャッチ_大人が投げる','ボールキャッチ_色んな投げ方','タオルでお手玉','ボールキャッチ_横に振ったボール','掌に乗せたボールを捕る'],
+       dev:['ボールキャッチ_アクションしてキャッチ','バウンドキャッチ_股の間','ボールキャッチ_体をタッチ','ティッシュキャッチ_2枚チャレンジ','ボールキャッチ_背面']},
+ hand:{base:['親の手をタッチ_パー','親の手をタッチ_グーとパー','指ケンケンパ_3本使用','指の反応ゲーム','ジャストバランス'],
+       dev:['親の手をタッチ_グーチョキパー','親の手をタッチ_じゃんけんに勝つ','指ケンケンパ_両手違う動き','指ケンケンパ_左右で違うリズム','指クロス']},
+ sacc:{base:['ボールタッチ_基本の型','ボールタッチ_5秒追って','風船タッチ','1-2 三角タッチ_兄弟ver','スピードタッチ'],
+       dev:['2-1 逆数字をタッチ_一人ver','6-1 四角タッチ（数字4つ）_一人ver','7-1 おぼえてタッチ（数字4つ）_一人ver','転がしドッジ','ボールタッチ_青はタッチ･赤はタッチしない']},
+ inhi:{base:['だるまさんが転んだ','ラインジャンプ_前','反復横跳び_親子でステップの練習','反応ゲーム4ポーズ_体験にオススメ','タオルチャレンジ_しゃがむ･避ける'],
+       dev:['だるまさんが転んだ・転ばない','反復横跳び_顔を上げてチャレンジ（フープの色を言う）','ボールタッチ_青はタッチ･赤はタッチしない','反応ゲーム_カウントダウン付き','ボール奪い合いゲーム']}
+};
+
+/* 神経ドメイン別の追加メニュー。照合で上位に来たドメインに対して、
+   主軸種目のメニューとは別に「そのドメインに直接効く」課題を出す。 */
+/* 保護者向けの平易な補足。神経名・部位名は使わず、身体と生活の言葉だけで書く。
+   出典：Notion「脳神経と運動」NEUROFIT BASIC 基礎①〜⑥ */
+const DNPL={
+ 1:'体は「こう動かすとこうなるはず」という見通しを立てて動いています。この見通しと実際の結果がずれたとき、そのずれに気づいて直す働きがまだ育っている途中です。回数をこなすことよりも、<b>ずれに気づける形でくり返すこと</b>が要点になります。',
+ 2:'姿勢を保つ働きと、呼吸のリズムを整える働きは、体の中でつながっています。ここが育っていないと、動くたびに息が上がりやすく、疲れやすくなります。<b>足からの刺激で育つ</b>ところなので、足を使う遊びから入っていきます。',
+ 3:'頭が動いても、見ているものがぶれないように目を調整する働きです。育つ順番が決まっていて、<b>頭が安定する → 視線が安定する → 動きながら見ていられる → 動くものを目で追える</b>と進みます。順番を飛ばして「目で追う練習」だけをしても身につきません。',
+ 4:'目に入った情報を、線や形や明るさに分けて整理する入口の働きです。ここが粗いと、<b>見えてはいるのに、体を動かすための情報として使えない</b>状態になります。視力の良し悪しとは別のことです。',
+ 5:'自分の体を基準にして、まわりの空間をとらえる感覚です。<b>目のはしで見えている情報・重力の向き・体の感覚</b>の3つを材料に作られます。ここが揺れていると、人が多い場所で何が起きているかをつかみにくくなることがあります。',
+ 6:'言葉にはできない「自分の体の地図」のことです。触れた感じや体の内側の感覚で作られ、見ることと重力の感覚で日々更新されます。<b>更新されないと古い地図のまま動く</b>ことになり、姿勢や力の基準が毎回変わります。筋力の問題ではありません。',
+ 7:'動きを止めておく働きと、決まりを差し替える働きです。<b>姿勢や見ることの負担が大きいと、こちらが先に崩れます</b>。ここだけを取り出して練習するより、下の土台の負担を減らすほうが先になります。'
+};
+
+const DNMENU={
+ 1:['指ケンケンパ_3本使用','ボールキャッチ_色んな投げ方','タオルでお手玉','指レース'],
+ 2:['ジェニトレ_LINE JUMP(ラインジャンプ)','ティッシュ_フーフー','足でタッチゲーム','ペンギン歩き'],
+ 3:['ボールタッチ_5秒追って','風船タッチ','綱渡り_頭の上にタオル','タオルキャッチ_ゆらゆら'],
+ 4:['1-2 三角タッチ_兄弟ver','6-1 四角タッチ（数字4つ）_一人ver','指で色タッチ','言われた色を手でタッチ'],
+ 5:['体の色んなところでボールタッチ','どこをタッチされた?','トンネルゲーム','ツイスターゲーム'],
+ 6:['どこをタッチされた?','体の色んなところにボールを挟んでパス','タオルの船','リズミック系：押す_仁王立ち'],
+ 7:['だるまさんが転んだ・転ばない','反応ゲーム_カウントダウン付き','ボールタッチ_青はタッチ･赤はタッチしない','ラインジャンプ_チョキパー']
+};
+
+/* ================= 入力UI ================= */
+/* 学年マスタ（年少〜高3）。age は目安であり、年齢欄と学年欄は独立して選べる。
+   誕生月により同学年でも年齢が1つ違うため、自動導出は初期値の補助にとどめる。 */
+const GRADES=[{v:'',t:'（選択しない）',age:null},
+ {v:'年少',t:'年少',age:4},{v:'年中',t:'年中',age:5},{v:'年長',t:'年長',age:6},
+ {v:'小1',t:'小学1年生',age:7},{v:'小2',t:'小学2年生',age:8},{v:'小3',t:'小学3年生',age:9},
+ {v:'小4',t:'小学4年生',age:10},{v:'小5',t:'小学5年生',age:11},{v:'小6',t:'小学6年生',age:12},
+ {v:'中1',t:'中学1年生',age:13},{v:'中2',t:'中学2年生',age:14},{v:'中3',t:'中学3年生',age:15},
+ {v:'高1',t:'高校1年生',age:16},{v:'高2',t:'高校2年生',age:17},{v:'高3',t:'高校3年生',age:18}];
+const gradeLbl=v=>{const g=GRADES.find(x=>x.v===v);return g&&g.v?g.t:'';};
+
+/* 到達の状態： 0=未実施 ／ -1=実施不可（課題設定に達しない・拒否等） ／ 1..20=到達Lv */
+const opt=(k,sel,mx)=>['<option value="0"'+(sel===0?' selected':'')+'>未実施（今回は測っていない）</option>',
+ '<option value="-1"'+(sel===-1?' selected':'')+'>実施不可（取り組めなかった）</option>']
+ .concat(Array.from({length:mx},(_,i)=>{const v=i+1;return `<option value="${v}"${v===sel?' selected':''}>Lv${v}　${LT[k][v-1]}</option>`;})).join('');
+const DEF={post:8,eyeh:9,hand:6,sacc:11,inhi:7};      // 初期表示用サンプル
+document.getElementById('f-age').innerHTML=Array.from({length:17},(_,i)=>{const v=i+4;return `<option value="${v}"${v===7?' selected':''}>${v}歳</option>`;}).join('');
+document.getElementById('f-grade').innerHTML=GRADES.map(g=>`<option value="${g.v}"${g.v==='小1'?' selected':''}>${g.t}</option>`).join('');
+/* 年齢を変えたときだけ、学年を未選択なら目安に合わせる（手で選び直した学年は上書きしない） */
+document.getElementById('f-age').addEventListener('change',e=>{
+ const sel=document.getElementById('f-grade'); if(sel.dataset.touched)return;
+ const g=GRADES.find(x=>x.age===+e.target.value); if(g)sel.value=g.v;
+});
+document.getElementById('f-grade').addEventListener('change',e=>{e.target.dataset.touched='1';});
+document.getElementById('lvBox').innerHTML=AX.map(a=>`
+ <div class="tk">
+  <div class="tk-h"><span class="dot" style="background:${HEX[a.hub]}"></span>
+   <b>${a.ex}<span>${a.nm}／${a.lg}</span></b>
+   <span class="phase ${a.core?'core':'late'}">${a.core?'入会時':'半年目以降'}</span></div>
+  <div class="selrow">
+   <label>到達</label><select id="lv-${a.k}" class="lvsel" onchange="tag('${a.k}')">${opt(a.k,a.core?(DEF[a.k]||0):0,a.mx)}</select>
+   <span id="bt-${a.k}"></span>
+  </div>
+  <div class="flagbox" data-f="${a.k}"><b>見えた動作（該当するものを選択）</b>
+   ${a.chk.map(c=>`<label${c.v?' class="vf"':''}><input type="checkbox" value="${c.t}"${c.v?' data-v="1"':''}>${c.t}</label>`).join('')}
+  </div>
+  <div class="errbox">
+   <div class="errhd"><span>見えた動作（自由記入）</span><em>選択肢に当てはまらない動きだけ書く</em></div>
+   <textarea id="ob-${a.k}" placeholder="例：Lv9で頭上物が2試行とも落下。後進になると振り返る動作が出る。"></textarea>
+  </div>
+ </div>`).join('');
+function drawTrouble(){
+ document.getElementById('ageTabs').innerHTML=Object.keys(CATSET).map(k=>
+  `<button type="button" class="agetab${k===CATKEY?' on':''}" onclick="setAgeSet('${k}')">${CATSET[k].lbl}</button>`).join('');
+ document.getElementById('troubleBox').innerHTML=CAT.map(c=>`<div><span class="tgrp" style="background:${c.c}">${c.ic} ${c.ttl}</span>
+  ${c.items.map(it=>`<label><input type="checkbox" data-dn="${it.dn}" data-cat="${c.id}" value="${it.t}">${it.t}</label>`).join('')}</div>`).join('');
+}
+function setAgeSet(k){
+ if(k===CATKEY)return;
+ const had=[...document.querySelectorAll('#troubleBox input:checked')].length;
+ if(had&&!confirm('年齢帯を切り替えると、いまチェックしたお困りごとは外れます。切り替えますか？'))return;
+ CATKEY=k; CAT=CATSET[k].cats; drawTrouble();
+}
+drawTrouble();
+
+document.getElementById('wantBox').innerHTML=WANTG.map(g=>`<div class="wantg">
+ <div class="wanth">${g}</div>
+ ${WANT.filter(w=>w.g===g).map(w=>`<label class="wantl"><input type="checkbox" id="w-${w.id}" onchange="wantGuard(this)">${w.ic} ${w.t}</label>`).join('')}</div>`).join('');
+
+const selOpts=(id,v)=>`<select id="${id}" class="cpsel">${Array.from({length:10},(_,n)=>`<option value="${n+1}"${n+1===v?' selected':''}>${n+1}</option>`).join('')}</select>`;
+document.getElementById('copmBox').innerHTML=`<div class="cpwrap"><table class="cptbl">
+ <thead>
+  <tr><th rowspan="2" style="width:26%">目標</th><th rowspan="2" style="width:34%">メモ</th>
+   <th colspan="2" class="cgrp">現在の状態</th>
+   <th rowspan="2" class="cnar">★親御さんに<br>とっての重要度<br><span>（10段階）</span></th></tr>
+  <tr><th class="cgrp2">★遂行度 📊<br><span>（10段階）</span></th><th class="cgrp2">★満足度 😄<br><span>（10段階）</span></th></tr>
+ </thead><tbody>
+ ${COPM_ROWS.map(r=>{const d=DEFGOAL[r.i];return `<tr class="rcon">
+  <td><textarea id="cp-s${r.i}" rows="2" class="cpta" oninput="this.dataset.edited='1';this.classList.remove('auto')">${d.sh}</textarea></td>
+  <td><textarea id="cp-m${r.i}" rows="2" class="cpta">${d.m}</textarea></td>
+  <td class="cnum">${selOpts('cp-p1'+r.i,d.p1)}</td>
+  <td class="cnum">${selOpts('cp-s1'+r.i,d.s1)}</td>
+  <td class="cnum">${selOpts('cp-imp'+r.i,d.imp)}</td>
+ </tr>`;}).join('')}
+ </tbody></table></div>
+`;
+
+document.getElementById('epBox').innerHTML=EP.map(e=>`<div class="eprow">
+ <div class="epq"><span class="ppdot" style="background:${e.c}"></span><b>${e.ttl}</b><span class="epsub">${e.sub}</span></div>
+ <select id="ep-${e.k}" class="epsel"><option value="-1">未評価</option>
+  ${e.lv.map((t,i)=>`<option value="${i}"${i===2?' selected':''}>${i+1}. ${t}</option>`).join('')}</select>
+</div>`).join('');
+document.getElementById('modBox').innerHTML=ENV.map(g=>`<div class="envg">
+ <div class="envh" style="color:${g.c}"><span class="ppdot" style="background:${g.c}"></span>${g.g}</div>
+ ${g.items.map(i=>`<label class="modl"><input type="checkbox" id="${i.k}">${i.t}</label>`).join('')}</div>`).join('');
+
+document.getElementById('ppiBox').innerHTML=PPI.map(x=>`<div class="pprow">
+ <div class="ppq"><span class="ppdot" style="background:${x.c}"></span><b>${x.nm}</b>　${x.q}？</div>
+ <div class="ppsel"><span class="ppend">0 ${x.lo}</span>
+  <select id="pp-${x.k}">${[0,1,2,3,4,5].map(n=>`<option value="${n}"${n===0?' selected':''}>${n}</option>`).join('')}</select>
+  <span class="ppend">${x.hi} 5</span></div></div>`).join('');
+
+function tag(k){
+ const v=+document.getElementById('lv-'+k).value,b=v>0?band(k,v):null;
+ document.getElementById('bt-'+k).innerHTML=b?`<span class="bandtag" style="background:${AXC}">${b.nm}帯</span>
+  <span class="lvtxt">Lv${v}：${LT[k][v-1]}</span>`:`<span class="lvtxt">${v===-1?'実施不可':'未実施'}</span>`;
+}
+K.forEach(tag);
+
+const obs=k=>document.getElementById('ob-'+k).value.trim();
+const checks=k=>[...document.querySelectorAll(`div.flagbox[data-f="${k}"] input:checked`)].map(e=>e.value);
+const flags=k=>[...document.querySelectorAll(`div.flagbox[data-f="${k}"] input[data-v]:checked`)].map(e=>e.value);
+const picked=()=>[...document.querySelectorAll('#troubleBox input:checked')].map(e=>({d:+e.dataset.dn,c:e.dataset.cat,t:e.value}));
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const lines=id=>document.getElementById(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
+
+/* ================= 書き出し／読み込み ================= */
+function expJSON(){
+ const o={date:document.getElementById('f-date').value,name:document.getElementById('f-name').value,sex:document.getElementById('f-sex').value,grade:document.getElementById('f-grade').value,catset:CATKEY,lv:{},
+  want:wantOn().map(w=>w.id),
+  copm:copmVals(),
+  ep:(()=>{const o={};EP.forEach(e=>o[e.k]=+document.getElementById('ep-'+e.k).value);return o;})(),
+  env:envOn().map(i=>i.k),
+  ppi:ppiVals(),ppiNote:document.getElementById('f-ppinote').value,
+  esc:document.getElementById('f-esc').checked};
+ K.forEach(k=>o.lv[k]=+document.getElementById('lv-'+k).value);
+ navigator.clipboard.writeText(JSON.stringify(o)).then(
+  ()=>alert('初回値をコピーしました。カルテに保存し、3か月後の再測定レポートで前回値として使ってください。\n\n'+JSON.stringify(o)),
+  ()=>prompt('コピーに失敗しました。手動でコピーしてください。',JSON.stringify(o)));
+}
+
+/* ================= レーダー（5軸） ================= */
+
+function radar(V9,coach){
+ const C=248,CY=232,R=176,MAX=MAXLV,N=AX.length;
+ /* 目盛り間隔をLv20へ向かって広げる（非線形スケール）。
+    GAMMA>1 で、低Lvほど間隔が狭く、高Lvほど広くなる。1=等間隔／1.3≒外は内の1.9倍／1.55≒3倍／1.7≒4倍。 */
+ const GAMMA=1.55, rr=v=>R*Math.pow(Math.max(0,v)/MAX,GAMMA);
+ const ang=i=>(-90+i*(360/N))*Math.PI/180;
+ const pt=(i,r)=>[C+Math.cos(ang(i))*r,CY+Math.sin(ang(i))*r];
+ let g='';
+ /* Lv20の外周を最初に塗り、到達との差分（残り）が余白として見えるようにする */
+ g+=`<polygon points="${AX.map((_,i)=>pt(i,R).map(n=>n.toFixed(1)).join(',')).join(' ')}" fill="#FAFBF9" stroke="#C9D0CB" stroke-width="1.4"/>`;
+ for(let v=1;v<MAX;v++){
+  const p=AX.map((_,i)=>pt(i,rr(v)).map(n=>n.toFixed(1)).join(',')).join(' ');
+  const mj=(v%5===0);
+  g+=`<polygon points="${p}" fill="none" stroke="${mj?'#D8DCD8':'#F0F2F0'}" stroke-width="${mj?1:.5}"/>`;
+  if(mj){const[x,y]=pt(0,rr(v));g+=`<text x="${x+5}" y="${y-2}" font-size="9" fill="#AEB8B3">${v}</text>`;}
+ }
+ {const[x,y]=pt(0,R);g+=`<text x="${x+5}" y="${y-2}" font-size="9.5" font-weight="700" fill="#9AA6A2">20</text>`;}
+ AX.forEach((a,i)=>{const[x,y]=pt(i,R);g+=`<line x1="${C}" y1="${CY}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#E6E9E5"/>`;});
+ /* 今回。未実施(0)の軸は中心に落ちるため、頂点を白抜きにして「測っていない」ことを示す */
+ const cur=AX.map((a,i)=>pt(i,rr(V9[a.k]||0)).map(n=>n.toFixed(1)).join(',')).join(' ');
+ const PF=coach?'rgba(47,125,110,.14)':'rgba(122,171,101,.38)', PS=coach?'#2F7D6E':'#5E9E5E';
+ g+=`<polygon points="${cur}" fill="${PF}" stroke="${PS}" stroke-width="2"/>`;
+ AX.forEach((a,i)=>{const p=pt(i,rr(V9[a.k]||0)), has=(V9[a.k]||0)>0;
+  g+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="${has?(coach?HEX[a.hub]:PS):'#fff'}" stroke="${has?'none':'#B6BFB9'}" stroke-width="1.4"/>`;});
+ /* ラベル */
+ AX.forEach((a,i)=>{const[x,y]=pt(i,R+34);
+  const anch=Math.abs(x-C)<6?'middle':(x>C?'start':'end');
+  const ln=[a.nm];
+  const has=(V9[a.k]||0)>0, col=has?HEX[a.hub]:'#A8B3AE';
+  if(!coach){
+   const ix=anch==='middle'?x:(anch==='start'?x+14:x-14), iy=y-21;
+   g+=`<circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="11.5" fill="#fff" stroke="${col}" stroke-width="1.8"${has?'':' stroke-dasharray="3 2.4"'}/>`
+     +`<text x="${ix.toFixed(1)}" y="${(iy+4.4).toFixed(1)}" font-size="12" text-anchor="middle"${has?'':' opacity=".45"'}>${a.ic}</text>`;
+  }
+  g+=ln.map((t,j)=>`<text x="${x.toFixed(1)}" y="${(y+j*13).toFixed(1)}" font-size="11.5" font-family="Zen Kaku Gothic New" font-weight="700" fill="${col}" text-anchor="${anch}">${t}</text>`).join('')
+     +(coach?`<text x="${x.toFixed(1)}" y="${(y+ln.length*13).toFixed(1)}" font-size="9" fill="#8C9994" text-anchor="${anch}">${a.ex}</text>`
+       :`<text x="${x.toFixed(1)}" y="${(y+ln.length*13+1).toFixed(1)}" font-size="10.5" font-family="Zen Kaku Gothic New" font-weight="700" fill="${has?'#3D4A44':'#A8B3AE'}" text-anchor="${anch}">${has?'Lv'+V9[a.k]:'未実施'}</text>`);});
+ const md=K.filter(k=>(V9[k]||0)>0);
+ const tot=md.reduce((s,k)=>s+V9[k],0);
+ return `<div class="radarwrap"><svg viewBox="-72 -22 640 468" width="100%" style="max-width:500px">${g}</svg>
+  <div class="scale">外側ほどLvが高い（Lv1＝入口 〜 Lv30＝最上位）。上の段ほど1段の重みが大きいため、外側ほど目盛りの幅を広くしています${md.length<AX.length?'／白い点の軸は「未実施」で、まだ測っていません':''}</div>
+  <div class="total">今の到達 <span>${tot}</span> /${md.reduce((s,k)=>s+A(k).mx,0)}<span style="font-size:.72rem;font-weight:400;color:#8C9994">（実施した${md.length}種目の合計）</span></div></div>`;
+}
+
+/* ================= 生成 ================= */
+function build(){
+ const nm=document.getElementById('f-name').value||'お子さま',age=document.getElementById('f-age').value;
+ const grade=gradeLbl(document.getElementById('f-grade').value);
+ const sex=document.getElementById('f-sex').value, hon={m:'くん',f:'ちゃん',n:'さん'}[sex]||'さん';
+ const date=document.getElementById('f-date').value,coach=document.getElementById('f-coach').value;
+ /* 実施日からNか月後の目安日。月末をまたぐ場合は月内最終日に丸める（3/31→6/30 など） */
+ const afterM=(iso,n)=>{
+  if(!iso)return null;
+  const d=new Date(iso+'T00:00:00'); if(isNaN(d))return null;
+  const y=d.getFullYear(),m=d.getMonth(),day=d.getDate();
+  const last=new Date(y,m+n+1,0).getDate();
+  const t=new Date(y,m+n,Math.min(day,last));
+  return (t.getMonth()+1)+'月'+t.getDate()+'日ごろ';
+ };
+ const rv3=afterM(date,3), rv6=afterM(date,6);
+ const L={},V9={},E={},F={},CH={};
+ K.forEach(k=>{L[k]=+document.getElementById('lv-'+k).value;V9[k]=Math.max(0,L[k]);E[k]=obs(k);F[k]=flags(k);CH[k]=checks(k);});
+ const done=K.filter(k=>L[k]>0);
+
+ const sorted=[...done].sort((a,b)=>V9[a]-V9[b]||L[a]-L[b]);
+ const low=sorted[0]||K[0], mid=sorted[1]||K[1], high=sorted[sorted.length-1]||K[2];
+ const rank={}; sorted.forEach((k,i)=>rank[k]=i);
+ const bottomN=Math.max(1,Math.ceil(sorted.length/2));
+ const isWeak=k=>L[k]>0 && rank[k]<bottomN && L[k]<=10;
+ const CG=copmVals(), goals=CG.map(g=>g.t), Pk=picked(), WN=wantOn();
+ const escOn=document.getElementById('f-esc').checked;
+ const E5={}; EP.forEach(e=>E5[e.k]=+document.getElementById('ep-'+e.k).value);
+ const epDone=EP.filter(e=>E5[e.k]>=0);
+ const modOn=envOn();
+ /* 見えた動作のうち、pro フラグの項目は固有覚（力加減の内部基準）の課題として扱う */
+ const proHit=K.filter(k=>A(k).chk.some(c=>c.pro&&CH[k].includes(c.t)));
+
+ /* --- お困りごと × 実測 --- */
+ const hits=DN.map(d=>{
+  const sel=Pk.filter(p=>p.d===d.id).map(p=>p.t); if(!sel.length) return null;
+  const lowAx=isWeak(d.pri);
+  let unmeasured=false;
+  if(d.bandChk){const bk=Object.keys(d.bandChk)[0];const b=band(bk,L[bk]);
+   if(!b||b.nm!==d.bandChk[bk])unmeasured=true;}
+  let verdict,vc;
+  if(lowAx&&L[d.pri]>0&&L[d.pri]<=6){verdict='強く一致';vc='#B0392B';}
+  else if(lowAx){verdict='一致';vc='#A65E23';}
+  else if(unmeasured){verdict='未測定';vc='#5F706D';}
+  else{verdict='不一致';vc='#5F706D';}
+  return {d,sel,verdict,vc,priLv:V9[d.pri],priLv20:L[d.pri],unmeasured};
+ }).filter(Boolean).sort((a,b)=>['強く一致','一致','未測定','不一致'].indexOf(a.verdict)-['強く一致','一致','未測定','不一致'].indexOf(b.verdict));
+ const rootHit=hits.find(h=>h.verdict==='強く一致')||hits.find(h=>h.verdict==='一致')||null;
+
+ const head=`<div class="rpthead">🧭 へやすぽ 育ちマップ</div>`;
+ const sub=r=>`<div class="rptsub">${esc(nm)}（${esc(age)}歳） ｜ ${r} ｜ 初回判定${date?' ｜ '+date:''}${coach?' ｜ 担当 '+esc(coach):''}</div>`;
+
+ /* ---------- 保護者向け ---------- */
+ const AXPYR={post:{root:'前庭覚',rel:['姿勢','バランス','姿勢調整']},
+   eyeh:{root:'身体の位置',rel:['ボディイメージ','目と手の連携']},
+   hand:{root:'固有覚',rel:['運動のコントロール','ボディイメージ']},
+   sacc:{root:'視覚',rel:['眼球運動','目と手の連携']},
+   inhi:{root:'前庭覚',rel:['運動のコントロール','学習・情緒／複合運動']}}[low];
+ const rootT=AXPYR.root;
+ const hot=[rootT,...AXPYR.rel,...hits.map(h=>h.d.pyr)];
+ const isHot=t=>hot.includes(t)?' hot':'';
+ const isRoot=t=>t===rootT?' root':'';
+ const pyrRow=(cls,arr)=>`<div class="pyr-row ${cls}">${arr.map(t=>`<span class="pyr-b${isHot(t)}${isHot(t)?isRoot(t):''}">${t}</span>`).join('')}</div>`;
+
+ const CATC={A:'A',B:'B',C:'C',D:'D',E:'E'};
+ const catGroups=CAT.map(c=>({c,ts:Pk.filter(x=>x.c===c.id).map(x=>x.t)})).filter(g=>g.ts.length);
+ const P=ppiVals(), ppiNote=document.getElementById('f-ppinote').value.trim();
+ const ppiTotal=PPI.reduce((a,x)=>a+P[x.k],0);
+ const nPri=Math.min(3,Math.max(1,sorted.length-1));
+ const prio=sorted.slice(0,nPri), strengths=sorted.slice(nPri).reverse();
+ const grow3=prio.slice(0,2).filter((v,i,ar)=>ar.indexOf(v)===i);
+ const pgh=(n,t)=>`<div class="pgbadge">本体（ご家庭説明用）　｜　Page ${n}</div>`;
+ const foot=`<div class="pgfoot">へやすぽアシスト</div>`;
+
+ document.getElementById('v-p').innerHTML=`<div class="sheet">
+ <div class="pg">${pgh(1)}
+  <div class="pgtop">
+   <div><div class="pgttl">${esc(nm)}${hon}の現在地と強み</div>
+    <div class="pgmeta">アセスメント日：${date||'　'}</div></div>
+   <div class="pgmeta" style="text-align:right;line-height:1.8;font-size:.85rem;color:#33423C">${esc(nm)}${hon}（${esc(age)}歳）${grade?'<br>'+grade:''}${coach?'<br><span style="font-size:.76rem;color:var(--muted)">担当：'+esc(coach)+'</span>':''}</div>
+  </div>
+  <div class="bx bx-note" style="margin-top:12px">
+   <div class="bxh">🧭 育ちマップ（5つの土台のレーダーチャート）</div>
+   ${radar(V9,false)}
+   <p class="pr-note" style="margin:6px 0 0">できた・できなかったの採点ではなく、<b>いまどの段にいるか</b>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。<br>${A(low).grow}</p>
+  </div>
+  ${K.filter(k=>L[k]<=0).length?`<p class="pr-note">※ ${K.filter(k=>L[k]<=0).map(k=>A(k).ex).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、${K.filter(k=>!A(k).core&&L[k]<=0).length?`<b>${K.filter(k=>!A(k).core&&L[k]<=0).map(k=>A(k).ex).join('・')}</b>は、からだの土台が安定してきた半年目以降にあらためて実施する種目です。`:''}「できない」という意味ではありません。</p>`:''}
+  ${K.filter(k=>F[k].length).length?`<p class="pr-note">※ ${K.filter(k=>F[k].length).map(k=>A(k).ex).join('・')} は当日の様子（${[...new Set(K.flatMap(k=>F[k]))].join('・')}）の影響を受けている可能性があります。次回あらためて確認します。</p>`:''}
+  <div class="g2" style="margin-top:12px">
+   <div class="bx bx-C"><div class="bxh">⭐ これから特に伸ばしたい力（優先テーマ）</div>
+    <div style="font-size:.82rem;line-height:1.95">
+     ${prio.map((k,i)=>`<div>${'①②③④⑤'[i]}　<b>${A(k).pn}</b>　<span style="color:var(--muted);font-size:.74rem">Lv${L[k]}/${A(k).mx}・${A(k).ex}</span></div>`).join('')}
+    </div></div>
+   <div class="bx bx-E"><div class="bxh">💚 強み</div>
+    <div style="font-size:.72rem;color:var(--muted);margin:-4px 0 6px">（いま伸びているところ）</div>
+    <ul class="chk">${strengths.map(k=>`<li><b>${A(k).pn}</b>　<span style="color:var(--muted);font-size:.74rem">Lv${L[k]}/${A(k).mx}</span></li>`).join('')}</ul>
+    <div style="font-size:.78rem;line-height:1.7;margin-top:8px;padding-top:8px;border-top:1px dashed #CBE2C4;color:#3E5049">
+     ${strengths.length?'この<b>強みを土台にして</b>、左の'+prio.length+'つをバランスよく伸ばしていきます。':'今回実施した種目では、まだはっきりした強みの差は出ていません。まずは土台を一段ずつ上げていきます。'}</div>
+   </div>
+  </div>
+  ${epDone.length?`<div class="bx bx-D" style="margin-top:12px"><div class="bxh">🌿 取り組みの様子</div>
+   <p class="pr-note" style="margin:0 0 4px">運動そのものの段階とは別に、<b>どう取り組めたか</b>の記録です。ここは運動より先に変わることが多く、3か月後に同じ見方で並べます。</p>
+   ${epDone.map(e=>`<div class="epbar"><div class="en">${e.ttl}</div>
+    <div class="et">${e.lv.map((_,i)=>`<div class="es" style="background:${i<=E5[e.k]?e.c:'#EDEFEA'}"></div>`).join('')}</div>
+    <div class="ev" style="color:${e.c}">${E5[e.k]+1}/5</div></div>
+    <div class="eptxt">${e.lv[E5[e.k]]}</div>`).join('')}
+   ${modOn.length?`<div style="margin-top:9px"><p class="pr-note" style="margin:0 0 3px">今回<b>取り組みやすくなった条件</b>：</p>
+    ${ENV.filter(g=>modOn.some(m=>m.g===g.g)).map(g=>`<div style="margin-bottom:2px"><span class="lg" style="color:${g.c};font-family:var(--disp);font-weight:700">${g.g}</span>　${modOn.filter(m=>m.g===g.g).map(m=>`<span class="modtag">${m.t.split('（')[0]}</span>`).join('')}</div>`).join('')}
+    <p class="pr-note" style="margin-top:4px">どれが良い・悪いではなく、<b>この子が取り組みやすくなる条件</b>です。ご家庭でも同じ形が効くことがあります。</p></div>`:''}
+  </div>`:''}
+  ${foot}
+ </div>
+
+ <div class="pg">${pgh(2)}
+  <div class="pgttl">今のお困りごとと、その理由</div>
+  <div class="sech"><span class="pgnum">1</span>今、特に気になっていること</div>
+  ${catGroups.length?`<div class="g2">${catGroups.map(g=>`<div class="bx bx-${g.c.id}">
+   <div class="bxh">${g.c.ic} ${g.c.ttl}</div><ul>${g.ts.map(t=>`<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}</div>`
+   :`<p class="pr-note">今回はお困りごとのチェックがありませんでした。気になることが出てきたら、いつでもお知らせください。</p>`}
+
+  ${hits.length?`<div class="sech"><span class="pgnum">2</span>困りごとの背景にありそうな力</div>
+  <table class="tb2"><tr><th style="width:34%">表面に見える困りごと</th><th style="width:33%">背景にありそうな力</th><th style="width:33%">優先して見る土台</th></tr>
+   ${hits.map(h=>`<tr><td><span class="rowic" style="border-color:${HEX[A(h.d.pri).hub]}">${A(h.d.pri).ic}</span>${h.sel.map(t=>esc(t)).join('<br>')}</td>
+    <td>${h.d.pl}</td>
+    <td class="f">${A(h.d.pri).pn}<br><span style="font-weight:400;color:var(--muted);font-size:.72rem">${A(h.d.pri).ex}${h.priLv20>0?'　Lv'+h.priLv20+'/'+A(h.d.pri).mx:'　未実施'}</span></td></tr>`).join('')}
+  </table>
+  <div class="bx bx-warn" style="margin-top:12px"><div class="bxh">⚠ 今の困りごとが続いた場合に起こりうること</div>
+   <ul><li>同じ課題に時間がかかり、疲れやすくなる</li>
+    <li>「できない」「やりたくない」が増え、自己肯定感が下がりやすくなる</li>
+    <li>苦手なことを避けるようになり、経験する機会が減る</li>
+    <li>集団での運動や活動に消極的になり、楽しさや自信を感じにくくなる</li></ul>
+   <p class="pr-note" style="margin:7px 0 0">※ 必ずこうなるという意味ではありません。学年が上がると求められる力が増えるため、<b>土台が細いままだと崩れやすくなる</b>、という一般的な傾向としてお読みください。取り組めば必ず回避できる、とお約束するものでもありません。</p>
+  </div>`:''}
+
+  ${rootHit?`<div class="bx bx-note" style="margin-top:12px"><div class="bxh">💡 いちばん見ておきたい土台</div>
+   <div style="font-size:.82rem;line-height:1.75">今回チェックいただいた中で、最初に見ていきたいのは<b>「${rootHit.d.pl}」</b>です。${DNPL[rootHit.d.id]||''}</div></div>`:''}
+  ${proHit.length?`<div class="bx bx-D" style="margin-top:14px"><div class="bxh">🖐 当日みられた特徴：力加減の基準</div>
+   <div style="font-size:.8rem;line-height:1.75">お手玉キャッチで、<b>投げる高さや方向が毎回ばらつく</b>様子がみられました。これは「不器用」ということではなく、
+   <b>自分の手足がいまどれくらいの力で動いているか</b>を体の中で感じ取る感覚（固有覚）の基準が、まだ育っている途中であることが背景にあると考えられます。<br>
+   この感覚は、力の入れすぎ・抜けすぎ、字を書くときの筆圧、物の扱いの乱暴さ、姿勢の保ちにくさとも同じ土台でつながっています。<b>投げ方の練習ではなく、力の加減を体で確かめる遊び</b>から取り組みます。</div></div>`:''}
+  <div class="sech">🧩 育ちのピラミッド</div>
+  <p class="pr-note" style="margin:0 0 8px">力は<b>下の土台から上へ</b>積み上がります。<span style="color:#A65E23;font-weight:700">オレンジ</span>が、これから育てていくところ。土台が細いままでも上の力は出せますが、そのぶん<b>力を使い、崩れやすくなります</b>。</p>
+  <div class="pyr">
+   ${pyrRow('t5',['学習・情緒／複合運動'])}
+   ${pyrRow('t4',['目と手の連携','言語機能'])}
+   ${pyrRow('t3',['姿勢調整','ボディイメージ','運動のコントロール'])}
+   ${pyrRow('t2',['姿勢','バランス','身体の位置','眼球運動'])}
+   ${pyrRow('t1',['聴覚','前庭覚','固有覚','触覚','視覚'])}
+   <div class="pyr-baselbl">▲ 上へ積み上がる ／ いちばん下＝感覚（根っこ）</div>
+  </div>
+  <div class="bx bx-C" style="margin-top:11px"><div class="bxh">🌱 いま特に育てていきたいところ</div>
+   <div style="font-size:.82rem;line-height:1.75">ピラミッドの<b>「${rootT}」（${tierOf(rootT)}）</b>です。${A(low).ex}の結果（${A(low).pn}）が、いちばんここを示していました。<br>
+   「${rootT}」が育つと、その上に乗っている<b>${AXPYR.rel.map(t=>'「'+t+'」').join('')}</b>もいっしょに安定していきます。</div></div>
+
+  ${foot}
+ </div>
+
+ <div class="pg">${pgh(3)}
+  <div class="pgttl">${esc(nm)}${hon}の6か月成長ロードマップ</div>
+  <div class="pgmeta">土台から順に力を育て、目標のスキルへつなげます</div>
+  <div class="rm" style="margin-top:12px">
+   <div class="rm-col"><div class="rm-h" style="background:#4F9E6A">現在地<br><span style="font-weight:400;font-size:.72rem">（今ここ）</span></div>
+    <div class="rm-b"><div class="lbl">育ちマップの特徴</div>
+     <ul class="rm-li">${sorted.map(k=>`<li>${A(k).pn}　Lv${L[k]}</li>`).join('')}</ul>
+     <div class="rm-sub"><div class="lbl">強み</div>
+      <ul class="rm-li">${strengths.map(k=>`<li>${A(k).pn}</li>`).join('')}</ul></div></div></div>
+
+   <div class="rm-ar">➡</div>
+   <div class="rm-col"><div class="rm-h" style="background:#E08A2E">3か月後の目安<br><span style="font-weight:400;font-size:.72rem">（土台づくり）</span></div>
+    <div class="rm-b"><div class="lbl">土台として育てる力</div>
+     <ul class="rm-li">${grow3.flatMap(k=>A(k).build).slice(0,5).map(t=>`<li>${t}</li>`).join('')}</ul>
+     <div class="rm-sub" style="background:#FDF3EA"><div class="lbl" style="color:#C87220">期待する変化（例）</div>
+      <ul class="rm-li">${grow3.flatMap(k=>A(k).chg3).slice(0,5).map(t=>`<li>${t}</li>`).join('')}</ul></div></div></div>
+
+   <div class="rm-ar">➡</div>
+   <div class="rm-col"><div class="rm-h" style="background:#3A7CC0">6か月後の目安<br><span style="font-weight:400;font-size:.72rem">（目標へつなげる）</span></div>
+    <div class="rm-b"><div class="lbl">つなげていく力</div>
+     <ul class="rm-li">${grow3.flatMap(k=>A(k).link).slice(0,4).map(t=>`<li>${t}</li>`).join('')}</ul>
+     <div class="rm-sub" style="background:#F0F5FC"><div class="lbl" style="color:#2F6FB5">期待する変化（例）</div>
+      <ul class="rm-li">${grow3.flatMap(k=>A(k).chg6).slice(0,4).map(t=>`<li>${t}</li>`).join('')}</ul></div></div></div>
+
+   <div class="rm-ar">➡</div>
+   <div class="rm-col"><div class="rm-h" style="background:#D6437A">目指す未来<br><span style="font-weight:400;font-size:.72rem">（生活・学習の中で）</span></div>
+    <div class="rm-b"><div class="lbl">叶えたい姿</div>
+     ${WN.length?`<div style="margin-bottom:7px;padding-bottom:6px;border-bottom:1px dashed #F0C4D6">
+      ${WN.map(w=>`<div style="color:#C13566">${w.ic} ${esc(wantShort(w.t))}</div>`).join('')}</div>`:''}
+     ${CG.length?CG.slice().sort((a,b)=>b.imp-a.imp).map(g=>`<div style="margin-bottom:6px"><div style="color:#C13566">・${esc(g.sh)}</div></div>`).join('')
+      :`<p style="color:var(--muted)">目標はこれから一緒に決めていきます。</p>`}</div></div>
+  </div>
+  <p class="pr-note">※ 伸びる速さは目標によって違います。姿勢や体の使い方は比較的早く、読み書きのように土台の上に乗るスキルは半年〜1年かけて育つこともあります。順番に積みます。</p>
+  ${foot}
+ </div>
+
+ <div class="pg">${pgh(4)}
+  <div class="pgttl">これから一緒に見ていくこと</div>
+  <div class="g2" style="margin-top:12px">
+   <div class="bx bx-note"><div class="bxh">💚 成長のサイン</div>
+    <ul class="chk"><li>できる回数が増えた</li><li>姿勢が崩れるまでの時間が延びた</li><li>少ない声かけで取り組めた</li>
+     <li>動きを見て真似できた</li><li>力加減を調整できた</li><li>失敗しても再挑戦できた</li><li>苦手な活動への抵抗が減った</li></ul></div>
+
+   <div class="bx bx-A"><div class="bxh">🔍 今月、ご家庭で見つけてほしい変化</div>
+    <div style="font-size:.72rem;color:var(--muted);margin:-3px 0 6px">（観察ポイント）</div>
+    <ul style="margin:0;padding-left:1.05em;font-size:.79rem;line-height:1.75">
+     ${grow3.flatMap(k=>A(k).chg3).slice(0,4).map(t=>`<li>${t}</li>`).join('')}
+     ${ppiNote?`<li>${esc(ppiNote)}　…この場面に変化があるか</li>`:''}</ul>
+    <div class="bx bx-note" style="margin-top:9px;font-size:.78rem;line-height:1.7">
+     「できるようになったか」よりも、<b>小さな変化を見つけてコーチに伝える</b>ことをお願いします。評価する役ではなく、<b>気づく役</b>をお願いしたいのです。</div></div>
+
+  </div>
+  ${WN.length?`<div class="sech">🌟 できるようになりたいこと</div>
+  <div style="margin-bottom:4px">${WANTG.filter(g=>WN.some(w=>w.g===g)).map(g=>`<div style="margin-bottom:2px"><span class="lg" style="font-family:var(--disp);font-weight:700">${g}</span>　${WN.filter(w=>w.g===g).map(w=>`<span class="wanttag">${w.ic} ${esc(wantShort(w.t))}</span>`).join('')}</div>`).join('')}</div>
+  <p class="pr-note">これらは<b>いま直接練習するものではありません</b>。土台が育つと、そのうえに乗ってできるようになっていくものです。3か月・6か月の予定は、この土台づくりから組んでいます。</p>
+  `:''}
+  ${CG.length?`<div class="sech">🎯 ご家族・本人の目標</div>
+  <p class="pr-note" style="margin:0 0 6px">「できるか」（<b>遂行度</b>）と「その状態に納得しているか」（<b>満足度</b>）を分けて記録しています。3か月後に同じ質問をして並べます。</p>
+  <table class="cpout"><thead>
+   <tr><th rowspan="2" style="width:28%">目標</th><th rowspan="2">メモ</th>
+    <th colspan="2" class="cg">現在の状態</th><th rowspan="2" class="cg" style="width:13%">親御さんに<br>とっての重要度<br><span>（10段階）</span></th></tr>
+   <tr><th class="cg" style="width:12%">遂行度<br><span>（10段階）</span></th><th class="cg" style="width:12%">満足度<br><span>（10段階）</span></th></tr>
+  </thead><tbody>
+  ${CG.map(g=>`<tr><td class="cgo">${esc(g.sh)}</td><td class="cme">${g.memo?esc(g.memo):''}</td>
+   <td class="cnm" style="color:#2F7D6E">${g.p1}</td><td class="cnm" style="color:#8267AE">${g.s1}</td><td class="cnm" style="color:#DA8541">${g.imp}</td></tr>`).join('')}
+  </tbody></table>
+  <p class="pr-note">※ 点数の高い低いを評価するものではありません。<b>3か月後に同じ質問をしたときの動き方</b>を見るための記録です。「できる」より先に「納得」が動くこともよくあります。</p>
+  `:''}
+  <div class="sech">🏠 ご家庭のお困り度</div>
+  ${PPI.map(x=>`<div class="bar"><div class="bnm">${x.nm}</div>
+   <div class="btr"><div class="bfl" style="width:${P[x.k]/5*100}%;background:${x.c}"></div></div>
+   <div class="bvl" style="color:${x.c}">${P[x.k]}</div></div>`).join('')}
+  <div class="barleg"><span>0　ほぼ感じない</span><span>とても大きい　5</span></div>
+  <p class="pr-note">お子さまの育ちマップは<b>外へ広がるほど</b>、こちらの棒は<b>短くなるほど</b>良い状態です。3か月後に同じ質問をして並べます。${ppiNote?'<br><b>いま一番負担に感じている場面</b>：'+esc(ppiNote):''}</p>
+  <div class="rv" style="margin-top:12px"><div class="bxh" style="color:#2F6FB5">📅 次回の振り返りスケジュール</div>
+   <div class="rvrow">
+    <div class="rvc"><div class="rvt">3か月レビュー</div>${rv3?`<b>${rv3}</b>`:'　月　日（　）'}<div class="rvn">現在地を再評価・目標更新</div></div>
+    <div class="rvc"><div class="rvt">6か月レビュー</div>${rv6?`<b>${rv6}</b>`:'　月　日（　）'}<div class="rvn">生活目標までの変化を確認</div></div>
+   </div>
+   <p class="pr-note" style="margin:8px 0 0">進み方や担当との相性に迷いが出たときは、いつでも一度ご相談ください。</p></div>
+  <p class="disc" style="margin-top:14px">※ 本レポートは運動課題の到達段階の記録であり、診断ではありません。傾向・仮説として3か月ごとに見直します。図のLvは他のお子さまとの比較ではなく、次回以降のご本人の変化を見るために使います。</p>
+  ${foot}
+ </div></div>`;
+
+
+ /* ---------- コーチ用 ---------- */
+ const anyErr=K.some(k=>E[k]);
+ document.getElementById('v-c').innerHTML=`
+ ${head}${sub('コーチ用')}
+ <div class="card">${radar(V9,true)}
+  <table><thead><tr><th>種目／軸</th><th style="width:20%">到達</th></tr></thead><tbody>
+  ${AX.map(a=>{
+   return `<tr><td><span class="d" style="background:${HEX[a.hub]}"></span><b>${a.ex}</b><span class="lg">／${a.nm}</span><br><span class="lg">${a.lg}</span>
+    ${CH[a.k].filter(t=>!F[a.k].includes(t)).length?`<br><span class="lg">つまずき方：${CH[a.k].filter(t=>!F[a.k].includes(t)).join('・')}</span>`:''}
+    ${F[a.k].length?`<br><span class="lg" style="color:#8a6d12">⚑ 測定条件：${F[a.k].join('・')}</span>`:''}</td>
+   <td>${L[a.k]>0?`Lv${L[a.k]}<span class="lg">/${a.mx}</span>`:'<span class="lg">未実施</span>'}</td></tr>`;}).join('')}
+  </tbody></table>
+ </div>
+
+ ${hits.length?`<div class="read" style="border-color:#8A5A2B"><div class="rh" style="background:#8A5A2B">🧩 お困りごと × アセスメント 照合</div><div class="rb">
+  <p style="margin:0;color:var(--muted);font-size:.78rem">チェックされたお困りごとが、どの神経領域の不調として起きているかを推測します。</p>
+  <table><thead><tr><th style="width:30%">想定される領域</th><th>チェックされたお困りごと</th></tr></thead><tbody>
+  ${hits.map(h=>`<tr>
+   <td><b style="color:${h.d.c}">${h.d.id}. ${h.d.ttl}</b><br><span class="lg">${h.d.reg}<br>主軸：${A(h.d.pri).nm}（${A(h.d.pri).ex}）${h.priLv20>0?' Lv'+h.priLv20+'/'+A(h.d.pri).mx:'未実施'}</span></td>
+   <td style="font-size:.78rem">${h.sel.map(t=>'・'+esc(t)).join('<br>')}
+    <div class="lg" style="margin-top:4px">${h.d.why}</div>
+    ${h.unmeasured?`<div class="lg" style="margin-top:3px;color:#8a6d12">⚑ 判定に必要な帯（${Object.values(h.d.bandChk)[0]}）に未到達。この領域は今回<b>測れていない</b>。</div>`:''}</td></tr>`).join('')}
+  </tbody></table>
+  ${rootHit?`<div style="margin-top:10px;padding:11px 13px;background:#EAF3EF;border:1px dashed #9BC4B6;border-radius:10px;font-size:.83rem">
+   <b style="font-family:var(--disp);color:#1E5C50">🔍 根本原因の第一候補</b><br><b>${rootHit.d.reg}</b>（${rootHit.d.ttl}）。保護者には「${rootHit.d.pl}」という身体語で説明する。<br>
+   <span class="lg">※ 複数の処理のズレが重なって起きるため、1対1の因果としては扱わない。</span></div>`:''}
+ </div></div>`:''}
+
+ <div class="read"><div class="rh">🔎 観察された様子・つまずき方</div><div class="rb">
+  ${anyErr?K.map(k=>E[k]?`<div class="errlist"><b style="color:${HEX[A(k).hub]}">${A(k).ex}（${A(k).nm}）</b>
+   <span class="lg">／${L[k]>0?'Lv'+L[k]:(L[k]===-1?'実施不可':'未実施')}</span>
+   <div style="margin-top:4px;white-space:pre-wrap">${esc(E[k])}</div></div>`:'').join('')
+   :'<p style="color:var(--muted)">記入がありません。次回に向けて、崩れ方を1行でも残してください。</p>'}
+ </div></div>
+
+ <div class="read" style="border-color:#6E56A0;margin-top:14px"><div class="rh" style="background:#6E56A0">🎯 3か月・6か月に当てるメニュー</div><div class="rb">
+  <div style="font-size:.82rem;margin-bottom:8px"><b>主軸</b>：${A(low).nm}（${A(low).ex} Lv${L[low]}/${A(low).mx}）　<b>次点</b>：${A(mid).nm}（Lv${L[mid]}）　<span style="color:var(--muted)">維持：${A(high).nm}（Lv${L[high]}）</span></div>
+  <div class="warn" style="margin-top:0"><b>⚑ 測定と訓練を混ぜない</b><br>上の5種目は<b>判定課題（測定）</b>であり、レッスン内の訓練メニューとして反復しない。反復すると課題そのものへの慣れが乗り、次回の測定が読めなくなる。訓練は下のメニューで行う。</div>
+  <div class="plan2" style="margin-top:10px">
+   <div class="p3"><b>▶ 3か月：土台をつくる</b>
+    <div class="lg" style="margin:2px 0 7px">目標そのものではなく、目標を支える力に当てる。配分は主軸を厚くし、次点を補助的に置く。</div>
+    <div><b style="font-family:var(--disp);color:${HEX[A(low).hub]}">${A(low).nm}</b> <span class="lg">(到達Lv${L[low]}→${Math.min(20,L[low]+3)}を目安)</span><br>${MENU[low].base.map(m=>'・'+m).join('<br>')}</div>
+    <div style="margin-top:8px"><b style="font-family:var(--disp);color:${HEX[A(mid).hub]}">${A(mid).nm}</b><br>${MENU[mid].base.slice(0,2).map(m=>'・'+m).join('<br>')}</div>
+    <div style="margin-top:8px"><b style="font-family:var(--disp);color:${HEX[A(high).hub]}">${A(high).nm}（維持）</b><br>${MENU[high].base.slice(0,1).map(m=>'・'+m).join('<br>')}</div>
+    ${hits.length?`<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)">
+     <b style="font-family:var(--disp)">◆ 照合で上位に来た領域に直接あてる</b>
+     ${hits.slice(0,2).map(h=>`<div style="margin-top:5px"><span class="lg" style="color:${h.d.c}">${h.d.ttl}（${h.d.reg}）</span><br>${(DNMENU[h.d.id]||[]).slice(0,3).map(m=>'・'+m).join('<br>')}</div>`).join('')}
+     <div class="lg" style="margin-top:5px">主軸メニューと重複する場合は、主軸を優先し、こちらは週1回程度の差し込みにする。</div></div>`:''}
+   </div>
+   <div class="p6"><b>▶ 6か月：土台の上に目標を乗せる</b>
+    <div class="lg" style="margin:2px 0 7px">3か月で育った土台の上に、ご家族の目標そのものを照準に乗せる段へ。</div>
+    <div><b style="font-family:var(--disp);color:${HEX[A(low).hub]}">${A(low).nm}</b><br>${MENU[low].dev.map(m=>'・'+m).join('<br>')}</div>
+    <div style="margin-top:8px"><b style="font-family:var(--disp);color:${HEX[A(mid).hub]}">${A(mid).nm}</b><br>${MENU[mid].dev.slice(0,2).map(m=>'・'+m).join('<br>')}</div>
+    <div style="margin-top:8px"><b style="font-family:var(--disp);color:${HEX[A(high).hub]}">${A(high).nm}</b><br>${MENU[high].dev.slice(0,2).map(m=>'・'+m).join('<br>')}</div>
+   </div>
+  </div>
+  ${WN.length?`<div style="margin-top:11px"><b style="font-family:var(--disp)">◆ できるようになりたいこと → 対応パッケージ</b>
+   <table class="tb2" style="margin-top:5px;font-size:.75rem"><tr><th style="width:9%">分類</th><th style="width:38%">選択された項目</th><th>対応するメニューパッケージ</th><th style="width:20%">主に支える種目</th></tr>
+   ${WN.map(w=>`<tr><td class="lg">${w.g}</td><td>${w.ic} ${esc(w.t)}</td><td>${esc(w.pk)}</td><td>${A(w.ax).ex}<br><span class="lg">${L[w.ax]>0?'Lv'+L[w.ax]+'/'+A(w.ax).mx:'未実施'}</span></td></tr>`).join('')}</table>
+   <div class="lg" style="margin-top:5px">
+    <b>パッケージは3か月の主軸ではない。</b>主軸は照合で出た土台（${A(low).nm}）に置き、パッケージは<b>土台が上がってから、または家庭課題として</b>当てる。<br>
+    ${WN.filter(w=>L[w.ax]>0&&L[w.ax]<=Math.ceil(A(w.ax).mx*0.3)).length?`<b>⚑ 土台が届いていない項目</b>：${WN.filter(w=>L[w.ax]>0&&L[w.ax]<=Math.ceil(A(w.ax).mx*0.3)).map(w=>esc(wantShort(w.t))).join('／')}。<b>この期は着手せず、保護者にも「順番として先に土台」と伝える</b>。<br>`:''}
+    ${WN.filter(w=>L[w.ax]<=0).length?`<b>⚑ 支える種目が未実施</b>：${WN.filter(w=>L[w.ax]<=0).map(w=>A(w.ax).ex).filter((v,i,a)=>a.indexOf(v)===i).join('・')}。半年目以降の種目のため、この項目の見通しは現時点では立てられない。<br>`:''}
+   </div></div>`:''}
+  ${CG.length?`<div style="margin-top:11px"><b style="font-family:var(--disp)">◆ ご家族・本人の目標（COPM）</b>
+   <table class="tb2" style="margin-top:5px;font-size:.73rem">
+   <tr><th style="width:28%">3か月の短期目標</th><th>振り返り／メモ</th>
+    <th style="width:9%">遂行度</th><th style="width:9%">満足度</th><th style="width:9%">重要度</th></tr>
+   ${CG.map(g=>`<tr><td>${esc(g.sh)}</td><td class="lg">${g.memo?esc(g.memo):'—'}</td>
+    <td>${g.p1}</td><td>${g.s1}</td><td>${g.imp}</td></tr>`).join('')}</table>
+   <div class="lg" style="margin-top:5px">
+    <b>重要度が最も高いのは「${esc(CG.slice().sort((a,b)=>b.imp-a.imp)[0].sh)}」</b>（${CG.slice().sort((a,b)=>b.imp-a.imp)[0].imp}／10）。3か月の当てどころはここに寄せる。<br>
+    ${CG.filter(g=>g.p1>=6&&g.s1<=4).length?`<b>⚑ 遂行は高いが満足が低い</b>：${CG.filter(g=>g.p1>=6&&g.s1<=4).map(g=>esc(g.sh)).join('／')}。できているのに納得されていない状態で、<b>運動より伝え方・見せ方の問題である可能性が高い</b>。<br>`:''}
+    3か月後に同じ設問で採点し直す。<b>2点以上の変化を意味のある変化として扱う</b>（COPMの基準に準じる）。遂行度が動かなくても満足度が動けば成果として扱ってよい。</div></div>`:''}
+ </div></div>
+
+ <div class="coachmemo"><div class="cm-h"><span>🔒 コーチ用 内部メモ</span><span style="font-weight:400;font-size:.74rem">保護者レポートには載せない</span></div><div class="cm-b">
+  ${K.filter(k=>L[k]===0&&A(k).core).length?`<b>未実施（入会時3種目）</b>：${K.filter(k=>L[k]===0&&A(k).core).map(k=>A(k).ex).join('・')}。次回レッスンで必ず補う。<br>`:''}
+  ${K.filter(k=>L[k]===-1).length?`<b>⚑ 実施不可</b>：${K.filter(k=>L[k]===-1).map(k=>A(k).ex).join('・')}。取り組めなかった理由（課題設定が高すぎた／拒否／時間切れ）を自由記入に残し、次回は一段下から入る。<b>未実施とは別に扱い、Lvの推定に使わない</b>。<br>`:''}
+  ${K.filter(k=>F[k].length).length?`<b>⚑ 測定条件に注意</b>：${K.filter(k=>F[k].length).map(k=>A(k).ex+'（'+F[k].join('・')+'）').join('／')}。この種目の値は次回まで確定値として扱わない。伸び／低下の解釈に使わない。<br>`:''}
+  ${band('sacc',L.sacc)&&band('sacc',L.sacc).nm==='WM・逆順'?'<b>あしあとものまねLv16〜の注意</b>：逆順・奇偶の段は数の操作そのものが混ざる。口頭で逆唱できるかを別に確認し、できない場合は正順のタイム短縮で評価する。<br>':''}
+  ${L.inhi>0&&L.inhi<=6?'<b>信号ゲームの注意</b>：抑制の課題は失敗が前提。失敗回数ではなく、直後に立て直せるかを見る。まちがいを指摘して止めない。<br>':''}
+  ${proHit.length?`<div class="warn"><b>🖐 固有覚（力加減の内部基準）</b><br>
+   ${proHit.map(k=>A(k).ex).join('・')}で「投げる高さや方向がばらつく」を計上。<b>出力の再現性が低い＝力の加減を体内で参照できていない</b>状態として扱う。<br>
+   キャッチ側（受け手の精度）を練習しても改善しない。<b>投げる側の出力を、重さ・距離を変えて反復し、誤差に気づける形にする</b>。重さの違う物（お手玉・靴下・紙玉）を交互に投げ分ける、距離を2段階で切り替える、など。<br>
+   姿勢（ラインウォーク）と身体図式の課題と同じ土台。単独の手先課題として処方しない。</div>`:''}
+  ${band('post',L.post)&&band('post',L.post).nm==='VOR'?'<b>ラインウォークLv15〜の注意</b>：頭上物を使わないため体幹動揺を検出する手段がない。6歩の所要秒数を副指標として必ず記録する。<br>':''}
+  ${document.getElementById('f-memo').value?`<b>所見メモ</b>：${esc(document.getElementById('f-memo').value)}<br>`:''}
+  <b>取り組みの発達（初回）</b>：${epDone.length?epDone.map(e=>e.ttl+' '+(E5[e.k]+1)+'/5').join('／'):'未評価'}${modOn.length?'<br><b>環境調整（次のコーチへ）</b>：'+ENV.filter(g=>modOn.some(m=>m.g===g.g)).map(g=>g.g+'＝'+modOn.filter(m=>m.g===g.g).map(m=>m.t.split('（')[0]).join('・')).join('／'):''}<br>
+  ${epDone.length?`<span class="lg">運動Lvが動かない期間でも、ここが1段でも上がっていれば継続の根拠になる。3か月後に同じ設問で必ず取り直す。「必要な支援」は<b>数字が上がる＝支援が減る</b>方向であることに注意。</span><br>`:''}
+  <b>お困り度（初回）</b>：${PPI.map(x=>x.nm+' '+P[x.k]).join('／')}　合計 ${ppiTotal}/25<br>
+  ${ppiNote?`<b>最も負担の場面</b>：${esc(ppiNote)}<br>`:''}
+  ${(escOn||P.emo>=4)?`<div class="warn" style="border-color:#B0392B;background:#FBEEEA"><b style="color:#B0392B">⚠ 単独で判断しない</b><br>
+   ${escOn?'コーチが引き継ぎフラグを立てています。':''}${P.emo>=4?`<b>感情の負担が${P.emo}/5</b>です。`:''}
+   親御さん自身の心身の不調、ご家庭の安全、経済的な困窮が示唆される内容は、<b>コーチが助言せずSVへ引き継ぐ</b>。その場で解決しようとしない。<br>
+   引き継がないという判断も、コーチ個人では行わない。迷った時点で上げる。<br>
+   <b>引き継ぎ先：＿＿＿＿＿＿＿＿＿＿（要記入）</b></div>`:''}
+  <div class="warn"><b>🔄 保護者の思い込みを外す</b><br>「体幹が弱い＝筋力不足」ではなく、<b>姿勢を自動で保つ感覚のフィードバック不足</b>として説明する。筋トレではなく感覚から。<br>Lvは「順位」ではなく「今いる段」。他児との比較には使わない。</div>
+ </div></div>
+ <p class="disc">※ スクリーニングであり診断ではない。傾向・仮説として反証可能な形で追う。年齢アンカーは全種目共通（Lv5=6歳／10=9歳／15=12歳／20=18歳）の解釈の目安であり、規準値ではない。</p>`;
+
+ document.getElementById('tabs').style.display='flex';sw('p');
+}
+function fitA4(){
+ /* A4刷り面（@page margin 9mm/8mm、96dpi換算）。1パネル＝1ページを保証しつつ、
+    余白が大きく余るページは拡大して紙面いっぱいに収める。 */
+ const W=733, H=1055, T=H*0.985, MAXZ=1.10, MINZ=0.55;
+ const sheet=document.querySelector('#v-p .sheet'); if(!sheet)return;
+ const sv=sheet.getAttribute('style')||'';
+ sheet.style.cssText='display:block;width:'+W+'px';
+ document.querySelectorAll('#v-p .pg').forEach(el=>{
+  el.style.zoom=''; el.style.minHeight='';
+  const h0=el.getBoundingClientRect().height;
+  /* まず紙面に対する比率で当たりをつける（縮小・拡大の両方向） */
+  let z=Math.min(MAXZ,Math.max(MINZ,T/h0));
+  el.style.zoom=z.toFixed(3);
+  /* zoomは再レイアウトを伴い高さが線形に縮まないため、実測しながら収める */
+  for(let i=0;i<10;i++){
+   const rh=el.getBoundingClientRect().height;
+   if(rh<=T) break;
+   z=Math.max(MINZ, z*T/rh-0.004);
+   el.style.zoom=z.toFixed(3);
+  }
+  /* カードの枠が紙面いっぱいに伸びるよう、残りを最低高さで埋める */
+  el.style.minHeight=(T/z)+'px';
+ });
+ sheet.setAttribute('style',sv);
+}
+function clearFit(){document.querySelectorAll('#v-p .pg').forEach(el=>{el.style.zoom='';el.style.minHeight='';});}
+
+
+/* ============================================================
+   事前アンケートCSVの取り込み
+   保護者が事前に回答した内容を、④お子さまのお困りごと／⑤できるようになりたいこと／
+   ⑥ご家庭のお困り度 に反映する。取り込むまではコーチが手入力できる（グレー表示）。
+   1行目ヘッダー・2行目以降に回答1件（複数行あれば先頭行を使う）。
+   ============================================================ */
+function parseCSV(txt){
+ /* 引用符つきCSVに対応した最小実装 */
+ const rows=[];let row=[],cur='',q=false;
+ txt=txt.replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+ for(let i=0;i<txt.length;i++){const c=txt[i];
+  if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+  else if(c==='"') q=true;
+  else if(c===','){row.push(cur);cur='';}
+  else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';}
+  else cur+=c;}
+ if(cur!==''||row.length){row.push(cur);rows.push(row);}
+ return rows.filter(r=>r.some(v=>v.trim()!==''));
+}
+function applySurvey(rec){
+ const done=[];
+ /* 年齢帯 */
+ const ag=(rec.ageset||'').trim();
+ if(ag==='sch'||ag==='pre'){ CATKEY=ag; CAT=CATSET[ag].cats; drawTrouble(); done.push('年齢帯'); }
+ /* お困りごと：項目テキストの完全一致で照合 */
+ if(rec.trouble!=null){
+  const want=rec.trouble.split(/[|｜]/).map(x=>x.trim()).filter(Boolean);
+  let hit=0, miss=[];
+  document.querySelectorAll('#troubleBox input').forEach(el=>el.checked=false);
+  want.forEach(t=>{const el=document.querySelector(`#troubleBox input[value="${t.replace(/"/g,'\\"')}"]`);
+   if(el){el.checked=true;hit++;}else miss.push(t);});
+  done.push(`お困りごと ${hit}件${miss.length?`（照合できず ${miss.length}件：${miss.join('・')}）`:''}`);
+ }
+ /* できるようになりたいこと：ID照合 */
+ if(rec.want!=null){
+  const ids=rec.want.split(/[|｜]/).map(x=>x.trim()).filter(Boolean);
+  let hit=0;
+  WANT.forEach(w=>{const el=document.getElementById('w-'+w.id);if(el)el.checked=false;});
+  ids.forEach(id=>{const el=document.getElementById('w-'+id);if(el){el.checked=true;hit++;}});
+  done.push(`できるようになりたいこと ${hit}件`);
+  syncWantToCopm();
+ }
+ /* ご家庭のお困り度 */
+ let pn=0;
+ PPI.forEach(x=>{const v=rec['ppi_'+x.k];
+  if(v!=null&&v!==''&&!isNaN(+v)){const el=document.getElementById('pp-'+x.k);
+   if(el){el.value=String(Math.max(0,Math.min(5,Math.round(+v))));pn++;}}});
+ if(pn)done.push(`お困り度 ${pn}項目`);
+ if(rec.ppi_note){document.getElementById('f-ppinote').value=rec.ppi_note;done.push('負担な場面');}
+ ['cd-trouble','cd-want','cd-ppi'].forEach(id=>document.getElementById(id).classList.add('filled'));
+ return done;
+}
+function clearSurvey(){
+ document.querySelectorAll('#troubleBox input,#wantBox input').forEach(el=>el.checked=false);
+ syncWantToCopm();
+ PPI.forEach(x=>{const el=document.getElementById('pp-'+x.k);if(el)el.value='0';});
+ document.getElementById('f-ppinote').value='';
+ document.getElementById('f-csv').value='';
+ ['cd-trouble','cd-want','cd-ppi'].forEach(id=>document.getElementById(id).classList.remove('filled'));
+ const st=document.getElementById('csvStat');
+ st.className='csvstat'; st.textContent='取り込みを解除しました。コーチが手入力できます。';
+}
+syncWantToCopm();
+document.getElementById('f-csv').addEventListener('change',e=>{
+ const f=e.target.files&&e.target.files[0]; const st=document.getElementById('csvStat');
+ if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const rows=parseCSV(r.result);
+   if(rows.length<2){st.className='csvstat ng';st.textContent='データ行が見つかりません（1行目ヘッダー・2行目に回答が必要です）。';return;}
+   const head=rows[0].map(h=>h.trim().toLowerCase());
+   const rec={}; head.forEach((h,i)=>rec[h]=(rows[1][i]||'').trim());
+   const done=applySurvey(rec);
+   st.className='csvstat ok';
+   st.innerHTML='取り込みました：'+done.join('／')+'<br><span style="font-weight:400;color:var(--muted)">内容を親御さんと確認しながら、必要なら手で直してください。</span>';
+  }catch(err){st.className='csvstat ng';st.textContent='読み込めませんでした：'+err.message;}
+ };
+ r.readAsText(f);
+});
+
+function pr(){
+ const H=document.documentElement;
+ H.classList.add('prmode');
+ clearFit(); fitA4();
+ window.print();
+ setTimeout(()=>{H.classList.remove('prmode');clearFit();},400);
+}
+function sw(v){
+ ['p','c'].forEach(x=>{
+  document.getElementById('v-'+x).classList.toggle('on',v===x);
+  document.getElementById('tb-'+x).classList.toggle('on',v===x);
+ });
+}
+build();
+</script></body></html>

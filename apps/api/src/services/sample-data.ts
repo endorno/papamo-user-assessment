@@ -12,16 +12,21 @@ import {
   generateShareCode,
   gradeAt,
   MASTER_VERSION,
+  COPM_SCORE_DEFAULT,
+  ENGAGEMENT_AXES,
+  ENGAGEMENT_LEVEL_COUNT,
+  ENVIRONMENT_SUPPORT_ITEMS,
+  maxLevelOf,
   reportContentSchema,
   schoolYear,
-  TROUBLE_CATEGORIES,
+  troubleItemsOf,
   todayInJst,
+  WANT_ITEMS,
   type AssessmentData,
   type CompletedAssessmentData,
   type ExerciseKey,
   type GradeCode,
   type Honorific,
-  type PlanKey,
   type SampleDataProfile,
 } from '@papamo/shared';
 
@@ -43,7 +48,6 @@ const SAMPLE_GOALS = [
 const LONG_PROFILE_GRADES: GradeCode[] = ['e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
 const ALL_GRADES: GradeCode[] = ['k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
 const HONORIFICS: Honorific[] = ['kun', 'chan', 'san', 'none'];
-const PLAN_KEYS: PlanKey[] = ['base', 'select'];
 const UINT32_RANGE = 4_294_967_296;
 
 type Random = () => number;
@@ -119,19 +123,40 @@ function completedData(input: {
   sequence: number;
 }): CompletedAssessmentData {
   const lv = Object.fromEntries(input.activeKeys.map((key) => [key, input.levels[key]]));
-  const errs = Object.fromEntries(input.activeKeys.flatMap((key) => {
+  const observations = Object.fromEntries(input.activeKeys.flatMap((key) => {
     const exercise = EXERCISES.find((candidate) => candidate.key === key)!;
-    const selected = selectDistinct(input.random, exercise.errors, randomInt(input.random, 0, 3));
+    const choices = exercise.observations.map((observation) => observation.text);
+    const selected = selectDistinct(input.random, choices, randomInt(input.random, 0, 3));
     return selected.length > 0 ? [[key, selected]] : [];
   }));
-  const troublePool = TROUBLE_CATEGORIES[input.ageGroup].flatMap((category) => [...category.items]);
-  const troubles = selectDistinct(input.random, troublePool, randomInt(input.random, 1, 4));
-  const plan = input.ageGroup === 'pre' ? 'pre' : pick(input.random, PLAN_KEYS);
+  const troubles = selectDistinct(input.random, troubleItemsOf(input.ageGroup), randomInt(input.random, 1, 4));
+  const engagement = Object.fromEntries(ENGAGEMENT_AXES.map(({ key }) => [
+    key,
+    randomInt(input.random, 0, ENGAGEMENT_LEVEL_COUNT),
+  ]));
+  const envSupports = selectDistinct(
+    input.random,
+    ENVIRONMENT_SUPPORT_ITEMS.map((item) => item.key),
+    randomInt(input.random, 0, 4),
+  );
+  const wants = selectDistinct(input.random, WANT_ITEMS.map((item) => item.id), randomInt(input.random, 1, 3));
+  const copm = input.goals.map((text) => ({
+    text,
+    memo: '',
+    performance: clamp(COPM_SCORE_DEFAULT + input.sequence, 1, 10),
+    satisfaction: clamp(COPM_SCORE_DEFAULT + input.sequence - 1, 1, 10),
+    importance: randomInt(input.random, 6, 11),
+  }));
 
   return assessmentDataCompletedSchema.parse({
     lv,
-    errs,
+    observations,
+    observationNotes: {},
+    engagement,
+    envSupports,
     troubles,
+    wants,
+    copm,
     ppi: {
       time: randomInt(input.random, 0, 6),
       emo: randomInt(input.random, 0, 6),
@@ -140,7 +165,6 @@ function completedData(input: {
       nav: randomInt(input.random, 0, 6),
     },
     ppiNote: input.sequence % 3 === 0 ? '家庭での取り組み方も相談したい。' : '',
-    plan,
     memo: `サンプル所見（第${input.sequence}回）。継続して経過を確認する。`,
     goals: input.goals,
   });
@@ -148,14 +172,17 @@ function completedData(input: {
 
 function draftData(random: Random, ageGroup: 'pre' | 'sch'): AssessmentData {
   const keys = selectDistinct(random, CORE_EXERCISE_KEYS, randomInt(random, 1, CORE_EXERCISE_KEYS.length + 1));
-  const troublePool = TROUBLE_CATEGORIES[ageGroup].flatMap((category) => [...category.items]);
   return assessmentDataDraftSchema.parse({
-    lv: Object.fromEntries(keys.map((key) => [key, randomInt(random, 0, 10)])),
-    errs: {},
-    troubles: selectDistinct(random, troublePool, 1),
+    lv: Object.fromEntries(keys.map((key) => [key, randomInt(random, 1, 11)])),
+    observations: {},
+    observationNotes: {},
+    engagement: { dur: randomInt(random, 0, ENGAGEMENT_LEVEL_COUNT) },
+    envSupports: [],
+    troubles: selectDistinct(random, troubleItemsOf(ageGroup), 1),
+    wants: [],
+    copm: [],
     ppi: { time: randomInt(random, 0, 6), emo: randomInt(random, 0, 6) },
     ppiNote: '',
-    plan: ageGroup === 'pre' ? 'pre' : 'base',
     memo: '入力途中のサンプルです。',
     goals: [],
   });
@@ -245,6 +272,7 @@ export async function createSampleChild(
     const levels = Object.fromEntries(
       EXERCISES.map((exercise) => [exercise.key, randomInt(random, 1, 7)]),
     ) as Record<ExerciseKey, number>;
+    // 種目ごとに上限が違う（3種目は30、後発2種目は20）ので、伸びは種目の上限で止める。
     let previous: {
       id: string;
       seqNo: number;
@@ -261,7 +289,7 @@ export async function createSampleChild(
         ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS]
         : CORE_EXERCISE_KEYS;
       for (const key of activeKeys) {
-        if (index > 0) levels[key] = clamp(levels[key] + pick(random, [-1, 0, 0, 1, 1, 2]), 0, 20);
+        if (index > 0) levels[key] = clamp(levels[key] + pick(random, [-1, 0, 0, 1, 1, 2]), 1, maxLevelOf(key));
       }
       const ageGroup = gradeAt({ gradeCode, gradeBaseYear }, assessedOn).ageGroup;
       const data = completedData({ random, levels, activeKeys, ageGroup, goals, sequence });

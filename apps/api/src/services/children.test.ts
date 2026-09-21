@@ -2,6 +2,7 @@ import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { childrenResponseSchema, MAX_EXERCISE_LEVEL } from '@papamo/shared';
 import type { Env } from '../env';
 import {
   createChild,
@@ -44,11 +45,10 @@ function saveCompletedInput(
   return patchAssessment(testEnv, assessment.id, coach.id, {
     data: {
       lv: { post: 3, eyeh: 4, hand: 5 },
-      errs: {},
+      observations: {},
       troubles: ['転びやすい・つまずきやすい'],
       ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
       ppiNote: '',
-      plan: 'pre',
       memo: '',
     },
     updatedAt: assessment.updatedAt,
@@ -183,11 +183,15 @@ describe('子ども管理サービス', () => {
         coachId,
         JSON.stringify({
           lv: { post: 1, eyeh: 1, hand: 1 },
-          errs: {},
+          observations: {},
+          observationNotes: {},
+          engagement: {},
+          envSupports: [],
           troubles: [],
+          wants: [],
+          copm: [],
           ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
           ppiNote: '',
-          plan: 'base',
           memo: '',
           goals: [],
         }),
@@ -201,6 +205,21 @@ describe('子ども管理サービス', () => {
     const list = await listChildren(testEnv, coachId, false);
     expect(list.map(({ name }) => name)).toEqual(['あさひ', 'うみ', 'いおり']);
     expect(list[0]?.latestAssessment?.id).toBe(draft.id);
+  });
+
+  it('未実施・実施不可・種目上限の到達値を載せても一覧レスポンスが検証を通る', async () => {
+    const { coach, child } = await createFixture('こはる');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    await patchAssessment(testEnv, assessment.id, coach.id, {
+      // -1 実施不可 / 0 未実施 / 種目ごとの上限、の3つをまとめて確認する。
+      data: { lv: { post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: -1 } },
+      updatedAt: assessment.updatedAt,
+    });
+
+    const children = await listChildren(testEnv, coach.id, false);
+    expect(() => childrenResponseSchema.parse({ children })).not.toThrow();
+    const listed = children.find(({ id }) => id === child.id);
+    expect(listed?.latestAssessment?.lv).toEqual({ post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: -1 });
   });
 
   it('回を重ねても、一覧には直近の完了回だけを反映する', async () => {

@@ -15,14 +15,13 @@ describe('一覧の状態判定', () => {
             lv: { post: 1, eyeh: 1, hand: 1 },
             troubles: ['困りごと'],
             ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
-            plan: 'base',
           },
         ],
       },
       '2026-09-02',
     );
 
-    expect(result).toMatchObject({ key: 'draft', filled: 6, total: 6 });
+    expect(result).toMatchObject({ key: 'draft', filled: 5, total: 5 });
   });
 
   it('完了アセスメントから次回予定日を判定する', () => {
@@ -37,7 +36,6 @@ describe('一覧の状態判定', () => {
             lv: { post: 1, eyeh: 1, hand: 1 },
             troubles: [],
             ppi: {},
-            plan: 'base',
           },
         ],
       },
