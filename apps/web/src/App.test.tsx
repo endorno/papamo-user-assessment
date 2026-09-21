@@ -120,8 +120,7 @@ describe('担当の子ども一覧', () => {
 
     const unassessed = await screen.findByRole('region', { name: '初回アセスメント未実施' });
     const todo = screen.getByRole('region', { name: 'まずやること' });
-    expect(within(unassessed).getByText('みお')).toBeInTheDocument();
-    expect(within(unassessed).getByText('初回を始める')).toBeInTheDocument();
+    expect(within(unassessed).getByRole('link', { name: /みお/ })).toHaveAttribute('href', '/children/child-new');
     expect(unassessed.compareDocumentPosition(todo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -186,10 +185,14 @@ describe('担当の子ども一覧', () => {
     expect(within(settled).queryByText('こども1')).not.toBeInTheDocument();
   });
 
-  it('入力中の回はカードから直接その回を開く', async () => {
+  it('カードは常に子どもページへ行き、入力中のときだけその回へのボタンを添える', async () => {
     renderHomePage();
     const todo = await screen.findByRole('region', { name: 'まずやること' });
-    expect(within(todo).getByRole('link')).toHaveAttribute('href', '/assessments/assessment-1');
+    const settled = screen.getByRole('region', { name: '次の予定まで余裕あり' });
+    expect(within(todo).getByRole('link', { name: /そうた/ })).toHaveAttribute('href', '/children/child-1');
+    expect(within(todo).getByRole('link', { name: '入力を続ける' })).toHaveAttribute('href', '/assessments/assessment-1');
+    expect(within(settled).getByRole('link', { name: /あおい/ })).toHaveAttribute('href', '/children/child-2');
+    expect(within(settled).queryByRole('link', { name: '入力を続ける' })).not.toBeInTheDocument();
   });
 
   it('本番相当で開発用APIが使えないときはサンプル操作を表示しない', async () => {

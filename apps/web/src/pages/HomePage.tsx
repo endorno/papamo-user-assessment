@@ -72,41 +72,40 @@ function formatShareCodeInput(value: string) {
   return normalized.length > 4 ? `${normalized.slice(0, 4)}-${normalized.slice(4)}` : normalized;
 }
 
-function childActionLabel(child: ChildView) {
-  if (child.state?.key === 'draft') return '入力を続ける';
-  if (child.state?.key === 'first') return '初回を始める';
-  if (child.state?.key === 'due') return '確認する';
-  return '子どもページへ';
-}
-
-/** 入力中の回はカードから直接その回を開く。ラベルと行き先を一致させる。 */
-function childLinkTarget(child: ChildView) {
+/** 入力中の回があるときだけ、その回を直接開くボタンをカードに出す。 */
+function draftAssessmentOf(child: ChildView) {
   const assessment = child.latestAssessment;
-  return child.state?.key === 'draft' && assessment?.status === 'draft'
-    ? `/assessments/${assessment.id}`
-    : `/children/${child.id}`;
+  return child.state?.key === 'draft' && assessment?.status === 'draft' ? assessment : null;
 }
 
+/**
+ * カード全体の行き先は常に子どもページ。名前のリンクを CSS でカード全面に広げ、
+ * 入力中のボタンだけその手前に置く（リンクを入れ子にしない）。
+ */
 function ChildCard({ child, highlighted }: { child: ChildView; highlighted: boolean }) {
   const assessment = child.latestAssessment;
+  const draft = draftAssessmentOf(child);
   const exercises = assessment
     ? EXERCISES.filter((exercise) => exercise.core || assessment.unlockExt)
     : [];
 
   return (
-    <Link
+    <article
       className={[
         styles.childCard,
         child.state ? styles[`childCard--${child.state.key}`] : '',
         highlighted ? styles.childCardHighlight : '',
       ].filter(Boolean).join(' ')}
-      to={childLinkTarget(child)}
     >
       <div className={styles.childCardTop}>
         <div className={styles.childIdentity}>
           <span className={styles.face} aria-hidden="true">{child.name.charAt(0)}</span>
           <span>
-            <strong>{child.name}<small>{honorificLabel(child.honorific)}</small></strong>
+            <strong>
+              <Link className={styles.childCardLink} to={`/children/${child.id}`}>
+                {child.name}<small>{honorificLabel(child.honorific)}</small>
+              </Link>
+            </strong>
             <span className={styles.childMeta}>{child.grade.name}（{child.grade.ageHint}）</span>
           </span>
         </div>
@@ -130,9 +129,13 @@ function ChildCard({ child, highlighted }: { child: ChildView; highlighted: bool
       </div>
       <div className={styles.childCardFooter}>
         <span>{assessment ? `第${assessment.seqNo}回 ${formatJapaneseDate(assessment.assessedOn)}${assessment.status === 'draft' ? '（入力中）' : ''}` : 'アセスメントはまだありません'}</span>
-        <strong>{childActionLabel(child)} <span aria-hidden="true">›</span></strong>
+        {draft ? (
+          <Link className={styles.childCardAction} to={`/assessments/${draft.id}`}>入力を続ける</Link>
+        ) : (
+          <strong>子どもページへ <span aria-hidden="true">›</span></strong>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }
 
