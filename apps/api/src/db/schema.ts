@@ -34,7 +34,6 @@ export const children = sqliteTable(
     gradeBaseYear: integer('grade_base_year').notNull(),
     joinedOn: text('joined_on').notNull(),
     extUnlocked: integer('ext_unlocked', { mode: 'boolean' }).notNull().default(false),
-    goals: text('goals').notNull(),
     archivedAt: text('archived_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -47,10 +46,6 @@ export const children = sqliteTable(
     check('children_grade_code', sql`${table.gradeCode} IN ('k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3')`),
     check('children_joined_on_format', sql`${table.joinedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
     check('children_ext_unlocked_boolean', sql`${table.extUnlocked} IN (0, 1)`),
-    check(
-      'children_goals_json',
-      sql`CASE WHEN json_valid(${table.goals}) THEN json_type(${table.goals}) = 'array' ELSE 0 END`,
-    ),
   ],
 );
 

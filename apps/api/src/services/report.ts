@@ -6,7 +6,7 @@ import {
 } from '@papamo/shared';
 
 import type { CoachRecord, Env } from '../env';
-import { gradeOf, parseGoals, type ChildRow } from './child-row';
+import { gradeOf, type ChildRow } from './child-row';
 
 export function getReportGenerator(env: Env) {
   if (env.REPORT_GENERATOR === 'rule_v1') {
@@ -33,7 +33,6 @@ export async function generateReport(input: {
       ageHint: grade.ageHint,
       ageGroup: grade.ageGroup,
       joinedOn: input.child.joinedOn,
-      goals: parseGoals(input.child.goals),
     },
     coach: { displayName: input.coach.displayName ?? input.coach.email },
     assessment: input.assessment,

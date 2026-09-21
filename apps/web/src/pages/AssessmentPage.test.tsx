@@ -36,7 +36,6 @@ const assessment = {
     ppi: {},
     ppiNote: '',
     memo: '',
-    goals: [],
   },
   createdAt: '2026-09-12T00:00:00.000Z',
   updatedAt: '2026-09-12T00:00:00.000Z',
@@ -50,7 +49,6 @@ const assessment = {
     archivedAt: null,
     ageGroup: 'pre' as const,
     extUnlocked: false,
-    goals: ['転びにくくなってほしい'],
   },
 };
 
@@ -102,10 +100,9 @@ describe('アセスメント入力', () => {
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       expect(patchCall).toBeDefined();
-      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number }; ppi: { time?: number }; goals?: unknown } };
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number }; ppi: { time?: number } } };
       expect(body.data.lv.post).toBe(3);
       expect(body.data.ppi.time).toBe(0);
-      expect(body.data.goals).toBeUndefined();
     }, { timeout: 2000 });
   });
 

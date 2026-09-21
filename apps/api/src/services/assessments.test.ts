@@ -13,7 +13,6 @@ import {
   getReport,
   patchAssessment,
 } from './assessments';
-import { MASTER_VERSION } from '@papamo/shared';
 import type { Env } from '../env';
 
 const testEnv = env as Env & { TEST_MIGRATIONS: D1Migration[] };
@@ -35,7 +34,6 @@ async function createFixture(name = 'ゆい') {
     gender: 'unspecified',
     gradeCode: 'k2',
     joinedOn: '2026-09-01',
-    goals: ['転びにくくなってほしい'],
   });
   return { coach, child };
 }
@@ -79,7 +77,6 @@ describe('アセスメントサービス', () => {
       gender: 'unspecified',
       gradeCode: 'k2',
       joinedOn: '2026-09-01',
-      goals: ['転びにくくなってほしい'],
     });
     const created = await createAssessment(testEnv, child.id, coach.id, false);
     const draft = JSON.parse(created.data) as {
@@ -89,14 +86,12 @@ describe('アセスメントサービス', () => {
       ppi: Record<string, number | undefined>;
       ppiNote: string;
       memo: string;
-      goals: string[];
     };
     draft.lv = { post: 3, eyeh: 4, hand: 5 };
     draft.ppi = { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 };
     draft.troubles = ['転びやすい・つまずきやすい'];
-    const { goals: _draftGoals, ...editableDraft } = draft;
     const saved = await patchAssessment(testEnv, created.id, coach.id, {
-      data: editableDraft,
+      data: draft,
       updatedAt: created.updatedAt,
     });
     const completedResult = await completeAssessment(testEnv, created.id, coach);
@@ -105,7 +100,7 @@ describe('アセスメントサービス', () => {
     expect(completedResult.childId).toBe(child.id);
     expect(await getReport(testEnv, created.id, coach.id)).toMatchObject({ report: { kind: 'first' } });
     const completed = await getAssessment(testEnv, created.id, coach.id);
-    expect(completed.data.goals).toEqual(child.goals);
+    expect(completed.data.copm).toEqual([]);
     const detail = await getChildForCoach(testEnv, child.id, coach.id);
     expect(detail?.latestReport?.header.seqNo).toBe(1);
     expect(detail?.assessments[0]?.reportAvailable).toBe(true);
@@ -132,7 +127,6 @@ describe('アセスメントサービス', () => {
       gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     const draft = await createAssessment(testEnv, child.id, coach.id, false);
     await setArchiveState(testEnv, child.id, true);
@@ -241,9 +235,8 @@ describe('アセスメントサービス', () => {
     const saved = await saveCompletedInput(coach, assessment);
     await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
     const completed = await getAssessment(testEnv, assessment.id, coach.id);
-    const { goals: _completedGoals, ...editableCompleted } = completed.data;
     const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { ...editableCompleted, lv: { ...completed.data.lv, post: 10 } },
+      data: { ...completed.data, lv: { ...completed.data.lv, post: 10 } },
       updatedAt: completed.updatedAt,
     });
 
@@ -279,37 +272,6 @@ describe('アセスメントサービス', () => {
     expect(closed.unlockExt).toBe(false);
     expect(closed.data.lv).toEqual({ post: 3 });
     expect(closed.data.observations.sacc).toBeUndefined();
-  });
-
-  it('旧版の形で保存された回も開けて、レポートを作り直して返す', async () => {
-    const { coach, child } = await createFixture('のぞみ');
-    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
-    const saved = await saveCompletedInput(coach, assessment);
-    await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
-
-    // マスタを design-mock-v2 にそろえる前の形に書き戻す（つまずきは旧文言、新項目はなし）。
-    const legacyData = JSON.stringify({
-      lv: { post: 3, eyeh: 4, hand: 5 },
-      errs: { post: ['幅からはみ出す'] },
-      troubles: ['転びやすい・つまずきやすい'],
-      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-      ppiNote: '',
-      memo: '',
-      goals: ['転びにくくなってほしい'],
-    });
-    await testEnv.DB.prepare('UPDATE assessments SET data = ? WHERE id = ?').bind(legacyData, assessment.id).run();
-    await testEnv.DB.prepare('UPDATE reports SET content = ? WHERE assessment_id = ?')
-      .bind(JSON.stringify({ kind: 'first', levels: [] }), assessment.id)
-      .run();
-
-    const reopened = await getAssessment(testEnv, assessment.id, coach.id);
-    expect(reopened.data.lv).toEqual({ post: 3, eyeh: 4, hand: 5 });
-    expect(reopened.data.observations).toEqual({});
-    expect(reopened.data.copm.map(({ text }) => text)).toEqual(['転びにくくなってほしい']);
-
-    const { report } = await getReport(testEnv, assessment.id, coach.id);
-    expect(report.masterVersion).toBe(MASTER_VERSION);
-    expect(report.levels.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
   });
 
   it('子どもが開放済みなら下書きでも4・5種目目を閉じられない', async () => {

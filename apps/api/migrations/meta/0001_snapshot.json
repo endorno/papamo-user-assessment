@@ -1,0 +1,628 @@
+{
+  "id": "adcf85ee-b125-410f-9af0-99fa8e7c5bdf",
+  "prevId": "013a4c7d-ca35-4a2b-a2ba-bde43b448ac8",
+  "version": "6",
+  "dialect": "sqlite",
+  "tables": {
+    "assessments": {
+      "name": "assessments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq_no": {
+          "name": "seq_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assessed_on": {
+          "name": "assessed_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "coach_id": {
+          "name": "coach_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unlock_ext": {
+          "name": "unlock_ext",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "prev_assessment_id": {
+          "name": "prev_assessment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "master_version": {
+          "name": "master_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "data": {
+          "name": "data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "mutation_id": {
+          "name": "mutation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "assessments_one_draft": {
+          "name": "assessments_one_draft",
+          "columns": [
+            "child_id"
+          ],
+          "where": "\"assessments\".\"status\" = 'draft'",
+          "isUnique": true
+        },
+        "assessments_child_status_seq_no": {
+          "name": "assessments_child_status_seq_no",
+          "columns": [
+            "child_id",
+            "status",
+            "seq_no"
+          ],
+          "isUnique": false
+        },
+        "assessments_child_seq_no": {
+          "name": "assessments_child_seq_no",
+          "columns": [
+            "child_id",
+            "seq_no"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "assessments_child_id_children_id_fk": {
+          "name": "assessments_child_id_children_id_fk",
+          "tableFrom": "assessments",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "tableTo": "children",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "assessments_coach_id_coaches_id_fk": {
+          "name": "assessments_coach_id_coaches_id_fk",
+          "tableFrom": "assessments",
+          "columnsFrom": [
+            "coach_id"
+          ],
+          "tableTo": "coaches",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "assessments_prev_assessment_id_assessments_id_fk": {
+          "name": "assessments_prev_assessment_id_assessments_id_fk",
+          "tableFrom": "assessments",
+          "columnsFrom": [
+            "prev_assessment_id"
+          ],
+          "tableTo": "assessments",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "assessments_seq_no_positive": {
+          "name": "assessments_seq_no_positive",
+          "value": "\"assessments\".\"seq_no\" > 0"
+        },
+        "assessments_status": {
+          "name": "assessments_status",
+          "value": "\"assessments\".\"status\" IN ('draft', 'done')"
+        },
+        "assessments_assessed_on_format": {
+          "name": "assessments_assessed_on_format",
+          "value": "\"assessments\".\"assessed_on\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "assessments_unlock_ext_boolean": {
+          "name": "assessments_unlock_ext_boolean",
+          "value": "\"assessments\".\"unlock_ext\" IN (0, 1)"
+        },
+        "assessments_data_json": {
+          "name": "assessments_data_json",
+          "value": "CASE WHEN json_valid(\"assessments\".\"data\") THEN json_type(\"assessments\".\"data\") = 'object' ELSE 0 END"
+        },
+        "assessments_revision_positive": {
+          "name": "assessments_revision_positive",
+          "value": "\"assessments\".\"revision\" > 0"
+        },
+        "assessments_completion_state": {
+          "name": "assessments_completion_state",
+          "value": "(\"assessments\".\"status\" = 'draft' AND \"assessments\".\"completed_at\" IS NULL) OR (\"assessments\".\"status\" = 'done' AND \"assessments\".\"completed_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "child_coaches": {
+      "name": "child_coaches",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "coach_id": {
+          "name": "coach_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "child_coaches_one_owner": {
+          "name": "child_coaches_one_owner",
+          "columns": [
+            "child_id"
+          ],
+          "where": "\"child_coaches\".\"role\" = 'owner'",
+          "isUnique": true
+        },
+        "child_coaches_coach_id": {
+          "name": "child_coaches_coach_id",
+          "columns": [
+            "coach_id",
+            "child_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "child_coaches_child_id_children_id_fk": {
+          "name": "child_coaches_child_id_children_id_fk",
+          "tableFrom": "child_coaches",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "tableTo": "children",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "child_coaches_coach_id_coaches_id_fk": {
+          "name": "child_coaches_coach_id_coaches_id_fk",
+          "tableFrom": "child_coaches",
+          "columnsFrom": [
+            "coach_id"
+          ],
+          "tableTo": "coaches",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "child_coaches_child_id_coach_id_pk": {
+          "columns": [
+            "child_id",
+            "coach_id"
+          ],
+          "name": "child_coaches_child_id_coach_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "child_coaches_role": {
+          "name": "child_coaches_role",
+          "value": "\"child_coaches\".\"role\" IN ('owner', 'member')"
+        }
+      }
+    },
+    "children": {
+      "name": "children",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "share_code": {
+          "name": "share_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "owner_share_code": {
+          "name": "owner_share_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "honorific": {
+          "name": "honorific",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gender": {
+          "name": "gender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'unspecified'"
+        },
+        "grade_code": {
+          "name": "grade_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "grade_base_year": {
+          "name": "grade_base_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "joined_on": {
+          "name": "joined_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ext_unlocked": {
+          "name": "ext_unlocked",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "children_share_code_unique": {
+          "name": "children_share_code_unique",
+          "columns": [
+            "share_code"
+          ],
+          "isUnique": true
+        },
+        "children_owner_share_code_unique": {
+          "name": "children_owner_share_code_unique",
+          "columns": [
+            "owner_share_code"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "children_created_by_coaches_id_fk": {
+          "name": "children_created_by_coaches_id_fk",
+          "tableFrom": "children",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "coaches",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "children_share_code_format": {
+          "name": "children_share_code_format",
+          "value": "length(\"children\".\"share_code\") = 8 AND \"children\".\"share_code\" NOT GLOB '*[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]*'"
+        },
+        "children_owner_share_code_format": {
+          "name": "children_owner_share_code_format",
+          "value": "length(\"children\".\"owner_share_code\") = 8 AND \"children\".\"owner_share_code\" NOT GLOB '*[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]*'"
+        },
+        "children_honorific": {
+          "name": "children_honorific",
+          "value": "\"children\".\"honorific\" IN ('kun', 'chan', 'san')"
+        },
+        "children_gender": {
+          "name": "children_gender",
+          "value": "\"children\".\"gender\" IN ('boy', 'girl', 'unspecified')"
+        },
+        "children_grade_code": {
+          "name": "children_grade_code",
+          "value": "\"children\".\"grade_code\" IN ('k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3')"
+        },
+        "children_joined_on_format": {
+          "name": "children_joined_on_format",
+          "value": "\"children\".\"joined_on\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "children_ext_unlocked_boolean": {
+          "name": "children_ext_unlocked_boolean",
+          "value": "\"children\".\"ext_unlocked\" IN (0, 1)"
+        }
+      }
+    },
+    "coaches": {
+      "name": "coaches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "reports": {
+      "name": "reports",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assessment_id": {
+          "name": "assessment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assessment_revision": {
+          "name": "assessment_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "generator": {
+          "name": "generator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "reports_assessment_id_unique": {
+          "name": "reports_assessment_id_unique",
+          "columns": [
+            "assessment_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "reports_assessment_id_assessments_id_fk": {
+          "name": "reports_assessment_id_assessments_id_fk",
+          "tableFrom": "reports",
+          "columnsFrom": [
+            "assessment_id"
+          ],
+          "tableTo": "assessments",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "reports_assessment_revision_positive": {
+          "name": "reports_assessment_revision_positive",
+          "value": "\"reports\".\"assessment_revision\" > 0"
+        },
+        "reports_content_json": {
+          "name": "reports_content_json",
+          "value": "CASE WHEN json_valid(\"reports\".\"content\") THEN json_type(\"reports\".\"content\") = 'object' ELSE 0 END"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

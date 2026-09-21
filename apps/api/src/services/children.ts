@@ -22,12 +22,12 @@ import type { ChildCreateRequest, ChildPatchRequest } from '@papamo/shared';
 import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, reports } from '../db/schema';
 import { isForeignKeyConstraintError, isUniqueConstraintError } from '../db/errors';
-import { gradeOf, parseGoals } from './child-row';
+import { gradeOf } from './child-row';
 import type { Env } from '../env';
 
 export type ChildRole = 'owner' | 'member';
 
-type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number };
+type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number; goals: string[] };
 
 function assessmentProgressFrom(row: {
   id: string;
@@ -47,7 +47,15 @@ function assessmentProgressFrom(row: {
     lv: data.lv,
     troubles: data.troubles,
     ppi: data.ppi,
+    // 子どもページに反映する目標は完了回だけ。下書きの変更は完了まで公開しない。
+    goals: row.status === 'done' ? data.copm.map((goal) => goal.text) : [],
   };
+}
+
+function latestCompletedAssessment(assessmentsForChild: ChildAssessmentProgress[]) {
+  return [...assessmentsForChild]
+    .filter((assessment) => assessment.status === 'done')
+    .sort((first, second) => second.seqNo - first.seqNo)[0];
 }
 
 function serializeChild(
@@ -58,8 +66,9 @@ function serializeChild(
   today = todayInJst(),
 ): ChildView {
   const gradeCode = row.gradeCode as GradeCode;
+  const latestCompleted = latestCompletedAssessment(assessmentsForChild);
   const latestAssessment = assessmentsForChild.find((assessment) => assessment.status === 'draft')
-    ?? [...assessmentsForChild].sort((a, b) => b.seqNo - a.seqNo)[0]
+    ?? latestCompleted
     ?? null;
   return {
     id: row.id,
@@ -71,7 +80,6 @@ function serializeChild(
     grade: gradeOf(row, today),
     joinedOn: row.joinedOn,
     extUnlocked: row.extUnlocked,
-    goals: parseGoals(row.goals),
     archivedAt: row.archivedAt,
     shareCode: formatShareCode(row.shareCode),
     ...(includeOwnerShareCode ? { ownerShareCode: formatShareCode(row.ownerShareCode) } : {}),
@@ -206,7 +214,6 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
       gradeBaseYear,
       joinedOn: input.joinedOn,
       extUnlocked: false,
-      goals: JSON.stringify(input.goals),
       archivedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -283,18 +290,21 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
       }
     }),
   );
+  const assessmentProgresses = childAssessments.map(assessmentProgressFrom);
   const serialized = serializeChild(
     child,
     membership,
     membership === 'owner',
-    childAssessments.map(assessmentProgressFrom),
+    assessmentProgresses,
   );
+  const assessmentProgressById = new Map(assessmentProgresses.map((progress) => [progress.id, progress]));
   const assessmentSummaries = childAssessments.map((assessment) => ({
     id: assessment.id,
     seqNo: assessment.seqNo,
     status: assessment.status as 'draft' | 'done',
     assessedOn: assessment.assessedOn,
     unlockExt: assessment.unlockExt,
+    goals: assessmentProgressById.get(assessment.id)?.goals ?? [],
     updatedAt: assessment.updatedAt,
     completedAt: assessment.completedAt,
     reportAvailable: Boolean(reportByAssessmentId.get(assessment.id)),
@@ -316,7 +326,6 @@ export async function patchChild(env: Env, childId: string, input: ChildPatchReq
     ...(input.honorific === undefined ? {} : { honorific: input.honorific }),
     ...(input.gender === undefined ? {} : { gender: input.gender }),
     ...(input.joinedOn === undefined ? {} : { joinedOn: input.joinedOn }),
-    ...(input.goals === undefined ? {} : { goals: JSON.stringify(input.goals) }),
     ...(input.gradeCode === undefined
       ? {}
       : { gradeCode: input.gradeCode, gradeBaseYear: schoolYear(todayInJst()) }),

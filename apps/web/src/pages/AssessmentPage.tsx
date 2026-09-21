@@ -133,12 +133,10 @@ function hasAnyInput(form: AssessmentFormState) {
 
 /** PATCH の本文。自動保存と離脱時の送信で同じ形を使う。 */
 function patchBody(form: AssessmentFormState, assessment: AssessmentDetail) {
-  // goals は COPM 表から作るサーバー側の列なので送らない。
-  const { goals: _goals, ...data } = form.data;
   return JSON.stringify({
     assessedOn: form.assessedOn,
     unlockExt: form.unlockExt,
-    data,
+    data: form.data,
     updatedAt: assessment.updatedAt,
   });
 }

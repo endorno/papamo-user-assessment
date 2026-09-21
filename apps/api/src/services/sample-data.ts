@@ -163,7 +163,6 @@ function completedData(input: {
     ])),
     ppiNote: input.sequence % 3 === 0 ? '家庭での取り組み方も相談したい。' : '',
     memo: `サンプル所見（第${input.sequence}回）。継続して経過を確認する。`,
-    goals: input.goals,
   });
 }
 
@@ -181,7 +180,6 @@ function draftData(random: Random, ageGroup: 'pre' | 'sch'): AssessmentData {
     ppi: { time: randomInt(random, 0, PPI_SCORE_MAX + 1), emo: randomInt(random, 0, PPI_SCORE_MAX + 1) },
     ppiNote: '',
     memo: '入力途中のサンプルです。',
-    goals: [],
   });
 }
 
@@ -292,7 +290,6 @@ export async function createSampleChild(
       gradeBaseYear,
       joinedOn,
       extUnlocked: unlockExtended,
-      goals: JSON.stringify(goals),
       archivedAt: null,
       createdAt: childTimestamp,
       updatedAt: timestampFor(today),

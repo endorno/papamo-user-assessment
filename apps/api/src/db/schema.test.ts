@@ -29,7 +29,6 @@ describe('D1データ制約', () => {
       gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     const now = new Date().toISOString();
 
@@ -65,7 +64,6 @@ describe('D1データ制約', () => {
       gender: 'unspecified',
       gradeCode: 'k2',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const id = crypto.randomUUID();

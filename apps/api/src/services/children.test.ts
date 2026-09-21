@@ -35,7 +35,6 @@ async function createFixture(name: string) {
     gender: 'unspecified',
     gradeCode: 'k2',
     joinedOn: '2026-01-05',
-    goals: [],
   });
   return { coach, child };
 }
@@ -43,12 +42,14 @@ async function createFixture(name: string) {
 function saveCompletedInput(
   coach: Awaited<ReturnType<typeof upsertCoach>>,
   assessment: Awaited<ReturnType<typeof createAssessment>>,
+  goal?: string,
 ) {
   return patchAssessment(testEnv, assessment.id, coach.id, {
     data: {
       lv: { post: 3, eyeh: 4, hand: 5 },
       observations: {},
       troubles: ['転びやすい・つまずきやすい'],
+      copm: goal ? [{ text: goal, memo: '', performance: 3, satisfaction: 3, importance: 8 }] : [],
       ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
       ppiNote: '',
       memo: '',
@@ -70,7 +71,6 @@ describe('子ども管理サービス', () => {
       gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
-      goals: ['姿勢を安定させたい'],
     });
 
     const joined = await importChild(testEnv, memberId, created.shareCode);
@@ -97,7 +97,6 @@ describe('子ども管理サービス', () => {
       gender: 'unspecified',
       gradeCode: 'e2',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     await importChild(testEnv, memberId, child.shareCode);
 
@@ -118,7 +117,6 @@ describe('子ども管理サービス', () => {
       gender: 'unspecified',
       gradeCode: 'k3',
       joinedOn: '2026-09-01',
-      goals: [],
     });
 
     await setArchiveState(testEnv, child.id, true);
@@ -144,7 +142,6 @@ describe('子ども管理サービス', () => {
       gender: 'unspecified',
       gradeCode: 'k1',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     const draftingChild = await createChild(testEnv, coach.id, {
       name: 'なお',
@@ -152,7 +149,6 @@ describe('子ども管理サービス', () => {
       gender: 'unspecified',
       gradeCode: 'j1',
       joinedOn: '2026-09-01',
-      goals: [],
     });
     const member = await upsertCoach(testEnv, {
       id: crypto.randomUUID(),
@@ -172,7 +168,7 @@ describe('子ども管理サービス', () => {
   it('一覧に下書きのIDを載せ、期限超過が大きい子どもを先に並べる', async () => {
     const coachId = crypto.randomUUID();
     await upsertCoach(testEnv, { id: coachId, email: `${coachId}@example.com` });
-    const base = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05', goals: [] };
+    const base = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05' };
     const drafting = await createChild(testEnv, coachId, { ...base, name: 'あさひ' });
     const slightlyOverdue = await createChild(testEnv, coachId, { ...base, name: 'いおり' });
     const longOverdue = await createChild(testEnv, coachId, { ...base, name: 'うみ' });
@@ -200,7 +196,6 @@ describe('子ども管理サービス', () => {
           ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
           ppiNote: '',
           memo: '',
-          goals: [],
         }),
         crypto.randomUUID(),
         '2026-01-05T00:00:00.000Z',
@@ -239,6 +234,34 @@ describe('子ども管理サービス', () => {
     const listed = (await listChildren(testEnv, coach.id, false)).find(({ id }) => id === child.id);
     expect(listed?.latestAssessment).toMatchObject({ id: second.id, seqNo: 2, status: 'done' });
     expect(listed?.state).toMatchObject({ key: 'ok' });
+  });
+
+  it('子ども詳細の目標には最新の完了アセスメントの目標を表示する', async () => {
+    const { coach, child } = await createFixture('もも');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const firstSaved = await saveCompletedInput(coach, first, '姿勢を安定させる');
+    await completeAssessment(testEnv, first.id, coach, firstSaved.updatedAt);
+
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    const secondSaved = await saveCompletedInput(coach, second, '着替えを自分でする');
+    await completeAssessment(testEnv, second.id, coach, secondSaved.updatedAt);
+
+    const detail = await getChildForCoach(testEnv, child.id, coach.id);
+    expect(detail?.assessments.at(-1)?.goals).toEqual(['着替えを自分でする']);
+  });
+
+  it('下書きの目標は子ども詳細に反映しない', async () => {
+    const { coach, child } = await createFixture('みなと');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const firstSaved = await saveCompletedInput(coach, first, '姿勢を安定させる');
+    await completeAssessment(testEnv, first.id, coach, firstSaved.updatedAt);
+
+    const draft = await createAssessment(testEnv, child.id, coach.id, false);
+    await saveCompletedInput(coach, draft, '着替えを自分でする');
+
+    const detail = await getChildForCoach(testEnv, child.id, coach.id);
+    expect(detail?.assessments.find(({ id }) => id === first.id)?.goals).toEqual(['姿勢を安定させる']);
+    expect(detail?.assessments.find(({ id }) => id === draft.id)?.goals).toEqual([]);
   });
 
   it('性別と敬称をそれぞれ独立して保存できる', async () => {

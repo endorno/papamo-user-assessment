@@ -43,7 +43,6 @@ const createFixture = async (): Promise<{ coachId: string }> => {
     gender: 'unspecified',
     gradeCode: 'e1',
     joinedOn: '2026-04-01',
-    goals: [],
   });
   const now = new Date().toISOString();
   const first = crypto.randomUUID();

@@ -15,7 +15,6 @@ import {
 } from '../master/engagement';
 import {
   COPM_MAX,
-  COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
   WANT_ITEMS,
@@ -115,7 +114,6 @@ export const assessmentDataDraftSchema = z.object({
   ppi: z.object(ppiFields).strict().default({}),
   ppiNote: z.string().default(''),
   memo: z.string().default(''),
-  goals: z.array(z.string()).default([]),
 }).strict();
 
 export const assessmentDataPatchSchema = z.object({
@@ -144,7 +142,6 @@ export const assessmentDataCompletedSchema = z.object({
   ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema]))).strict(),
   ppiNote: z.string(),
   memo: z.string(),
-  goals: z.array(z.string()),
 }).strict();
 
 export const childCreateRequestSchema = z.object({
@@ -153,7 +150,6 @@ export const childCreateRequestSchema = z.object({
   gender: genderSchema.default('unspecified'),
   gradeCode: gradeCodeSchema,
   joinedOn: dateSchema,
-  goals: z.array(z.string().trim().min(1).max(100)).max(COPM_MAX).default([]),
 });
 
 export const childPatchRequestSchema = z.object({
@@ -162,7 +158,6 @@ export const childPatchRequestSchema = z.object({
   gender: genderSchema.optional(),
   gradeCode: gradeCodeSchema.optional(),
   joinedOn: dateSchema.optional(),
-  goals: z.array(z.string().trim().min(1).max(100)).max(COPM_MAX).optional(),
 });
 
 export const childImportRequestSchema = z.object({
@@ -217,7 +212,6 @@ export const assessmentDetailSchema = z.object({
     archivedAt: z.string().datetime().nullable(),
     ageGroup: z.enum(['pre', 'sch']),
     extUnlocked: z.boolean(),
-    goals: z.array(z.string()),
   }),
 });
 
@@ -240,38 +234,6 @@ export const assessmentCreateResponseSchema = z.object({
 });
 
 /**
- * 保存済みの `assessments.data` を現在の形に寄せてから検証する。
- * マスタを design-mock-v2 にそろえた際に項目が入れ替わったため、
- * 旧版で保存された回もコーチが開いて続きを入力できるようにする。
- */
-export function migrateAssessmentData(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  const data: Record<string, unknown> = { ...(value as Record<string, unknown>) };
-  // 旧「つまずき」と旧「3か月の運動計画」は項目ごと無くなったため引き継がない。
-  delete data.errs;
-  delete data.plan;
-  data.observations ??= {};
-  data.observationNotes ??= {};
-  data.engagement ??= {};
-  data.envSupports ??= [];
-  data.wants ??= [];
-  if (!Array.isArray(data.copm)) {
-    // 旧版は目標を children.goals だけで持っていた。完了時のスナップショットから行を起こす。
-    const goals = Array.isArray(data.goals)
-      ? data.goals.filter((goal): goal is string => typeof goal === 'string')
-      : [];
-    data.copm = goals.slice(0, COPM_MAX).map((text) => ({
-      text,
-      memo: '',
-      performance: COPM_SCORE_DEFAULT,
-      satisfaction: COPM_SCORE_DEFAULT,
-      importance: COPM_SCORE_DEFAULT,
-    }));
-  }
-  return data;
-}
-
-/**
  * 4・5種目目の開放を取り消したときに残る入力を落とす。
  * 完了検証と食い違わないよう、API の保存時と Web の表示で同じ整理をする。
  */
@@ -289,11 +251,11 @@ export function withoutExtExerciseInput(data: AssessmentData, unlockExt: boolean
 }
 
 export function parseStoredAssessmentData(value: unknown): AssessmentData {
-  return assessmentDataDraftSchema.parse(migrateAssessmentData(value));
+  return assessmentDataDraftSchema.parse(value);
 }
 
 export function parseStoredCompletedData(value: unknown): CompletedAssessmentData {
-  return assessmentDataCompletedSchema.parse(migrateAssessmentData(value));
+  return assessmentDataCompletedSchema.parse(value);
 }
 
 export type AssessmentData = z.infer<typeof assessmentDataDraftSchema>;

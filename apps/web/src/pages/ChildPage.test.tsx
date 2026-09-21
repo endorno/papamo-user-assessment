@@ -24,7 +24,6 @@ const child = {
   grade: { code: 'e2', name: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch' as const, graduated: false },
   joinedOn: '2025-06-01',
   extUnlocked: false,
-  goals: ['転びにくくなってほしい'],
   archivedAt: null,
   shareCode: 'ABCD-EFGH',
   ownerShareCode: 'JKLM-NPQR',
@@ -73,7 +72,7 @@ describe('子どもページ', () => {
       ...child,
       state: { key: 'draft' as const, label: 'アセスメント入力中（2/6）', filled: 2, total: 6, order: 0 as const },
       latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, lv: { post: 3, eyeh: 4 } },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, updatedAt: '2026-09-01T00:00:00.000Z', completedAt: null, reportAvailable: false }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, goals: [], updatedAt: '2026-09-01T00:00:00.000Z', completedAt: null, reportAvailable: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: draftChild })));
     renderChildPage();
@@ -90,7 +89,7 @@ describe('子どもページ', () => {
       ...child,
       state: { key: 'due' as const, label: '次回まであと3日', daysLeft: 3, order: 0.5 as const },
       latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, lv: { post: 3, eyeh: 4, hand: 5 } },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage();
@@ -108,7 +107,7 @@ describe('子どもページ', () => {
       ...child,
       joinedOn: '2025-01-06',
       state: { key: 'ok' as const, label: '次回 2026-12-01 予定', dueDate: '2026-12-01', order: 2 as const },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: longTermChild })));
     renderChildPage();
@@ -121,7 +120,7 @@ describe('子どもページ', () => {
   it('最初のレポート作成後は完全削除を表示しない', async () => {
     const completedChild = {
       ...child,
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage();
@@ -139,19 +138,18 @@ describe('子どもページ', () => {
     expect(within(management).queryByRole('button', { name: '自分の担当一覧から外す' })).not.toBeInTheDocument();
   });
 
-  it('目標がCOPMの上限（4件）を超えている間は保存できない', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
+  it('目標は子ども詳細から編集できず、最新の完了回を表示する', async () => {
+    const completedChild = {
+      ...child,
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: ['転びにくくなってほしい'], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage();
 
     const goals = await screen.findByRole('region', { name: '今期の目標' });
-    fireEvent.click(within(goals).getByRole('button', { name: '編集' }));
-    const textarea = within(goals).getByLabelText('目標（1行1項目）');
-
-    fireEvent.change(textarea, { target: { value: '目標1\n目標2\n目標3\n目標4\n目標5' } });
-    expect(within(goals).getByRole('button', { name: '保存' })).toBeDisabled();
-
-    fireEvent.change(textarea, { target: { value: '目標1\n目標2\n目標3\n目標4' } });
-    expect(within(goals).getByRole('button', { name: '保存' })).toBeEnabled();
+    expect(goals).toHaveTextContent('転びにくくなってほしい');
+    expect(within(goals).queryByRole('button', { name: '編集' })).not.toBeInTheDocument();
+    expect(within(goals).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('共有先で削除済みの子どもを開いた場合は担当一覧へ戻す', async () => {

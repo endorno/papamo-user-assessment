@@ -24,7 +24,6 @@ const created = {
   grade: { code: 'e1', name: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, graduated: false },
   joinedOn: '2026-09-12',
   extUnlocked: false,
-  goals: [],
   archivedAt: null,
   shareCode: 'ABCD-EFGH',
   ownerShareCode: 'JKLM-NPQR',

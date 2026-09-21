@@ -26,7 +26,6 @@ const baseChild = {
   grade: { code: 'e3', name: '小学3年生', ageHint: '8〜9歳', ageGroup: 'sch' as const, graduated: false },
   joinedOn: '2026-06-01',
   extUnlocked: false,
-  goals: [],
   archivedAt: null,
   shareCode: 'ABCD-EFGH',
   ownerShareCode: 'JKLM-NPQR',

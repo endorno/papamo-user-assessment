@@ -10,7 +10,6 @@ export interface ChildFixture {
   ageGroup: AgeGroup;
   joinedOn: string;
   extUnlocked: boolean;
-  goals: string[];
 }
 
 interface AssessmentFixtureBase {
@@ -27,16 +26,25 @@ export type AssessmentFixture =
   | (AssessmentFixtureBase & { status: 'draft'; data: AssessmentData });
 
 export const CHILD_FIXTURES: ChildFixture[] = [
-  { id: 'c1', name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', joinedOn: '2026-02-20', extUnlocked: false, goals: ['板書を写すのが間に合うようになる', 'すぐにあきらめず最後までやりきる'] },
-  { id: 'c2', name: 'ゆい', honorific: 'chan', grade: '年中', ageHint: '4〜5歳', ageGroup: 'pre', joinedOn: '2026-06-28', extUnlocked: false, goals: ['転びにくくなる', 'おともだちとボール遊びができるようになる'] },
-  { id: 'c3', name: 'そうた', honorific: 'kun', grade: '小学3年生', ageHint: '8〜9歳', ageGroup: 'sch', joinedOn: '2026-08-20', extUnlocked: false, goals: ['音読で行を飛ばさず読めるようになる', '体育のドッジボールに参加する'] },
-  { id: 'c4', name: 'あおい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedOn: '2026-05-25', extUnlocked: false, goals: ['字をきれいに書けるようになる'] },
-  { id: 'c6', name: 'みお', honorific: 'chan', grade: '小学4年生', ageHint: '9〜10歳', ageGroup: 'sch', joinedOn: '2025-11-15', extUnlocked: true, goals: ['ノートを最後まで写せるようになる', '忘れ物を減らす'] },
-  { id: 'c5', name: 'りん', honorific: 'chan', grade: '年長', ageHint: '5〜6歳', ageGroup: 'pre', joinedOn: '2026-09-02', extUnlocked: false, goals: ['来年の入学までに、椅子に座って話が聞けるようになる'] },
+  { id: 'c1', name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', joinedOn: '2026-02-20', extUnlocked: false },
+  { id: 'c2', name: 'ゆい', honorific: 'chan', grade: '年中', ageHint: '4〜5歳', ageGroup: 'pre', joinedOn: '2026-06-28', extUnlocked: false },
+  { id: 'c3', name: 'そうた', honorific: 'kun', grade: '小学3年生', ageHint: '8〜9歳', ageGroup: 'sch', joinedOn: '2026-08-20', extUnlocked: false },
+  { id: 'c4', name: 'あおい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedOn: '2026-05-25', extUnlocked: false },
+  { id: 'c6', name: 'みお', honorific: 'chan', grade: '小学4年生', ageHint: '9〜10歳', ageGroup: 'sch', joinedOn: '2025-11-15', extUnlocked: true },
+  { id: 'c5', name: 'りん', honorific: 'chan', grade: '年長', ageHint: '5〜6歳', ageGroup: 'pre', joinedOn: '2026-09-02', extUnlocked: false },
 ];
 
+const FIXTURE_GOALS: Record<string, string[]> = {
+  c1: ['板書を写すのが間に合うようになる', 'すぐにあきらめず最後までやりきる'],
+  c2: ['転びにくくなる', 'おともだちとボール遊びができるようになる'],
+  c3: ['音読で行を飛ばさず読めるようになる', '体育のドッジボールに参加する'],
+  c4: ['字をきれいに書けるようになる'],
+  c6: ['ノートを最後まで写せるようになる', '忘れ物を減らす'],
+  c5: ['来年の入学までに、椅子に座って話が聞けるようになる'],
+};
+
 function goalsOf(childId: string): string[] {
-  return [...(CHILD_FIXTURES.find(({ id }) => id === childId)?.goals ?? [])];
+  return [...(FIXTURE_GOALS[childId] ?? [])];
 }
 
 /** COPM の採点はコーチが聞き取った値。ここでは回ごとの動きが見えるよう固定値を置く。 */
@@ -65,7 +73,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       copm: copmOf('c1', [[3, 2, 9], [4, 3, 7]], ['連絡帳が写しきれない日が週3日ほど']),
       ppi: { time: 4, emo: 3, soc: 2, fut: 4, nav: 4 },
       ppiNote: '宿題のときに姿勢が崩れて、毎日声をかけるのがつらい',
-      memo: '初回。緊張が強く、後半は集中が切れやすい。ラインウォークは17cmで踏み外しが多く、頭上物を持たせると顕著。', goals: goalsOf('c1'),
+      memo: '初回。緊張が強く、後半は集中が切れやすい。ラインウォークは17cmで踏み外しが多く、頭上物を持たせると顕著。',
     },
   },
   {
@@ -81,7 +89,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       copm: copmOf('c1', [[5, 5, 9], [6, 6, 7]], ['写せる日が増えてきた']),
       ppi: { time: 3, emo: 2, soc: 2, fut: 3, nav: 2 },
       ppiNote: '座り直しは減った。板書はまだ最後まで写せない日がある',
-      memo: '2回目。8.5cm帯に入った。じゃんけんの「勝つ」まで安定。保護者の表情が明るい。', goals: goalsOf('c1'),
+      memo: '2回目。8.5cm帯に入った。じゃんけんの「勝つ」まで安定。保護者の表情が明るい。',
     },
   },
   {
@@ -97,7 +105,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       copm: copmOf('c2', [[3, 3, 8], [2, 2, 9]]),
       ppi: { time: 2, emo: 3, soc: 1, fut: 3, nav: 4 },
       ppiNote: '園から「気になる」と言われたが、何をすればいいか分からない',
-      memo: '初回。歌に合わせると集中が続く。手の形づくりに時間がかかる。', goals: goalsOf('c2'),
+      memo: '初回。歌に合わせると集中が続く。手の形づくりに時間がかかる。',
     },
   },
   {
@@ -108,7 +116,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       observationNotes: {},
       engagement: { dur: 2 },
       envSupports: [],
-      troubles: [], wants: [], copm: [], ppi: {}, ppiNote: '', memo: '', goals: [],
+      troubles: [], wants: [], copm: [], ppi: {}, ppiNote: '', memo: '',
     },
   },
   {
@@ -123,7 +131,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       wants: ['w12'],
       copm: copmOf('c4', [[4, 3, 10]], ['宿題のたびに書き直しになる']),
       ppi: { time: 3, emo: 4, soc: 3, fut: 3, nav: 3 },
-      ppiNote: '', memo: '初回。手の力加減の極端さが強い。', goals: goalsOf('c4'),
+      ppiNote: '', memo: '初回。手の力加減の極端さが強い。',
     },
   },
   {
@@ -139,7 +147,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       copm: copmOf('c6', [[3, 2, 10], [3, 3, 8]], ['連絡帳を私が先生に確認している']),
       ppi: { time: 3, emo: 4, soc: 3, fut: 4, nav: 4 },
       ppiNote: '連絡帳を写せず、毎日私が先生に確認している',
-      memo: '初回。理解は早いが手が追いつかない。姿勢は17cmで崩れる。', goals: goalsOf('c6'),
+      memo: '初回。理解は早いが手が追いつかない。姿勢は17cmで崩れる。',
     },
   },
   {
@@ -154,7 +162,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       wants: ['w16', 'w21'],
       copm: copmOf('c6', [[5, 4, 10], [4, 4, 8]]),
       ppi: { time: 3, emo: 3, soc: 2, fut: 3, nav: 3 },
-      ppiNote: '', memo: '2回目。8.5cm帯へ。じゃんけん「勝つ」まで安定。', goals: goalsOf('c6'),
+      ppiNote: '', memo: '2回目。8.5cm帯へ。じゃんけん「勝つ」まで安定。',
     },
   },
   {
@@ -170,7 +178,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       copm: copmOf('c6', [[7, 7, 10], [5, 5, 8]], ['板書は最後まで写せる日が増えた']),
       ppi: { time: 2, emo: 2, soc: 2, fut: 3, nav: 2 },
       ppiNote: '板書は最後まで写せる日が増えた',
-      memo: '3回目。4・5種目目を開放。あしあとは追従性の帯、信号は反応速度の帯からスタート。', goals: goalsOf('c6'),
+      memo: '3回目。4・5種目目を開放。あしあとは追従性の帯、信号は反応速度の帯からスタート。',
     },
   },
 ];

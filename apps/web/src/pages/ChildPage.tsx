@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import {
-  COPM_MAX,
   EXERCISES,
   GRADES,
   PPI_QUESTIONS,
@@ -96,10 +95,8 @@ export function ChildPage() {
   const [child, setChild] = useState<ChildDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [editingGoals, setEditingGoals] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [childForm, setChildForm] = useState<ChildFormState | null>(null);
-  const [goalsText, setGoalsText] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
@@ -116,7 +113,6 @@ export function ChildPage() {
     const loaded = readChild(response);
     setChild(loaded);
     setChildForm(formFromChild(loaded));
-    setGoalsText(loaded.goals.join('\n'));
   }, [id, session]);
 
   useEffect(() => {
@@ -157,23 +153,6 @@ export function ChildPage() {
       if (typeof assessmentId !== 'string') throw new Error('作成結果を読み込めませんでした。');
       navigate(`/assessments/${assessmentId}`);
     }, 'アセスメントを開始できませんでした。');
-  }
-
-  async function saveGoals() {
-    if (!session || !id || !child) return;
-    const goals = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean);
-    if (goals.length > COPM_MAX) {
-      setActionError(`目標は${COPM_MAX}件以内で入力してください。`);
-      return;
-    }
-    await runAction(async () => {
-      await apiRequest(`/children/${id}`, session, {
-        method: 'PATCH',
-        body: JSON.stringify({ goals }),
-      });
-      await reload();
-      setEditingGoals(false);
-    }, '目標を保存できませんでした。');
   }
 
   async function saveProfile() {
@@ -295,7 +274,6 @@ export function ChildPage() {
   const latestCompleted = completed.at(-1);
   const readOnly = Boolean(child.archivedAt);
   const report = child.latestReport;
-  const goalCount = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean).length;
   const confirmation = confirmAction ? confirmationFor(confirmAction) : null;
   const today = todayInJst();
   const monthsSinceJoined = monthsSinceJoinedOn(child.joinedOn, today);
@@ -445,19 +423,12 @@ export function ChildPage() {
             <div>
               <section className={styles.panel} aria-labelledby="goals-title">
                 <div className={styles.sectionHeader}>
-                  <h2 id="goals-title">今期の目標</h2>
-                  {!readOnly && !editingGoals ? <button className={styles.compactButton} type="button" onClick={() => setEditingGoals(true)}>編集</button> : null}
+                  <div>
+                    <h2 id="goals-title">今期の目標</h2>
+                    <p className={styles.muted}>{latestCompleted ? `第${latestCompleted.seqNo}回アセスメントで設定` : '初回アセスメントで設定'}</p>
+                  </div>
                 </div>
-                {editingGoals ? (
-                  <>
-                    <textarea value={goalsText} onChange={(event) => setGoalsText(event.target.value)} rows={5} aria-label="目標（1行1項目）" />
-                    <small className={goalCount > COPM_MAX ? styles.fieldError : styles.muted}>1行に1件、{COPM_MAX}件まで（現在 {goalCount}件）</small>
-                    <div className={styles.inlineActions}>
-                      <button className={styles.primaryButton} type="button" onClick={() => void saveGoals()} disabled={busy || goalCount > COPM_MAX}>保存</button>
-                      <button className={styles.secondaryButton} type="button" onClick={() => { setGoalsText(child.goals.join('\n')); setEditingGoals(false); }}>キャンセル</button>
-                    </div>
-                  </>
-                ) : child.goals.length ? <div className={styles.goalChips}>{child.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。</p>}
+                {latestCompleted?.goals.length ? <div className={styles.goalChips}>{latestCompleted.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。初回アセスメントで設定してください。</p>}
               </section>
 
               <section className={styles.panel} aria-labelledby="strategy-title">

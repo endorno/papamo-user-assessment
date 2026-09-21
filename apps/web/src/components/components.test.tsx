@@ -87,10 +87,9 @@ describe('共通UI', () => {
       ppi: { time: 1, emo: 1, soc: 1, fut: 1, nav: 1 },
       ppiNote: '',
       memo: '',
-      goals: [],
     };
     const report = reportContentSchema.parse(await new RuleBasedReportGenerator().generate({
-      child: { name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', goals: [] },
+      child: { name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' },
       coach: { displayName: 'さとうコーチ' },
       assessment: { seqNo: 2, assessedOn: '2026-09-01', unlockExt: false, data },
       previous: { seqNo: 1, assessedOn: '2026-06-01', unlockExt: false, data: { ...data, lv: { post: 5, eyeh: 6, hand: 6 } } },

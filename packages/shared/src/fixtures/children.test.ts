@@ -27,7 +27,6 @@ function reportInput(id: string): ReportInput {
       ageHint: child.ageHint,
       ageGroup: child.ageGroup,
       joinedOn: child.joinedOn,
-      goals: child.goals,
     },
     coach: { displayName: 'さとう みき' },
     assessment: {

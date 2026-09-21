@@ -21,7 +21,7 @@ let firstReport: ReportContent;
 
 beforeAll(async () => {
   const generator = new RuleBasedReportGenerator();
-  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedOn: '2026-03-01', goals: [] };
+  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedOn: '2026-03-01' };
   const previous = {
     seqNo: 1,
     assessedOn: '2026-06-01',
@@ -38,7 +38,6 @@ beforeAll(async () => {
       ppi: { time: 3, emo: 3, soc: 2, fut: 4, nav: 3 },
       ppiNote: '',
       memo: '',
-      goals: ['授業中に座っていられるようになる'],
     },
   };
   const common = {
@@ -65,8 +64,7 @@ beforeAll(async () => {
         copm: [{ text: '授業中に座っていられるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
         ppi: { time: 2, emo: 2, soc: 1, fut: 3, nav: 2 },
         ppiNote: '宿題の声かけが負担になっている',
-          memo: '',
-        goals: ['授業中に座っていられるようになる'],
+        memo: '',
       },
     },
     previous,

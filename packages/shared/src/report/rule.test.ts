@@ -18,7 +18,6 @@ const data: CompletedAssessmentData = {
   ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
   ppiNote: '',
   memo: '内部メモ',
-  goals: ['姿勢を安定させる'],
 };
 
 function inputFor(
@@ -32,7 +31,6 @@ function inputFor(
       grade: '小学1年生',
       ageHint: '6〜7歳',
       ageGroup: options.ageGroup ?? 'sch',
-      goals: [],
     },
     coach: { displayName: 'さとうコーチ' },
     assessment: {

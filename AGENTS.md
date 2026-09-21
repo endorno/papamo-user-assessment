@@ -210,6 +210,14 @@ VITE_SUPABASE_ANON_KEY=...   # reference/papamo-lesson-admin/.env.local の同�
 - D1 のバインディング名は `DB`、`database_name` は `papamo-user-assessment`。ローカルは `wrangler dev` が `.wrangler/` 配下に自動で作る。
 - 動作環境：Node 24 / pnpm 10.33 / wrangler 4 で確認。`engines.node` は `>=22`。依存のバージョンは初回 install 時に最新安定版で解決し、**lockfile をコミットする**。
 
+### 4.1 公式リリース前のデータとマイグレーション
+
+- 公式リリースまでは、このリポジトリ専用の local / staging D1 にあるデータは検証用であり、実装やデータモデルを簡潔にできるなら削除・DB再作成・マイグレーション履歴の再構築を選べる。
+- データ互換や移行のために複雑な実装を追加する前に、local / staging D1 のデータを破棄してよいか PdM に確認する。明示的な了承がある場合は、旧データ互換コードを残さず最終形から作り直す。
+- この方針の対象は **本リポジトリ専用のD1だけ**。`reference/papamo-lesson-admin`、lesson-admin が使うDB、Supabase Auth、共有Supabaseプロジェクト、その他の外部サービスのデータは削除・初期化しない。
+- 公式リリース後は適用済みマイグレーションを変更せず追記方式に切り替え、既存データを保持する移行とテストを必須にする。
+- 初期マイグレーションは Drizzle の `meta` を含めてコミットする。Drizzleスキーマで表現できないトリガー等は `drizzle-kit generate --custom` で別マイグレーションにする。
+
 ---
 
 ## 5. データモデル（D1 / Drizzle）
@@ -221,13 +229,13 @@ coaches           id (= supabase sub) PK, email, display_name (null 可 → オ�
 children          id PK, share_code UNIQUE, owner_share_code UNIQUE, created_by → coaches.id,
                   name, honorific ('kun'|'chan'|'san'), gender ('boy'|'girl'|'unspecified'),
                   grade_code ('k0'|'k1'|'k2'|'k3'|'e1'..'e6'|'j1'..'j3'), grade_base_year (int, 年度),
-                  joined_on ('YYYY-MM-DD'), ext_unlocked (bool, default false), goals (JSON string[]),
+                  joined_on ('YYYY-MM-DD'), ext_unlocked (bool, default false),
                   archived_at (null 可 → アーカイブ済み), created_at, updated_at
 child_coaches     child_id, coach_id, role ('owner'|'member'), created_at   PK(child_id, coach_id)
 assessments       id PK, child_id → children.id, seq_no (1,2,3...), status ('draft'|'done'), assessed_on,
                   coach_id → coaches.id, unlock_ext (bool), prev_assessment_id (null 可), master_version,
                   data (JSON: AssessmentData), created_at, updated_at, completed_at (null 可)
-                  UNIQUE(child_id, seq_no) / 部分制約「child_id ごとに draft は1件」はサービス層で保証
+                  UNIQUE(child_id, seq_no) / 部分 UNIQUE INDEX で「child_id ごとに draft は1件」
 reports           id PK, assessment_id UNIQUE → assessments.id, generator ('rule_v1'...),
                   content (JSON: ReportContent), created_at, updated_at
 
@@ -247,13 +255,12 @@ reports           id PK, assessment_id UNIQUE → assessments.id, generator ('ru
   copm: { text, memo, performance, satisfaction, importance }[],  // 最大4、採点は 1..10
   ppi: { time?: number, emo?: number, soc?: number, fut?: number, nav?: number },  // 0..5、未回答は undefined
   ppiNote: string,
-  memo: string,
-  goals: string[]                // 完了時に copm の目標文言からコピーされるスナップショット
+  memo: string
 }
 
 ```
 
-zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。`goals` はクライアントから送らせず、`complete` 時にサーバーが `copm` の目標文言をコピーする（COPM が空なら `children.goals` を使う）。あわせて `children.goals` も COPM の文言で更新し、次の回の初期値にする。
+zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。目標の唯一の保存元はその回の `copm` とし、`children` や `AssessmentData.goals` へ重複保存しない。次の下書きには直前の完了アセスメントの `copm` を初期値としてコピーし、初回は空欄から始める。
 
 設計上の注意
 
@@ -298,7 +305,7 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 
 ```ts
 export interface ReportInput {
-  child: ChildSnapshot;              // 名前・敬称・学年（実施日時点）・ageHint・ageGroup・目標
+  child: ChildSnapshot;              // 名前・敬称・学年（実施日時点）・ageHint・ageGroup
   coach: { displayName: string };    // レポートに出る「担当」
   assessment: CompletedAssessment;   // seq_no, assessed_on, unlock_ext, data
   previous?: CompletedAssessment;    // 直前の完了アセスメント（初回は undefined）
@@ -402,15 +409,15 @@ export interface ReportGenerator {
 | GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）                                                                                                               |
 | PUT    | `/me`                       | `{ displayName }` を更新（1〜30文字）                                                                                                                             |
 | GET    | `/children`                 | 自分に紐づく子ども（作成した子ども＋取り込んだ子ども）の一覧 + 各子どもの状態（§8.3）。**アーカイブ済みは除外**、`?archived=1` でアーカイブ済みのみ。一覧の並び順はサーバーで決める                                                     |
-| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedOn }`（`gender` 省略時は `unspecified`）。目標は空配列で初期化する。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
+| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedOn }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
 | POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、未知のコードは 404 |
-| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
-| PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedOn?, goals? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` は変更不可。**目標の編集はここに集約**（子どもページ・アセスメント画面のどちらから編集しても同じ） |
+| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` を含む）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
+| PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedOn? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` と目標は変更不可 |
 | DELETE | `/children/:id/membership`  | 自分のリンク解除。role=owner なら 403                                                                                                                               |
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
 | POST   | `/children/:id/archive`     | アーカイブ（退会）。owner のみ。下書きが残っていても可（下書きごと隠れる）                                                                                                                 |
 | POST   | `/children/:id/unarchive`   | 復元。owner のみ                                                                                                                                              |
-| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`wants`・`copm` の初期値（前回コピー。初回の `copm` は `children.goals`）はサーバーが埋める。`ext_unlocked` の子どもは `unlockExt` を true に強制 |
+| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`wants`・`copm` の初期値（直前の完了回からコピー。初回の `copm` は空）はサーバーが埋める。`ext_unlocked` の子どもは `unlockExt` を true に強制 |
 | GET    | `/assessments/:id`          | 単体取得（前回の summary を同梱）                                                                                                                                     |
 | PATCH  | `/assessments/:id`          | 自動保存。`{ assessedOn?, unlockExt?, data }` を **全体置換**（部分マージしない）。`ext_unlocked` の子どもは `unlockExt` を true に強制。後続のアセスメントが存在する回は 409                              |
 | DELETE | `/assessments/:id`          | 下書きの破棄。`status='draft'` のときだけ許可（done は 409）。誤って作った下書きを消して前の回の編集に戻るための唯一の手段                                                                               |
@@ -449,7 +456,7 @@ export interface ReportGenerator {
 | `/onboarding`      | 表示名登録        | `displayName` 未登録時のみ。完了後 `/` へ                                                                                          |
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会日（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
-| `/children/:id`    | 子どもページ（ハブ）   | 育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コードの表示、目標の編集。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
+| `/children/:id`    | 子どもページ（ハブ）   | 育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、「未実施／実施不可」ボタン＋Lv1〜上限のグリッド、前回Lvの点線枠、ラダー展開、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
 | `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
 
@@ -466,7 +473,7 @@ export interface ReportGenerator {
 - 印刷用 CSS は `styles/print.css`。`.sheet` を A4 1ページ相当にし `page-break-after: always`（保護者向けレポートは4枚構成）。
 - 文言・順序・色はモックに合わせる。デザイントークンは `:root` 変数をそのまま移植し、フォント（Zen Kaku Gothic New）も同じものを使う。改善案があればコードではなく Issue/PR 説明に書く。
 - 学年・年齢の表示は **「小学1年生（6〜7歳）」** の形（年齢は `ageHint` の参考値。§2.4）。学年は表示のたびに今日の年度で算出するので、4/1 を跨げば自動で上がる。
-- 目標の入力はアセスメント画面の「ご家族・本人の目標」1か所（COPM表、最大4件）。保存先はアセスメントで、完了時にサーバーが目標文言を子ども（`children.goals`）へ同期し、次の回の初期値にする。子どもページからの編集も引き続き `PATCH /children/:id`。
+- 目標の入力・編集はアセスメント画面の「ご家族・本人の目標」1か所（COPM表、最大4件）。保存先はその回の `AssessmentData.copm` だけとし、子どもレコードへ同期しない。子どもページでは直近の**完了**アセスメントの `copm[].text` を保護者・コーチ向けに「目標」として表示し、下書き中の変更は完了するまで反映しない。
 - 事前アンケートの取り込みは「保護者と確認して記入」エリアの頭に置き、**お困りごと・目標・ご家庭のお困り度の3つ**をまとめて入れる。列名の行（`trouble` / `want` / `goal` / `ppi_time`〜`ppi_nav` / `ppi_note`）を含めて貼り付けると各欄へ振り分け、列名が無ければ従来どおり目標として扱う。回答が無かった項目には触らず、コーチの手入力を消さない。
 - レポートのレーダーは大きく出す（1枚目の主役）。「これから加わる種目」は枠ではなく1行の注記に留める。育ちのピラミッドは段ごとに幅を変えて（38 / 56 / 74 / 88 / 100%）実際に三角形に見せる。6か月ロードマップは4本を色分け（現在地=緑 / 3か月後=オレンジ / 6か月後=青 / 目指す未来=ピンク）し、矢印でつなぐ。
 - ご家庭の負担度は **未選択で始める**（モックのスライダー初期値0は使わない）。0〜5 のボタンで選ばせ、未回答が残っていれば下部バーに「あと N 問」を出してレポート作成を止める。
@@ -575,5 +582,77 @@ REPORT_GENERATOR = "rule_v1"
 **将来やるかもしれないこと（初期リリースでは実装しない）**
 
 - **SV引き継ぎ**。判断に迷うケースをスーパーバイザーへ回す導線。フラグだけでは運用されないため、メール／Slack 通知とセットで設計する（§2.3）。
-- **staging 環境**。リリース後、開発物をリリース前に社内で確認して貰う必要が生じたら作成する。
 - レポート生成の LLM 版（§7）。
+
+---
+
+## 15. 実装上の決定事項
+
+この節は、実装時に見落としやすい補足の正とする。別のエージェント向け指示ファイルへ分散させず、この `AGENTS.md` で一元管理する。
+
+### 15.1 UI
+
+- 共通ヘッダー、状態バッジ、共有コード表示、確認ダイアログ、通知は `apps/web/src/components` の共通部品を使う。
+- 認証後の画面は `App.tsx` の `AuthenticatedLayout` の下に置く。`/me` はここで1回だけ取得し `MeContext` で配る。画面ごとに取り直さない。読み込み中は `PageSkeleton` を出し、ヘッダーが消えないようにする。
+- 画面の切り替えでスクロール位置を先頭に戻す（`ScrollToTop`）。ページ内ジャンプは `pathname` が変わらないので対象外。
+- 操作の結果は `ToastProvider` の通知で伝える。通知はレイアウトに置くため、`showToast` してから `navigate` すれば遷移先でも残る。取り消せる操作にはアクションを1つ添える。
+- `ConfirmDialog` の `tone` は、取り消せない操作が `danger`（初期フォーカスはキャンセル）、確認だけの操作が `primary`（初期フォーカスは確定）。判断材料は `detail`、3つ目の選択肢は `secondary` に渡す。
+- 未保存の入力がある画面は `UnsavedChangesContext` にガードを登録する。ヘッダーのリンクは `GuardedLink` を通し、「保存して移動／保存せずに移動／入力に戻る」を選ばせる。「保存せずに移動」を選んだときは離脱時の自動送信もしない（`discard`）。
+- 子ども一覧は「初回アセスメント未実施」「まずやること」「次の予定まで余裕あり」に分け、下書きがある場合は新規作成ではなく既存下書きへの導線を出す。カードのクリックは常に子どもページへ行き、入力中の回があるときだけ「入力を続ける」ボタンをカードに添えてその回へ直接飛ばす。8名以上で名前のしぼり込みを出す。
+- 子ども登録は名前・敬称・性別・学年・入会日だけにし、完了画面や共有コード表示を挟まず一覧へ戻す。「続けて登録」は遷移後の通知から選べる。アセスメント未作成の子どもは一覧最上段の専用セクションにまとめる。
+- 性別（男の子／女の子／選ばない）と敬称（くん／ちゃん／さん）は連動させない。どちらも独立して選ばせる。敬称の「なし」は廃止済みで、旧値がある場合は「さん」へ寄せる。
+- 目標は「ご家族・本人の目標」セクション1か所で入力する。できるようになりたいこと（最大4）を選ぶと、空いている COPM 行へ「〜たい」を言い切りに直した仮の文言を入れる。COPM は目標文言・メモ・遂行度・満足度・親御さんの重要度（1〜10）を回ごとに保存する。採点欄のラベルと並びは `COPM_FIELDS` から出し、画面側に重複定義しない。初回だけ「入会アンケートから取り込む」を表示し、目標セルをタブ・改行で分割して最大4件まで COPM 行へ入れる。専用の保存ボタンは置かず自動保存する。
+- 到達レベルは「未実施」「実施不可」を独立したボタンにし、その下に Lv1〜種目ごとの上限（現在はすべて30）のグリッドを置く。未入力とは別物で、未入力が残っているとレポートを作れない。
+- 「見えた動作」は種目ごとの選択肢チップと自由記入欄の2段にする。自由記入には選択肢に当てはまらない動きだけを書いてもらう。
+- 取り組みの発達（4軸×5段階のセレクト）と環境調整（4グループ×5項目のチェック）は任意入力とし、レポート作成の必須条件にしない。
+- 一覧カードの状態バッジは名前・学年と同じ行に置かない。日本語の学年表記と並べると300px幅のカードで重なるため、独立した行にする。次回予定のバッジは年を省く（例「次回 12月12日 予定」）。
+- アセスメントは1ビューを維持し、ボタン・チェックは800ms、文字入力は1500msのデバウンスで自動保存する。保存中に変更された場合は古いレスポンスでフォームを戻さず、最新版を続けて保存する。
+- レーダーは全軸を 0〜30 の等間隔（10刻みのリングと数値）で描く。モックの指数スケール（1.55）は使わない。Lvの差がそのまま長さの差になるようにし、未実施・実施不可は中心（0）に寄せ、未開放の種目だけ軸ラベルの下に「半年目以降」を出す。
+- 入力は「その場で観察して記入」と「保護者と確認して記入」の2エリアにゆるく分ける。運動観察中に保護者へ聞くこともあるため、破線と淡い地色だけにとどめ、操作やナビは分けない。
+- 事前アンケートの取り込みは「保護者と確認して記入」エリアの頭に1つだけ置く。取り込み先はお困りごと・目標・ご家庭のお困り度で、回答が無かった項目には触らず、コーチの手入力を消さない。
+- 3か月の運動計画（テンプレート選択）は廃止済み。コーチ所見メモは内部用として残す。
+- アセスメント下部バーの不足項目は該当セクションへのリンクにする。4・5種目目の開放操作は、子どもが未開放かつ下書きのアセスメント画面だけに置く。下書き中に閉じた場合は `sacc` / `inhi` の入力も落とす。
+- レポートは `.sheet` 4枚で構成し（現在地と強み／お困りごととその理由／6か月ロードマップ／これから一緒に見ていくこと）、コーチ向けの所見・見えた動作・運動計画は出力しない。レーダーは1枚目の主役として大きく置き、「これから加わる種目」は1行の注記に留め、育ちのピラミッドは段ごとに幅を変え、6か月ロードマップは4本を色分けして矢印でつなぐ。未開放かつ次回予定日が入会6か月後以降なら、4枚目のタイムラインに4・5種目目の追加目安を表示する。
+- レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。
+- モーションは `global.css` の `--dur-fast` / `--dur` / `--ease` を使い、`prefers-reduced-motion: reduce` で遷移とスムーススクロールを止める。
+
+### 15.2 API とデータ
+
+- API のリクエスト・レスポンスは `packages/shared/src/schema` の zod スキーマで API と Web の両側から検証する。
+- 目標の正は各アセスメントの `data.copm`。`children` と `AssessmentData` に別の `goals` 保存欄を作らない。子ども詳細レスポンスの完了アセスメント summary にだけ、`copm[].text` から導出した表示用 `goals` を返す。下書き summary の `goals` は空にする。
+- 子ども詳細の目標は直接編集しない。目標の変更はアセスメント画面の COPM で行い、完了後に子ども詳細へ反映する。
+- 困りごとの各項目は `domain` を持ち、レポートの背景ドメイン照合に使う。就学／未就学の統合が決まるまでは文言を据え置き、未就学セットの紐づけは `tuning` に出す。
+- 子ども一覧が読むアセスメントは「入力中の回」と「直近の完了回」だけに絞り、過去の全記録やアーカイブ済みの記録を読まない。一覧の並び順は 状態 → 期限超過が大きい順 → 名前。`latestAssessment.id` を返す。
+- レポート応答には本文とは別に `childId` と `assessmentId` を載せ、レポート画面から子どもページへ戻るために使う。
+- 409 は「他コーチの更新」「アーカイブ中」「後続の回あり」で共通。Web は文言ではなく `error.code` で判定する。401 は `apiRequest` が拾ってサインアウトし、中断画面は `sessionStorage` に記録して再ログイン後に戻す。
+- 存在する子ども・アセスメントに membership がない場合は403、ID自体が存在しない場合は404を返す。
+- 子ども一覧と子ども詳細では、アセスメント・レポートを1件ずつ取得せず一括取得する。
+- `ReportContent.header.joinedOn` は既存レポートとの互換性のため optional。新しく生成するレポートには必ず入会日を含める。
+- 外部キー、列の値域、子どもごとの単一owner・単一下書きはD1制約でも保証する。サービス層の事前確認は分かりやすいエラー表示のために残す。
+- アセスメント更新は内部の `revision` と `mutation_id` でCASを行う。`updatedAt` はクライアント向けの競合検知契約として維持する。
+- 完了済みアセスメントの自動保存では、完了用検証・レポート再生成・アセスメント更新を同じD1 batchで行う。`reports.assessment_revision` はアセスメントのrevisionと一致させる。
+- 子どもの完全削除はオーナーかつ最初のレポート作成前だけ許可する。D1 batch 内でレポートのないアセスメントを先に削除し、子ども削除を続ける。競合時は外部キーで batch 全体をロールバックし、`child_coaches` は `ON DELETE CASCADE` で削除する。
+- 共有先で開いている間に子どもが完全削除され、子ども・アセスメントAPIが `not_found` を返した場合、Webは端末下書きを破棄して担当一覧へ戻す。
+- Drizzle のクライアントは `apps/api/src/db/client.ts` の `dbFor` だけを使う。サービスごとに `drizzle()` を作らない。
+- `children` 行から学年を読むときは `apps/api/src/services/child-row.ts` の `gradeOf` を通す。
+- 「その回で記録する種目」は `activeExerciseKeys(unlockExt)`、「4・5種目目を閉じたときの入力整理」は `withoutExtExerciseInput(data, unlockExt)` を使い、API と Web で共有する。
+- `AssessmentServiceError` はコードに対応するHTTPステータスを自分で持つ。WorkersのBinding型は `wrangler types` で生成し、手書きしない。
+- 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。
+- 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
+- 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
+- 非本番リセット（`pnpm --filter @papamo/api db:reset:local` / `db:reset:staging`）はコーチ行も含めて本リポジトリのD1全テーブルを空にし、マイグレーション直後の状態に戻す。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
+- 開発用の一括削除（`DELETE /dev-tools/children`）は担当一覧を空にする操作。自分がオーナーの子どもはアーカイブ中も含めてアセスメント・レポートごと消し、他コーチがオーナーの子どもは自分の担当紐づきだけを消す。`prev_assessment_id` は `RESTRICT` なので、先に参照を `NULL` にしてから回をまとめて消す。
+- コーチID管理は lesson-admin の責務。画面の文言でも「コーチ管理サイト」ではなく「メニュー構築サイト」と書く。
+- staging でもアプリ内の許可リストは持たず、lesson-admin と共用する Supabase Auth のユーザーを受け入れる。service role、Admin Auth API、コーチなりすましは導入しない。
+- staging の公開先は `user-assessment-staging.heyasupo-lab.com`。`papamo-user-assessment-staging` Worker と APAC 配置の専用D1を使い、lesson-admin の staging Supabase を共用する。デプロイはGit連携せず `pnpm run deploy:staging` で手動実行し、D1マイグレーションを先に適用する。
+- 共有・オーナー移譲の確認には2つの実Googleテストアカウントを別ブラウザプロファイルで使う。背景コーチはログイン用途に使わない。
+- サンプル10名の内訳は長期6（完了6回）、短期2（完了1〜2回）、新規2（空または下書き）で固定する。Webからの生成リクエストは最大3並列とし、途中失敗した分を隠さない。
+
+### 15.3 テスト
+
+- 承認モックの6人分の子どもとアセスメントは `packages/shared/src/fixtures/children.ts` を使う。
+- Web の画面テストは `apps/web/src/test-utils.tsx` の `renderWithProviders` を使い、本番と同じ順でプロバイダを重ねる。
+- API 結合テストでは `createAuthMiddleware` にテスト鍵の検証関数を注入し、本番の JWKS 検証は差し替えない。
+- 変更後は `pnpm -r lint && pnpm -r typecheck && pnpm -r test && pnpm -r build` を実行する。
+- 公式リリース前にマイグレーション履歴を再構築した場合は、空DBから最終スキーマ・インデックス・トリガーを構築できることをテストする。公式リリース後のDB変更は、既存データを保持する移行テストも追加する。
+- D1マイグレーションはルートの `db:migrate:local` / `db:migrate:staging` / `db:migrate:production` を使い、リモート適用前に `wrangler.toml` の対象D1 IDを確認する。

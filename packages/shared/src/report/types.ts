@@ -8,7 +8,6 @@ export interface ChildSnapshot {
   ageHint: string;
   ageGroup: AgeGroup;
   joinedOn?: string;
-  goals: string[];
 }
 
 export interface CompletedAssessment {
@@ -164,4 +163,3 @@ export interface ReportGenerator {
   readonly id: string;
   generate(input: ReportInput): Promise<ReportContent>;
 }
-

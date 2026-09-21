@@ -154,13 +154,12 @@ describe('API ルート結合', () => {
 
     const completedDetailResponse = await request(client, `/assessments/${created.id}`);
     const completedDetail = assessmentResponseSchema.parse(await completedDetailResponse.json()).assessment;
-    const { goals: _completedGoals, ...editableCompleted } = completedDetail.data;
     const completedPatchResponse = await request(client, `/assessments/${created.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         data: {
-          ...editableCompleted,
-          lv: { ...editableCompleted.lv, post: 10 },
+          ...completedDetail.data,
+          lv: { ...completedDetail.data.lv, post: 10 },
         },
         updatedAt: completedDetail.updatedAt,
       }),
@@ -194,7 +193,7 @@ describe('API ルート結合', () => {
     });
     expect(createResponse.status).toBe(201);
     const child = childResponseSchema.parse(await createResponse.json()).child;
-    expect(child).toMatchObject({ honorific: 'kun', gender: 'girl', goals: [] });
+    expect(child).toMatchObject({ honorific: 'kun', gender: 'girl' });
 
     expect((await request(member, '/children/import', {
       method: 'POST',
@@ -289,7 +288,6 @@ describe('API ルート結合', () => {
         honorific: 'san',
         gradeCode: 'e1',
         joinedOn: '2026-02-30',
-        goals: [],
       }),
     });
     expect(invalidChild.status).toBe(400);

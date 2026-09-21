@@ -4,12 +4,9 @@ import {
   activeExerciseKeys,
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
-  migrateAssessmentData,
   parseStoredAssessmentData,
   parseStoredCompletedData,
   withoutExtExerciseInput,
-  COPM_MAX,
-  COPM_SCORE_DEFAULT,
   MASTER_VERSION,
   PPI_QUESTIONS,
   reportContentSchema,
@@ -24,7 +21,7 @@ import {
 import { dbFor, type Db } from '../db/client';
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
 import { isUniqueConstraintError } from '../db/errors';
-import { gradeOf, parseGoals } from './child-row';
+import { gradeOf } from './child-row';
 import type { CoachRecord, Env } from '../env';
 import { generateReport } from './report';
 
@@ -143,19 +140,10 @@ function writableMutationCondition(
 function initialData(
   previous: CompletedAssessmentData | null,
   ageGroup: 'pre' | 'sch',
-  childGoals: string[],
 ): AssessmentData {
   const validTroubles = new Set(troubleItemsOf(ageGroup));
-  // 目標は前回の COPM を引き継ぐ。初回は子どもに登録済みの目標を初期値にする。
-  const copm = previous?.copm.length
-    ? previous.copm.map((goal) => ({ ...goal }))
-    : childGoals.slice(0, COPM_MAX).map((text) => ({
-        text,
-        memo: '',
-        performance: COPM_SCORE_DEFAULT,
-        satisfaction: COPM_SCORE_DEFAULT,
-        importance: COPM_SCORE_DEFAULT,
-      }));
+  // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
+  const copm = previous?.copm.map((goal) => ({ ...goal })) ?? [];
   return {
     lv: {},
     observations: {},
@@ -168,7 +156,6 @@ function initialData(
     ppi: {},
     ppiNote: '',
     memo: '',
-    goals: [],
   };
 }
 
@@ -201,7 +188,6 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
     data: JSON.stringify(initialData(
       previous ? parseCompletedData(previous.data) : null,
       gradeOf(child, today).ageGroup,
-      parseGoals(child.goals),
     )),
     revision: 1,
     mutationId: id,
@@ -268,7 +254,6 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
       honorific: child.honorific as Honorific,
       archivedAt: child.archivedAt,
       extUnlocked: child.extUnlocked,
-      goals: parseGoals(child.goals),
       ageGroup: gradeOf(child, assessment.assessedOn).ageGroup,
     },
   };
@@ -295,9 +280,8 @@ export async function patchAssessment(
   const child = await ensureWritable(env, assessment, coachId);
   if (assessment.updatedAt !== input.updatedAt) throw concurrentUpdateError();
   const nextUnlock = nextUnlockExt(child, assessment, input.unlockExt);
-  // 目標（goals）はCOPM表から作る列なので、下書きの保存では常に空で持つ。
   const draftData = withoutExtExerciseInput(
-    assessmentDataDraftSchema.parse({ ...input.data, goals: [] }),
+    assessmentDataDraftSchema.parse(input.data),
     nextUnlock,
   );
   const updatedAt = nextUpdatedAt(assessment.updatedAt);
@@ -305,12 +289,7 @@ export async function patchAssessment(
   const db = dbFor(env);
 
   if (assessment.status === 'done') {
-    const existingData = parseCompletedData(assessment.data);
-    const completedDataResult = assessmentDataCompletedSchema.safeParse({
-      ...draftData,
-      // 目標の正はCOPM表。完了済みの回を編集したときもここから取り直す。
-      goals: goalTextsOf(draftData, existingData.goals),
-    });
+    const completedDataResult = assessmentDataCompletedSchema.safeParse(draftData);
     if (!completedDataResult.success) {
       throw new AssessmentServiceError('validation', '完了済みの記録に必要な入力をすべて残してください。');
     }
@@ -370,11 +349,6 @@ export async function deleteAssessment(env: Env, assessmentId: string, coachId: 
     eq(assessments.status, 'draft'),
   )).run();
   if (affectedRows(result) !== 1) throw concurrentUpdateError();
-}
-
-/** レポートに載せる目標。COPM表が空なら子どもに登録済みの目標を使う。 */
-function goalTextsOf(data: AssessmentData, fallback: string[]): string[] {
-  return data.copm.length ? data.copm.map((goal) => goal.text) : fallback;
 }
 
 function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
@@ -486,11 +460,9 @@ async function persistCompletedAssessment(input: {
     content: JSON.stringify(input.report),
     updatedAt: input.updatedAt,
   });
-  // 4・5種目目の開放と、COPMで整理した目標を子どもへ反映する。
-  const goalsJson = JSON.stringify(input.data.goals);
+  // 4・5種目目の開放だけを子どもへ反映する。
   const childChanges = {
     ...(input.unlockExt && !input.child.extUnlocked ? { extUnlocked: true } : {}),
-    ...(goalsJson === input.child.goals ? {} : { goals: goalsJson }),
   };
   const childUpdate = db.update(children).set({
     ...childChanges,
@@ -516,14 +488,10 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   const assessment = await assessmentOrThrow(env, assessmentId);
   const child = await ensureWritable(env, assessment, coach.id);
   if (expectedUpdatedAt && expectedUpdatedAt !== assessment.updatedAt) throw concurrentUpdateError();
-  const draftData = assessmentDataDraftSchema.safeParse(migrateAssessmentData(JSON.parse(assessment.data)));
+  const draftData = assessmentDataDraftSchema.safeParse(JSON.parse(assessment.data));
   if (!draftData.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const unlockExt = child.extUnlocked || assessment.unlockExt;
-  const completedData = {
-    ...draftData.data,
-    goals: goalTextsOf(draftData.data, parseGoals(child.goals)),
-  };
-  const data = assessmentDataCompletedSchema.safeParse(completedData);
+  const data = assessmentDataCompletedSchema.safeParse(draftData.data);
   if (!data.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   assertCompletable(data.data, unlockExt, gradeOf(child, assessment.assessedOn).ageGroup);
 
