@@ -16,7 +16,6 @@ function environment(overrides: Partial<Env> = {}): Env {
     ASSETS: testEnv.ASSETS,
     APP_ENV: 'production',
     NON_PRODUCTION_TOOLS_ENABLED: 'false',
-    STAGING_ALLOWED_EMAILS: '',
     ...overrides,
   };
 }
@@ -52,32 +51,17 @@ describe('開発用データAPI', () => {
     });
   });
 
-  it('ステージングは許可メール以外を403にする', async () => {
+  it('ステージングはSupabase Authで認証済みのコーチを通す', async () => {
     const id = crypto.randomUUID();
-    const api = client(id, 'denied@example.com');
-    const response = await request(api, environment({
-      APP_ENV: 'staging',
-      STAGING_ALLOWED_EMAILS: 'allowed@example.com',
-    }), '/me');
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
-      error: { code: 'forbidden', message: 'このアカウントはステージング環境を利用できません。' },
-    });
-  });
-
-  it('ステージングは許可メールを大文字・小文字を区別せず通す', async () => {
-    const id = crypto.randomUUID();
-    const api = client(id, 'allowed@example.com');
+    const api = client(id, 'coach@example.com');
     const currentEnv = environment({
       APP_ENV: 'staging',
       NON_PRODUCTION_TOOLS_ENABLED: 'true',
-      STAGING_ALLOWED_EMAILS: 'OTHER@example.com, ALLOWED@EXAMPLE.COM',
     });
 
     const onboardResponse = await request(api, currentEnv, '/me', {
       method: 'PUT',
-      body: JSON.stringify({ displayName: '許可済みコーチ' }),
+      body: JSON.stringify({ displayName: 'ステージングコーチ' }),
     });
     expect(onboardResponse.status).toBe(200);
 

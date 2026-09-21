@@ -81,18 +81,26 @@ pnpm --filter @papamo/api db:seed:local
 
 ### ステージング環境
 
-ステージングは本番とは別のWorker、D1、Supabaseプロジェクトを使います。`apps/api/wrangler.toml` の `env.staging` にあるD1 IDとSupabase URLのプレースホルダーを、作成したステージング資源の値へ置き換えてください。許可するGoogleアカウントはカンマ区切りでWorker Secretへ登録します。
+ステージングは本番とは別の Worker・D1 を使い、Supabase は lesson-admin のステージングプロジェクトを共用します。公開 URL は `https://user-assessment-staging.heyasupo-lab.com` です。
+
+最初に `apps/web/.env.staging.example` を `apps/web/.env.staging.local` へコピーし、lesson-admin の `.env.staging.local` と同じ `VITE_SUPABASE_ANON_KEY`（`sb_publishable_...`）を設定してください。`.env.staging.local` は Git 管理されません。service role / secret key は本ツールでは使用しません。
 
 ```bash
-pnpm --filter @papamo/api exec wrangler secret put STAGING_ALLOWED_EMAILS --env staging
 pnpm db:migrate:staging
-pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
-pnpm --filter @papamo/api exec wrangler deploy --env staging
+pnpm run deploy:staging
 ```
 
-本番D1のマイグレーションはデプロイ前に `pnpm db:migrate:production` で適用します。ステージング・本番とも、実行前に `apps/api/wrangler.toml` の対象D1 IDが実値になっていることを確認してください。
+必要な場合だけ、デプロイ後にステージングのサンプルデータを初期化します。このコマンドは子ども・担当紐づき・アセスメント・レポートを削除するため、確認文字列を必須にしています。
 
-許可リストはメールアドレスの大文字・小文字を区別しません。ステージングで値が空、またはログインメールが含まれない場合は403として拒否します。ステージングのシードも子ども関連データを全削除し、実コーチの表示名を保ったまま背景コーチ15名を再作成します。
+```bash
+pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
+```
+
+`deploy:staging` は shared・web・api をビルドしてから `wrangler deploy --env staging` を実行します。D1 マイグレーションは自動実行しないため、DB 変更があるときは先に `pnpm db:migrate:staging` を実行してください。Google OAuth と Supabase の設定を含む初回手順は `docs/staging-deployment.md` を参照してください。
+
+本番D1のマイグレーションはデプロイ前に `pnpm db:migrate:production` で適用します。ステージング・本番とも、実行前に `apps/api/wrangler.toml` の対象D1 IDを確認してください。
+
+ステージングでもアプリ内のメールアドレス許可リストは持たず、共用する Supabase Auth でログインできるユーザーを受け入れます。ステージングのシードは子ども関連データを全削除し、実コーチの表示名を保ったまま背景コーチ15名を再作成します。
 
 本番は `APP_ENV=production` かつ `NON_PRODUCTION_TOOLS_ENABLED=false` です。開発用UIは表示されず、認証済みで開発用APIを呼んでも404を返します。環境名と有効化フラグの両方を満たさない限り、生成機能は有効になりません。
 

@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @papamo/api --filter @papamo/web run dev",
     "build": "pnpm -r build",
+    "build:staging": "pnpm --filter @papamo/shared build && pnpm --filter @papamo/web build:staging && pnpm --filter @papamo/api build",
+    "deploy:staging": "pnpm run build:staging && pnpm --filter @papamo/api exec wrangler deploy --env staging",
     "test": "pnpm -r test",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
