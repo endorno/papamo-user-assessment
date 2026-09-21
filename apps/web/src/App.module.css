@@ -142,14 +142,9 @@
   text-transform: uppercase;
 }
 
-.importPanel > .error,
-.importPanel > .success {
+.importPanel > .error {
   grid-column: 1 / -1;
   margin: -10px 0 0;
-}
-
-.success {
-  color: var(--green-ink) !important;
 }
 
 .error,

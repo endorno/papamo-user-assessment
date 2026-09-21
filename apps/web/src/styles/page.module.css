@@ -109,8 +109,7 @@
   color: var(--red) !important;
 }
 
-.formError,
-.formSuccess {
+.formError {
   margin: 16px 0 0;
   padding: 10px 12px;
   border-radius: var(--r);
@@ -118,11 +117,6 @@
 
 .formError {
   background: var(--red-soft);
-}
-
-.formSuccess {
-  background: var(--green-soft);
-  color: var(--green-ink);
 }
 
 .formActions {
@@ -433,13 +427,6 @@
   font-weight: 700;
 }
 
-.compactActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .goalChips {
   display: flex;
   flex-wrap: wrap;
@@ -516,20 +503,6 @@
 
 .watch b {
   color: var(--orange-ink);
-}
-
-.planBox {
-  margin-top: 14px;
-  padding: 13px 14px;
-  border-radius: 12px;
-  background: var(--green-soft);
-  color: var(--green-ink);
-}
-
-.planBox ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  font-size: 0.82rem;
 }
 
 .coachMemo {
@@ -724,16 +697,6 @@
   background: var(--paper);
   color: var(--ink2);
   font-size: 0.82rem;
-}
-
-.goalsEditor {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line2);
-}
-
-.goalsEditor textarea {
-  margin-top: 10px;
 }
 
 .unlockInfo {
@@ -1003,64 +966,6 @@
   margin-top: 3px;
 }
 
-.planOptions {
-  display: grid;
-  gap: 8px;
-  margin: 14px 0 0;
-  padding: 0;
-  border: 0;
-}
-
-.planOptions > legend {
-  margin-bottom: 7px;
-  color: var(--ink2);
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.planOptions label {
-  display: flex;
-  min-height: 60px;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 11px 13px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  cursor: pointer;
-}
-
-.planOptions input {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  margin-top: 2px;
-  accent-color: var(--green);
-}
-
-.planOptions span,
-.planOptions small,
-.planOptions em {
-  display: block;
-}
-
-.planOptions small {
-  color: var(--green-ink);
-  font-size: 0.75rem;
-}
-
-.planOptions em {
-  margin-top: 2px;
-  color: var(--mute);
-  font-size: 0.75rem;
-  font-style: normal;
-}
-
-.planOptions .planSelected {
-  border-color: var(--green);
-  background: var(--green-soft);
-}
-
 .assessmentDock {
   position: fixed;
   right: 0;
@@ -1113,7 +1018,6 @@
 .ladderList button:focus-visible,
 .errorChip:focus-visible,
 .errorChipSelected:focus-visible,
-.planOptions input:focus-visible,
 .unlockChoice input:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -1152,48 +1056,6 @@
   text-wrap: pretty;
 }
 
-.upcoming {
-  margin-top: 20px;
-  padding: 14px 16px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r);
-  background: var(--paper);
-}
-
-.changeGrid {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.changeGrid > div {
-  display: grid;
-  gap: 6px;
-}
-
-.pill {
-  display: inline-block;
-  width: fit-content;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--green-soft);
-  color: var(--green-ink);
-  font-size: 0.85rem;
-}
-
-.backLink {
-  color: var(--green);
-  font-weight: 700;
-}
-
-.pageHeader {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  margin: 28px 0 20px;
-}
-
 .headerActions {
   display: flex;
   align-items: flex-end;
@@ -1214,26 +1076,6 @@
 
 .sectionHeader p {
   margin: 4px 0 0;
-}
-
-.checkLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ink2);
-  font-size: 0.9rem;
-}
-
-.checkLabel input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--green);
-}
-
-.pageHeader h1 {
-  margin: 0;
-  font-size: 1.8rem;
-  text-wrap: balance;
 }
 
 .eyebrow {
@@ -1258,10 +1100,6 @@
 .panel h2 {
   margin: 0;
   font-size: 1.1rem;
-}
-
-.measurement {
-  margin-top: 20px;
 }
 
 .lvGrid,
@@ -1294,15 +1132,6 @@
 .lvButtonSelected:focus-visible {
   outline: 3px solid #9ccfc2;
   outline-offset: 2px;
-}
-
-.ppiRow {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(240px, 360px);
-  align-items: center;
-  gap: 16px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--line2);
 }
 
 .panel textarea,
@@ -1403,8 +1232,7 @@
 
 .primaryButton:focus-visible,
 .dangerButton:focus-visible,
-.secondaryButton:focus-visible,
-.backLink:focus-visible {
+.secondaryButton:focus-visible {
   outline: 3px solid #9ccfc2;
   outline-offset: 2px;
 }
@@ -1552,54 +1380,6 @@
   margin-top: 14px;
 }
 
-.levelSummary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.levelSummary > div {
-  display: grid;
-  gap: 2px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  background: var(--paper);
-  text-align: center;
-}
-
-.levelSummary span,
-.levelSummary small {
-  color: var(--mute);
-  font-size: 0.75rem;
-}
-
-.levelSummary strong {
-  color: var(--green-ink);
-}
-
-.ppiSummary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.ppiSummary span {
-  display: grid;
-  min-width: 48px;
-  padding: 6px 9px;
-  border-radius: var(--r);
-  background: var(--paper);
-  text-align: center;
-}
-
-.ppiSummary small {
-  color: var(--mute);
-  font-size: 0.72rem;
-}
-
 .strategyCard {
   padding: 14px;
   border: 1px solid var(--line);
@@ -1681,15 +1461,6 @@
 }
 
 @media (max-width: 640px) {
-  .pageHeader {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .ppiRow {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
 
   .headerActions {
     align-items: stretch;
@@ -1697,10 +1468,6 @@
 
   .strategyList {
     grid-template-columns: 1fr;
-  }
-
-  .levelSummary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .assessmentTimeline li {
@@ -1973,8 +1740,7 @@
 }
 
 .levelTable td small,
-.reportBox li small,
-.upcomingBox small {
+.reportBox li small {
   display: block;
   color: var(--mute);
   font-size: 0.7rem;
@@ -2058,24 +1824,6 @@
 .reportBoxOrange {
   border-color: #f1cdae;
   background: var(--orange-soft);
-}
-
-.reportBoxViolet {
-  border-color: #c4b7e6;
-  background: var(--violet-soft);
-  color: var(--violet-ink);
-}
-
-.upcomingBox {
-  margin-top: 16px;
-}
-
-.upcomingBox > p {
-  margin-top: 5px;
-}
-
-.upcomingBox .reportTwoColumns {
-  margin-top: 10px;
 }
 
 .troublePills {
@@ -2300,7 +2048,6 @@
 .lvButtonSelected,
 .errorChip,
 .errorChipSelected,
-.planOptions label,
 .troubleOption,
 .jumpNav a,
 .ladderDetails > summary {
@@ -2310,8 +2057,7 @@
     color var(--dur-fast) var(--ease);
 }
 
-.troubleOption:hover,
-.planOptions label:hover {
+.troubleOption:hover {
   background: var(--green-soft);
 }
 

@@ -37,7 +37,6 @@ export const WANT_ITEMS = [
   axis: ExerciseKey;
 }[];
 
-export type WantId = (typeof WANT_ITEMS)[number]['id'];
 export type WantItem = (typeof WANT_ITEMS)[number];
 
 export const WANT_GROUPS = ['運動', '学習', '生活', '気持ち・対人'] as const;
@@ -84,5 +83,3 @@ export const COPM_MAX = 4;
 export const COPM_SCORE_MIN = 1;
 export const COPM_SCORE_MAX = 10;
 export const COPM_SCORE_DEFAULT = 5;
-/** 3か月後の再採点で「意味のある変化」とみなす差。 */
-export const COPM_MEANINGFUL_DELTA = 2;

@@ -5,8 +5,6 @@ export const apiHealthResponseSchema = z.object({
   service: z.literal('api'),
 });
 
-export type ApiHealthResponse = z.infer<typeof apiHealthResponseSchema>;
-
 export const displayNameSchema = z
   .string()
   .trim()
@@ -23,7 +21,6 @@ export const meResponseSchema = z.object({
   displayName: displayNameSchema.nullable(),
 });
 
-export type UpdateMeRequest = z.infer<typeof updateMeRequestSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
 export * from './domain';

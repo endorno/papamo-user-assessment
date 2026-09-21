@@ -15,12 +15,3 @@ export const GRADES = [
 ] as const;
 
 export type GradeCode = (typeof GRADES)[number]['code'];
-export type GradeDefinition = (typeof GRADES)[number];
-
-export function gradeByCode(code: GradeCode): GradeDefinition {
-  const grade = GRADES.find((candidate) => candidate.code === code);
-  if (!grade) {
-    throw new Error(`未知の学年: ${code}`);
-  }
-  return grade;
-}

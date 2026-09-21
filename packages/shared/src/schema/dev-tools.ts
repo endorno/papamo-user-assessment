@@ -29,9 +29,6 @@ export const childrenClearResponseSchema = z.object({
   unlinked: z.number().int().nonnegative(),
 });
 
-export type NonProductionEnv = z.infer<typeof nonProductionEnvSchema>;
 export type SampleDataProfile = z.infer<typeof sampleDataProfileSchema>;
 export type SampleDataStatusResponse = z.infer<typeof sampleDataStatusResponseSchema>;
-export type SampleChildCreateRequest = z.infer<typeof sampleChildCreateRequestSchema>;
-export type SampleChildCreateResponse = z.infer<typeof sampleChildCreateResponseSchema>;
 export type ChildrenClearResponse = z.infer<typeof childrenClearResponseSchema>;

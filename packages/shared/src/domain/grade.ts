@@ -1,4 +1,4 @@
-import { gradeByCode, GRADES, type GradeCode } from '../master/grades';
+import { GRADES, type GradeCode } from '../master/grades';
 import { schoolYear } from './date';
 
 export interface GradeSnapshot {
@@ -34,6 +34,3 @@ export function gradeAt(
   return { ...grade, graduated: false };
 }
 
-export function ageGroupForGrade(code: GradeCode): 'pre' | 'sch' {
-  return gradeByCode(code).ageGroup;
-}

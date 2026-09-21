@@ -64,7 +64,6 @@ export const TROUBLE_CATEGORIES = {
 } as const;
 
 export type AgeGroup = keyof typeof TROUBLE_CATEGORIES;
-export type TroubleCategory = (typeof TROUBLE_CATEGORIES)[AgeGroup][number];
 
 export function troubleItemsOf(ageGroup: AgeGroup): string[] {
   return TROUBLE_CATEGORIES[ageGroup].flatMap((category) => category.items.map((item) => item.text));

@@ -55,7 +55,6 @@ export const ENGAGEMENT_AXES = [
 ] as const;
 
 export type EngagementKey = (typeof ENGAGEMENT_AXES)[number]['key'];
-export type EngagementAnswers = Partial<Record<EngagementKey, number>>;
 
 export const ENGAGEMENT_LEVEL_COUNT = 5;
 
@@ -107,13 +106,7 @@ export const ENVIRONMENT_SUPPORT_GROUPS = [
   },
 ] as const;
 
-export type EnvironmentSupportKey =
-  (typeof ENVIRONMENT_SUPPORT_GROUPS)[number]['items'][number]['key'];
-
 export const ENVIRONMENT_SUPPORT_ITEMS = ENVIRONMENT_SUPPORT_GROUPS.flatMap((group) => (
   group.items.map((item) => ({ ...item, group: group.group }))
 ));
 
-export function environmentSupportByKey(key: string) {
-  return ENVIRONMENT_SUPPORT_ITEMS.find((item) => item.key === key) ?? null;
-}

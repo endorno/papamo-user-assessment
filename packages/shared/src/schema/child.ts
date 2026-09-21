@@ -93,5 +93,4 @@ export const childImportResponseSchema = childDetailResponseSchema.extend({
 });
 
 export type ChildView = z.infer<typeof childViewSchema>;
-export type ChildAssessmentSummary = z.infer<typeof childAssessmentSummarySchema>;
 export type ChildDetail = z.infer<typeof childDetailSchema>;

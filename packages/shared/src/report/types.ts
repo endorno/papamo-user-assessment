@@ -1,5 +1,5 @@
 import type { AgeGroup, EngagementKey, ExerciseKey, PpiKey, TuningKey } from '../master';
-import type { AssessmentData, CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
+import type { CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
 
 export interface ChildSnapshot {
   name: string;
@@ -165,4 +165,3 @@ export interface ReportGenerator {
   generate(input: ReportInput): Promise<ReportContent>;
 }
 
-export type DraftAssessmentData = AssessmentData;

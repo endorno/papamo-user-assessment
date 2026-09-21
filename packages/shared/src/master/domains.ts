@@ -109,6 +109,3 @@ export const NEURO_DOMAINS: readonly NeuroDomain[] = [
   },
 ];
 
-export function neuroDomainById(id: number): NeuroDomain | null {
-  return NEURO_DOMAINS.find((domain) => domain.id === id) ?? null;
-}

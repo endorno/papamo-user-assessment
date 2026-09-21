@@ -11,6 +11,5 @@ export const PPI_QUESTIONS = [
 ] as const;
 
 export type PpiKey = (typeof PPI_QUESTIONS)[number]['key'];
-export type PpiAnswers = Partial<Record<PpiKey, number>>;
 
 export const PPI_SCORE_MAX = 5;

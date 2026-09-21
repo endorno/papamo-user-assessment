@@ -19,7 +19,6 @@ export const coaches = sqliteTable('coaches', {
   updatedAt: text('updated_at').notNull(),
 });
 
-export type CoachRow = typeof coaches.$inferSelect;
 
 export const children = sqliteTable(
   'children',
