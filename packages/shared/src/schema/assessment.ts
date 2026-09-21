@@ -54,7 +54,7 @@ export const storedLevelSchema = z.number().int().min(LEVEL_NOT_POSSIBLE).max(MA
 const dateSchema = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, '日付は YYYY-MM-DD 形式で入力してください。')
   .refine(isValidDateString, '存在する日付を入力してください。');
-// -1 実施不可 / 0 未実施 / 1〜 到達Lv。上限は種目ごと（ラインウォークなどは30、後発2種目は20）。
+// -1 実施不可 / 0 未実施 / 1〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
 const levelSchemaFor = (maxLevel: number) => z.number().int().min(LEVEL_NOT_POSSIBLE).max(maxLevel);
 const ppiValueSchema = z.number().int().min(0).max(5);
 const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [

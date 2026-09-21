@@ -275,7 +275,7 @@ export async function createSampleChild(
     const levels = Object.fromEntries(
       EXERCISES.map((exercise) => [exercise.key, randomInt(random, 1, 7)]),
     ) as Record<ExerciseKey, number>;
-    // 種目ごとに上限が違う（3種目は30、後発2種目は20）ので、伸びは種目の上限で止める。
+    // 伸びは種目ごとの上限で止める。
     let previous: {
       id: string;
       seqNo: number;

@@ -5,16 +5,12 @@ import styles from '../styles/page.module.css';
 const CENTER_X = 210;
 const CENTER_Y = 196;
 const RADIUS = 142;
-/**
- * 目盛りは全軸そろえて 0〜30。低いLvの差が潰れないよう、モックと同じ指数で外側を詰める。
- * 種目ごとの上限（30／20）の違いは軸ラベル側で補う。
- */
-const GAMMA = 1.55;
-const GRID_LEVELS = [6, 12, 18, 24, 30];
+/** 目盛りは全軸そろえて 0〜30 の等間隔。Lvの差がそのまま長さの差になるようにする。 */
+const GRID_LEVELS = [10, 20, 30];
 
 function radiusFor(value: number) {
   const ratio = Math.max(0, Math.min(RADAR_MAX_LEVEL, value)) / RADAR_MAX_LEVEL;
-  return RADIUS * ratio ** GAMMA;
+  return RADIUS * ratio;
 }
 
 function pointFor(index: number, value: number) {
@@ -56,11 +52,12 @@ export function RadarChart({ report, extUnlocked }: { report: ReportContent | nu
     <div className={styles.radarWrap}>
       <svg className={styles.radar} viewBox="0 0 420 400" role="img" aria-label="5種目の到達レベル">
         {GRID_LEVELS.map((level) => (
-          <polygon
-            className={styles.radarGrid}
-            key={level}
-            points={pointsFor(EXERCISES.map(() => level))}
-          />
+          <g key={level}>
+            <polygon className={styles.radarGrid} points={pointsFor(EXERCISES.map(() => level))} />
+            <text className={styles.radarScale} x={CENTER_X + 5} y={CENTER_Y - radiusFor(level) - 3}>
+              {level}
+            </text>
+          </g>
         ))}
         {EXERCISES.map((exercise, index) => {
           const end = axisPoint(index);
@@ -72,9 +69,11 @@ export function RadarChart({ report, extUnlocked }: { report: ReportContent | nu
               <text className={styles.radarLabel} x={label.x} y={label.y} textAnchor="middle">
                 {exercise.name}
               </text>
-              <text className={styles.radarTeaser} x={label.x} y={label.y + 16} textAnchor="middle">
-                {available ? `Lv1〜${exercise.maxLevel}` : '半年目以降'}
-              </text>
+              {available ? null : (
+                <text className={styles.radarTeaser} x={label.x} y={label.y + 16} textAnchor="middle">
+                  半年目以降
+                </text>
+              )}
             </g>
           );
         })}
