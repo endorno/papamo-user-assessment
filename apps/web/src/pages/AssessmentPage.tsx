@@ -5,6 +5,7 @@ import {
   assessmentDataDraftSchema,
   assessmentResponseSchema,
   bandName,
+  COPM_FIELDS,
   COPM_MAX,
   COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
@@ -13,18 +14,19 @@ import {
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_GROUPS,
   EXERCISES,
-  EXT_EXERCISE_KEYS,
   ladderLabel,
   LEVEL_NOT_MEASURED,
   LEVEL_NOT_MEASURED_LABEL,
   LEVEL_NOT_POSSIBLE,
   LEVEL_NOT_POSSIBLE_LABEL,
   PPI_QUESTIONS,
+  PPI_SCORE_MAX,
   TROUBLE_CATEGORIES,
   WANT_GROUPS,
   WANT_ITEMS,
   WANT_MAX,
   wantToGoalText,
+  withoutExtExerciseInput,
   type AssessmentData,
   type AssessmentDetail,
   type CopmGoal,
@@ -91,6 +93,10 @@ function readLocalDraft(raw: string): LocalDraft | null {
   }
 }
 
+function clockNow() {
+  return new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+
 function formatClock(value: string | null) {
   if (!value) return '時刻不明';
   const parsed = new Date(value);
@@ -99,23 +105,9 @@ function formatClock(value: string | null) {
 }
 
 function savedMessageFor(assessment: AssessmentDetail) {
-  const clock = formatClock(new Date().toISOString());
   return assessment.status === 'done'
-    ? `保存済み・レポートも更新しました ${clock}`
-    : `保存済み ${clock}`;
-}
-
-/** 4・5種目目を閉じたときに残った入力を落とす（サーバー側でも同じ整理をする）。 */
-function withoutExtInput(data: AssessmentData): AssessmentData {
-  const lv = { ...data.lv };
-  const observations = { ...data.observations };
-  const observationNotes = { ...data.observationNotes };
-  for (const key of EXT_EXERCISE_KEYS) {
-    delete lv[key];
-    delete observations[key];
-    delete observationNotes[key];
-  }
-  return { ...data, lv, observations, observationNotes };
+    ? `保存済み・レポートも更新しました ${clockNow()}`
+    : `保存済み ${clockNow()}`;
 }
 
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
@@ -137,6 +129,18 @@ function hasAnyInput(form: AssessmentFormState) {
     || memo.trim()
     || ppiNote.trim(),
   );
+}
+
+/** PATCH の本文。自動保存と離脱時の送信で同じ形を使う。 */
+function patchBody(form: AssessmentFormState, assessment: AssessmentDetail) {
+  // goals は COPM 表から作るサーバー側の列なので送らない。
+  const { goals: _goals, ...data } = form.data;
+  return JSON.stringify({
+    assessedOn: form.assessedOn,
+    unlockExt: form.unlockExt,
+    data,
+    updatedAt: assessment.updatedAt,
+  });
 }
 
 function emptyCopmGoal(text = ''): CopmGoal {
@@ -244,19 +248,13 @@ export function AssessmentPage() {
       return true;
     }
     const savedVersion = changeVersionRef.current;
-    const { goals: _goals, ...editableData } = currentForm.data;
     const request = (async () => {
       setSaving(true);
       setSavedMessage('保存中…');
       try {
         const response = await apiRequest<unknown>(`/assessments/${currentAssessment.id}`, currentSession, {
           method: 'PATCH',
-          body: JSON.stringify({
-            assessedOn: currentForm.assessedOn,
-            unlockExt: currentForm.unlockExt,
-            data: editableData,
-            updatedAt: currentAssessment.updatedAt,
-          }),
+          body: patchBody(currentForm, currentAssessment),
         });
         const saved = readAssessment(response);
         applyAssessment(saved);
@@ -324,7 +322,6 @@ export function AssessmentPage() {
     const currentAssessment = assessmentRef.current;
     const currentSession = sessionRef.current;
     if (!dirtyRef.current || !currentForm || !currentAssessment || !currentSession || currentAssessment.readOnly) return;
-    const { goals: _goals, ...editableData } = currentForm.data;
     void fetch(`/api/assessments/${currentAssessment.id}`, {
       method: 'PATCH',
       keepalive: true,
@@ -332,12 +329,7 @@ export function AssessmentPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${currentSession.access_token}`,
       },
-      body: JSON.stringify({
-        assessedOn: currentForm.assessedOn,
-        unlockExt: currentForm.unlockExt,
-        data: editableData,
-        updatedAt: currentAssessment.updatedAt,
-      }),
+      body: patchBody(currentForm, currentAssessment),
     }).catch(() => undefined);
   }, []);
 
@@ -474,7 +466,7 @@ export function AssessmentPage() {
     updateForm((current) => ({
       ...current,
       unlockExt: checked,
-      data: checked ? current.data : withoutExtInput(current.data),
+      data: withoutExtExerciseInput(current.data, checked),
     }));
   }
 
@@ -768,9 +760,17 @@ export function AssessmentPage() {
                       <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
                     <div className={styles.copmScores}>
-                      <CopmScore label="遂行度" id={`copm-performance-${index}`} value={goal.performance} previous={previous?.performance} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, performance: value }))} />
-                      <CopmScore label="満足度" id={`copm-satisfaction-${index}`} value={goal.satisfaction} previous={previous?.satisfaction} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, satisfaction: value }))} />
-                      <CopmScore label="重要度" id={`copm-importance-${index}`} value={goal.importance} previous={previous?.importance} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, importance: value }))} />
+                      {COPM_FIELDS.map((field) => (
+                        <CopmScore
+                          key={field.key}
+                          label={field.name}
+                          id={`copm-${field.key}-${index}`}
+                          value={goal[field.key]}
+                          previous={previous?.[field.key]}
+                          disabled={assessment.readOnly}
+                          onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, [field.key]: value }))}
+                        />
+                      ))}
                       {assessment.readOnly ? null : <button className={styles.textDangerButton} type="button" onClick={() => removeCopmGoal(index)}>この目標を削除</button>}
                     </div>
                   </div>
@@ -784,7 +784,7 @@ export function AssessmentPage() {
             </section>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" data-assessment-section aria-labelledby="ppi-title">
-              <div className={styles.sectionHeader}><div><h2 id="ppi-title">ご家庭のお困り度</h2><p className={styles.muted}>0〜5・5問すべて回答してください</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="ppi-title">ご家庭のお困り度</h2><p className={styles.muted}>0〜{PPI_SCORE_MAX}・{PPI_QUESTIONS.length}問すべて回答してください</p></div></div>
               {PPI_QUESTIONS.map((question) => (
                 <PpiRow
                   key={question.key}
@@ -1062,9 +1062,9 @@ function PpiRow({
   return (
     <fieldset className={styles.ppiQuestion}>
       <legend>{question.question}{previousValue === undefined ? '' : `（前回 ${previousValue}）`}</legend>
-      <div className={styles.ppiScaleLabels}><span>0 {question.lowLabel}</span><span>{question.highLabel} 5</span></div>
+      <div className={styles.ppiScaleLabels}><span>0 {question.lowLabel}</span><span>{question.highLabel} {PPI_SCORE_MAX}</span></div>
       <div className={styles.ppiButtons} aria-label={question.name}>
-        {Array.from({ length: 6 }, (_, score) => <button disabled={disabled} className={value === score ? styles.lvButtonSelected : styles.lvButton} key={score} type="button" aria-pressed={value === score} onClick={() => onChange(score)}>{score}</button>)}
+        {Array.from({ length: PPI_SCORE_MAX + 1 }, (_, score) => <button disabled={disabled} className={value === score ? styles.lvButtonSelected : styles.lvButton} key={score} type="button" aria-pressed={value === score} onClick={() => onChange(score)}>{score}</button>)}
       </div>
     </fieldset>
   );

@@ -1,12 +1,10 @@
 import { and, asc, eq, inArray, isNotNull, isNull, notExists, or, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 
 import {
   parseStoredAssessmentData,
   formatShareCode,
   generateShareCode,
-  gradeAt,
   normalizeShareCode,
   reportContentSchema,
   schoolYear,
@@ -21,37 +19,13 @@ import {
 } from '@papamo/shared';
 import type { ChildCreateRequest, ChildPatchRequest } from '@papamo/shared';
 
+import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, reports } from '../db/schema';
 import { isForeignKeyConstraintError, isUniqueConstraintError } from '../db/errors';
+import { gradeOf, parseGoals } from './child-row';
 import type { Env } from '../env';
 
 export type ChildRole = 'owner' | 'member';
-
-export interface ChildAssessmentSummary {
-  id: string;
-  seqNo: number;
-  status: 'draft' | 'done';
-  assessedOn: string;
-  unlockExt: boolean;
-  updatedAt: string;
-  completedAt: string | null;
-  reportAvailable: boolean;
-}
-
-function dbFor(env: Env) {
-  return drizzle(env.DB, { schema: { assessments, childCoaches, children, reports } });
-}
-
-function parseGoals(value: string): string[] {
-  try {
-    const goals = JSON.parse(value) as unknown;
-    return Array.isArray(goals) && goals.every((goal) => typeof goal === 'string')
-      ? goals
-      : [];
-  } catch {
-    return [];
-  }
-}
 
 type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number };
 
@@ -84,7 +58,6 @@ function serializeChild(
   today = todayInJst(),
 ): ChildView {
   const gradeCode = row.gradeCode as GradeCode;
-  const gradeBaseYear = row.gradeBaseYear;
   const latestAssessment = assessmentsForChild.find((assessment) => assessment.status === 'draft')
     ?? [...assessmentsForChild].sort((a, b) => b.seqNo - a.seqNo)[0]
     ?? null;
@@ -94,8 +67,8 @@ function serializeChild(
     honorific: row.honorific as Honorific,
     gender: row.gender as Gender,
     gradeCode,
-    gradeBaseYear,
-    grade: gradeAt({ gradeCode, gradeBaseYear }, today),
+    gradeBaseYear: row.gradeBaseYear,
+    grade: gradeOf(row, today),
     joinedOn: row.joinedOn,
     extUnlocked: row.extUnlocked,
     goals: parseGoals(row.goals),
@@ -336,23 +309,19 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
   } satisfies ChildDetail;
 }
 
+// 学年を直したときは、その学年を現在年度の基準として置き直す（次の4月から自動で進級する）。
 export async function patchChild(env: Env, childId: string, input: ChildPatchRequest) {
-  const db = dbFor(env);
-  const current = await childById(env, childId);
-  if (!current) {
-    return null;
-  }
-  const nextGrade = input.gradeCode ?? (current.gradeCode as GradeCode);
-  await db.update(children).set({
+  await dbFor(env).update(children).set({
     ...(input.name === undefined ? {} : { name: input.name }),
     ...(input.honorific === undefined ? {} : { honorific: input.honorific }),
     ...(input.gender === undefined ? {} : { gender: input.gender }),
     ...(input.joinedOn === undefined ? {} : { joinedOn: input.joinedOn }),
     ...(input.goals === undefined ? {} : { goals: JSON.stringify(input.goals) }),
-    ...(input.gradeCode === undefined ? {} : { gradeCode: nextGrade, gradeBaseYear: schoolYear(todayInJst()) }),
+    ...(input.gradeCode === undefined
+      ? {}
+      : { gradeCode: input.gradeCode, gradeBaseYear: schoolYear(todayInJst()) }),
     updatedAt: new Date().toISOString(),
   }).where(eq(children.id, childId)).run();
-  return childById(env, childId);
 }
 
 export async function importChild(env: Env, coachId: string, code: string) {
@@ -409,15 +378,18 @@ export async function removeMembership(env: Env, childId: string, coachId: strin
   if (!child) return 'not_found' as const;
   const membership = await requireMembership(env, childId, coachId);
   if (!membership) return 'forbidden' as const;
-  if (child?.archivedAt) return 'archived' as const;
+  if (child.archivedAt) return 'archived' as const;
   if (membership === 'owner') return 'owner' as const;
   await db.delete(childCoaches).where(and(eq(childCoaches.childId, childId), eq(childCoaches.coachId, coachId))).run();
   return 'removed' as const;
 }
 
 export async function setArchiveState(env: Env, childId: string, archived: boolean) {
-  const db = dbFor(env);
-  await db.update(children).set({ archivedAt: archived ? new Date().toISOString() : null, updatedAt: new Date().toISOString() }).where(eq(children.id, childId)).run();
+  const now = new Date().toISOString();
+  await dbFor(env).update(children)
+    .set({ archivedAt: archived ? now : null, updatedAt: now })
+    .where(eq(children.id, childId))
+    .run();
 }
 
 export async function deleteChildBeforeFirstReport(env: Env, childId: string) {

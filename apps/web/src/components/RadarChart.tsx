@@ -13,30 +13,22 @@ function radiusFor(value: number) {
   return RADIUS * ratio;
 }
 
-function pointFor(index: number, value: number) {
-  const angle = -Math.PI / 2 + (Math.PI * 2 * index) / EXERCISES.length;
-  const distance = radiusFor(value);
-  return {
-    x: CENTER_X + Math.cos(angle) * distance,
-    y: CENTER_Y + Math.sin(angle) * distance,
-  };
-}
-
-function pointsFor(values: number[]) {
-  return values
-    .map((value, index) => {
-      const point = pointFor(index, value);
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
-}
-
+/** 軸は真上（-90度）から時計回りに等分する。 */
 function axisPoint(index: number, radius = RADIUS) {
   const angle = -Math.PI / 2 + (Math.PI * 2 * index) / EXERCISES.length;
   return {
     x: CENTER_X + Math.cos(angle) * radius,
     y: CENTER_Y + Math.sin(angle) * radius,
   };
+}
+
+function pointsFor(values: number[]) {
+  return values
+    .map((value, index) => {
+      const point = axisPoint(index, radiusFor(value));
+      return `${point.x},${point.y}`;
+    })
+    .join(' ');
 }
 
 /** 未実施（0）・実施不可（-1）は中心に寄せて描く。「できない」という意味ではない。 */

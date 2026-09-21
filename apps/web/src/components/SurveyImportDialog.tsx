@@ -1,11 +1,13 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
-import { COPM_MAX, PPI_QUESTIONS, WANT_ITEMS, WANT_MAX, type PpiKey } from '@papamo/shared';
+import { COPM_MAX, PPI_QUESTIONS, PPI_SCORE_MAX, WANT_ITEMS, WANT_MAX, type PpiKey } from '@papamo/shared';
 import styles from '../styles/page.module.css';
 
 const MAX_GOAL_LENGTH = 100;
 /** アンケート1件のなかで複数の回答を並べるときの区切り（design-mock-v2 のCSV仕様）。 */
-const MULTI_VALUE_SEPARATOR = '｜';
+const MULTI_VALUE_PATTERN = /[｜|,]/;
+/** お困り度は0〜5の1桁だけを取り込む。 */
+const PPI_ANSWER_PATTERN = new RegExp(`^[0-${PPI_SCORE_MAX}]$`);
 
 export interface SurveyImport {
   troubles: string[];
@@ -25,7 +27,7 @@ function splitCells(line: string): string[] {
 function splitValues(cell: string): string[] {
   return [...new Set(
     cell
-      .split(new RegExp(`[${MULTI_VALUE_SEPARATOR}|,]`))
+      .split(MULTI_VALUE_PATTERN)
       .map((value) => value.trim())
       .filter(Boolean),
   )];
@@ -59,7 +61,7 @@ export function parseSurveyPaste(value: string, troubleOptions: readonly string[
   const ppi: Partial<Record<PpiKey, number>> = {};
   for (const [column, key] of PPI_COLUMNS) {
     const raw = cellOf(column);
-    if (!/^[0-5]$/.test(raw)) continue;
+    if (!PPI_ANSWER_PATTERN.test(raw)) continue;
     ppi[key] = Number(raw);
   }
 

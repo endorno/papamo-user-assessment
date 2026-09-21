@@ -227,10 +227,10 @@ export const EXT_EXERCISE_KEYS = EXERCISES.filter((exercise) => !exercise.core).
   (exercise) => exercise.key,
 );
 
-/** 種目をまたいで一意な「見えた動作」の一覧。zod の enum とチップ描画に使う。 */
-export const OBSERVATION_ITEMS = [...new Set(
-  EXERCISES.flatMap((exercise) => exercise.observations.map((observation) => observation.text)),
-)];
+/** その回で記録する種目。4・5種目目が未開放なら基本の3種目だけ。 */
+export function activeExerciseKeys(unlockExt: boolean): ExerciseKey[] {
+  return unlockExt ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS] : [...CORE_EXERCISE_KEYS];
+}
 
 export function exerciseByKey(key: ExerciseKey): ExerciseDefinition {
   const exercise = EXERCISES.find((candidate) => candidate.key === key);

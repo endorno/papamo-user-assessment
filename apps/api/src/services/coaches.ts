@@ -1,17 +1,25 @@
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 
+import { dbFor } from '../db/client';
 import { coaches } from '../db/schema';
 import type { CoachRecord, Env } from '../env';
+
+/** 保存後のコーチ情報を読み直して返す。行が消えているのは想定外なので例外にする。 */
+async function coachRecord(env: Env, coachId: string): Promise<CoachRecord> {
+  const row = await dbFor(env).select().from(coaches).where(eq(coaches.id, coachId)).get();
+  if (!row) {
+    throw new Error('コーチ情報の取得に失敗しました。');
+  }
+  return { id: row.id, email: row.email, displayName: row.displayName };
+}
 
 export async function upsertCoach(
   env: Env,
   input: { id: string; email: string },
 ): Promise<CoachRecord> {
   const now = new Date().toISOString();
-  const db = drizzle(env.DB, { schema: { coaches } });
 
-  await db
+  await dbFor(env)
     .insert(coaches)
     .values({
       id: input.id,
@@ -29,16 +37,7 @@ export async function upsertCoach(
     })
     .run();
 
-  const row = await db.select().from(coaches).where(eq(coaches.id, input.id)).get();
-  if (!row) {
-    throw new Error('コーチ情報の取得に失敗しました。');
-  }
-
-  return {
-    id: row.id,
-    email: row.email,
-    displayName: row.displayName,
-  };
+  return coachRecord(env, input.id);
 }
 
 export async function updateCoachDisplayName(
@@ -46,21 +45,11 @@ export async function updateCoachDisplayName(
   coachId: string,
   displayName: string,
 ): Promise<CoachRecord> {
-  const db = drizzle(env.DB, { schema: { coaches } });
-  await db
+  await dbFor(env)
     .update(coaches)
     .set({ displayName, updatedAt: new Date().toISOString() })
     .where(eq(coaches.id, coachId))
     .run();
 
-  const row = await db.select().from(coaches).where(eq(coaches.id, coachId)).get();
-  if (!row) {
-    throw new Error('コーチ情報の取得に失敗しました。');
-  }
-
-  return {
-    id: row.id,
-    email: row.email,
-    displayName: row.displayName,
-  };
+  return coachRecord(env, coachId);
 }

@@ -1,4 +1,4 @@
-import { CORE_EXERCISE_KEYS, EXT_EXERCISE_KEYS, type ExerciseKey } from '../master/exercises';
+import { activeExerciseKeys, type ExerciseKey } from '../master/exercises';
 import { PPI_QUESTIONS } from '../master/ppi';
 import { daysBetween, nextDueDate, todayInJst } from './date';
 
@@ -22,12 +22,8 @@ export type ChildListState =
   | { key: 'due'; label: string; daysLeft: number; order: 0.5 }
   | { key: 'ok'; label: string; dueDate: string; order: 2 };
 
-function activeKeys(unlockExt: boolean): ExerciseKey[] {
-  return unlockExt ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS] : [...CORE_EXERCISE_KEYS];
-}
-
 export function assessmentProgress(input: AssessmentProgress): { filled: number; total: number } {
-  const keys = activeKeys(input.unlockExt);
+  const keys = activeExerciseKeys(input.unlockExt);
   const levels = keys.filter((key) => input.lv[key] !== undefined).length;
   const trouble = input.troubles.length > 0 ? 1 : 0;
   const ppi = PPI_QUESTIONS.every(({ key }) => input.ppi[key] !== undefined) ? 1 : 0;

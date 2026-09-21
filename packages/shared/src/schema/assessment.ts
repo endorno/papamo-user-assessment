@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-import { PPI_QUESTIONS } from '../master/ppi';
+import { PPI_QUESTIONS, PPI_SCORE_MAX } from '../master/ppi';
 import {
   EXERCISES,
+  EXT_EXERCISE_KEYS,
   LEVEL_NOT_POSSIBLE,
   MAX_EXERCISE_LEVEL,
   type ExerciseKey,
@@ -56,12 +57,12 @@ const dateSchema = z.string()
   .refine(isValidDateString, '存在する日付を入力してください。');
 // -1 実施不可 / 0 未実施 / 1〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
 const levelSchemaFor = (maxLevel: number) => z.number().int().min(LEVEL_NOT_POSSIBLE).max(maxLevel);
-const ppiValueSchema = z.number().int().min(0).max(5);
+export const ppiScoreSchema = z.number().int().min(0).max(PPI_SCORE_MAX);
 const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,
   levelSchemaFor(exercise.maxLevel).optional(),
 ]));
-const ppiFields = Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiValueSchema.optional()]));
+const ppiFields = Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema.optional()]));
 
 // 見えた動作（選択）。種目ごとに固定の選択肢から複数選ぶ。
 const observationFields = Object.fromEntries(EXERCISES.map((exercise) => [
@@ -90,7 +91,7 @@ const wantSchema = z.array(
   z.enum(WANT_ITEMS.map((item) => item.id) as [string, ...string[]]),
 ).max(WANT_MAX);
 
-const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
+export const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
 const copmGoalSchema = z.object({
   text: z.string().trim().min(1).max(100),
   memo: z.string().max(300).default(''),
@@ -140,7 +141,7 @@ export const assessmentDataCompletedSchema = z.object({
   troubles: z.array(troubleSchema),
   wants: wantSchema,
   copm: copmSchema,
-  ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiValueSchema]))).strict(),
+  ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema]))).strict(),
   ppiNote: z.string(),
   memo: z.string(),
   goals: z.array(z.string()),
@@ -270,6 +271,23 @@ export function migrateAssessmentData(value: unknown): unknown {
   return data;
 }
 
+/**
+ * 4・5種目目の開放を取り消したときに残る入力を落とす。
+ * 完了検証と食い違わないよう、API の保存時と Web の表示で同じ整理をする。
+ */
+export function withoutExtExerciseInput(data: AssessmentData, unlockExt: boolean): AssessmentData {
+  if (unlockExt) return data;
+  const lv = { ...data.lv };
+  const observations = { ...data.observations };
+  const observationNotes = { ...data.observationNotes };
+  for (const key of EXT_EXERCISE_KEYS) {
+    delete lv[key];
+    delete observations[key];
+    delete observationNotes[key];
+  }
+  return { ...data, lv, observations, observationNotes };
+}
+
 export function parseStoredAssessmentData(value: unknown): AssessmentData {
   return assessmentDataDraftSchema.parse(migrateAssessmentData(value));
 }
@@ -279,15 +297,11 @@ export function parseStoredCompletedData(value: unknown): CompletedAssessmentDat
 }
 
 export type AssessmentData = z.infer<typeof assessmentDataDraftSchema>;
-export type AssessmentDataPatch = z.infer<typeof assessmentDataPatchSchema>;
 export type CompletedAssessmentData = z.infer<typeof assessmentDataCompletedSchema>;
 export type CopmGoal = z.infer<typeof copmGoalSchema>;
 export type Honorific = z.infer<typeof honorificSchema>;
 export type Gender = z.infer<typeof genderSchema>;
 export type ChildCreateRequest = z.infer<typeof childCreateRequestSchema>;
 export type ChildPatchRequest = z.infer<typeof childPatchRequestSchema>;
-export type ChildImportRequest = z.infer<typeof childImportRequestSchema>;
-export type AssessmentCreateRequest = z.infer<typeof assessmentCreateRequestSchema>;
 export type AssessmentPatchRequest = z.infer<typeof assessmentPatchRequestSchema>;
 export type AssessmentDetail = z.infer<typeof assessmentDetailSchema>;
-export type AssessmentCreated = z.infer<typeof assessmentCreatedSchema>;

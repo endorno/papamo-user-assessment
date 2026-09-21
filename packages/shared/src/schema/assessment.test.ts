@@ -5,6 +5,7 @@ import {
   childCreateRequestSchema,
   parseStoredAssessmentData,
   parseStoredCompletedData,
+  withoutExtExerciseInput,
 } from './assessment';
 
 describe('アセスメント入力スキーマ', () => {
@@ -100,5 +101,22 @@ describe('アセスメント入力スキーマ', () => {
 
     // 完了済みの回も同じ形に寄せて読める。
     expect(parseStoredCompletedData(legacy).goals).toEqual(['板書を写すのが間に合うようになる']);
+  });
+
+  it('4・5種目目を閉じるとLv・見えた動作・自由記入をまとめて落とす', () => {
+    const data = parseStoredAssessmentData({
+      lv: { post: 5, sacc: 7, inhi: 3 },
+      observations: { post: ['体が左右や前後に大きく揺れる'], sacc: ['目だけでなく頭ごと動かして探す'] },
+      observationNotes: { post: '後進で振り返る', inhi: '合図より早い' },
+    });
+
+    const closed = withoutExtExerciseInput(data, false);
+    expect(closed.lv).toEqual({ post: 5 });
+    expect(closed.observations).toEqual({ post: ['体が左右や前後に大きく揺れる'] });
+    expect(closed.observationNotes).toEqual({ post: '後進で振り返る' });
+    // 開放したままなら何も変えない（同じ参照をそのまま返す）。
+    expect(withoutExtExerciseInput(data, true)).toBe(data);
+    // 元のオブジェクトは書き換えない。
+    expect(data.lv.sacc).toBe(7);
   });
 });

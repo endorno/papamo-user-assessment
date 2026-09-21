@@ -6,6 +6,7 @@ import {
   EXERCISES,
   GRADES,
   PPI_QUESTIONS,
+  PPI_SCORE_MAX,
   childDetailSchema,
   daysBetween,
   exerciseByKey,
@@ -428,12 +429,12 @@ export function ChildPage() {
                   <div className={styles.sectionHeader}><div><h2 id="observation-title">おうちでの困りごと・ご家庭の負担</h2><p className={styles.muted}>保護者ヒアリング</p></div></div>
                   <div className={styles.summaryMetrics}>
                     <div><span>チェックされた困りごと</span><strong>{report.troubles.current.length}件</strong></div>
-                    <div><span>ご家庭の負担度 合計</span><strong>{Object.values(report.ppi.current).reduce((sum, value) => sum + value, 0)}<small> / 25</small></strong></div>
+                    <div><span>ご家庭の負担度 合計</span><strong>{Object.values(report.ppi.current).reduce((sum, value) => sum + value, 0)}<small> / {PPI_QUESTIONS.length * PPI_SCORE_MAX}</small></strong></div>
                   </div>
                   <div className={styles.ppiBars}>
                     {PPI_QUESTIONS.map((question) => {
                       const value = report.ppi.current[question.key];
-                      return <div key={question.key}><span>{question.name}</span><span className={styles.ppiTrack}><i style={{ width: `${value * 20}%` }} /></span><strong>{value}</strong></div>;
+                      return <div key={question.key}><span>{question.name}</span><span className={styles.ppiTrack}><i style={{ width: `${(value / PPI_SCORE_MAX) * 100}%` }} /></span><strong>{value}</strong></div>;
                     })}
                   </div>
                   {report.ppi.note ? <p className={styles.memo}>「{report.ppi.note}」</p> : null}

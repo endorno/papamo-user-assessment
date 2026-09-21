@@ -7,14 +7,21 @@ import {
   type EngagementKey,
   type TuningKey,
 } from '../master';
-import { exerciseKeySchema, honorificSchema, storedLevelSchema } from './assessment';
+import {
+  copmScoreSchema,
+  exerciseKeySchema,
+  honorificSchema,
+  ppiScoreSchema,
+  storedLevelSchema,
+} from './assessment';
 
+// PPI は5問そろって初めてレポートになるため、レポート側では必須で受ける。
 const ppiSchema = z.object({
-  time: z.number().int().min(0).max(5),
-  emo: z.number().int().min(0).max(5),
-  soc: z.number().int().min(0).max(5),
-  fut: z.number().int().min(0).max(5),
-  nav: z.number().int().min(0).max(5),
+  time: ppiScoreSchema,
+  emo: ppiScoreSchema,
+  soc: ppiScoreSchema,
+  fut: ppiScoreSchema,
+  nav: ppiScoreSchema,
 });
 
 const reportLevelSchema = z.object({
@@ -30,7 +37,6 @@ const reportLevelSchema = z.object({
   ladderLabel: z.string(),
 });
 
-const copmScoreSchema = z.number().int().min(1).max(10);
 const copmReportSchema = z.object({
   text: z.string(),
   memo: z.string(),
@@ -196,4 +202,3 @@ export const reportResponseSchema = z.object({
   report: reportContentSchema,
 });
 
-export type ReportResponse = z.infer<typeof reportResponseSchema>;

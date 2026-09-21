@@ -1,8 +1,8 @@
 import {
+  activeExerciseKeys,
   bandName,
   bandOf,
   CORE_EXERCISE_KEYS,
-  COPM_MEANINGFUL_DELTA,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_ITEMS,
@@ -43,10 +43,6 @@ const EXERCISE_ORDER = EXERCISES.map((exercise) => exercise.key);
 
 const VERDICT_ORDER: DomainVerdict[] = ['強く一致', '一致', '未測定', '不一致'];
 
-function activeKeys(unlockExt: boolean): ExerciseKey[] {
-  return unlockExt ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS] : [...CORE_EXERCISE_KEYS];
-}
-
 function ppiSnapshot(input: ReportInput, previous = false): Record<PpiKey, number> {
   const data = previous ? input.previous?.data : input.assessment.data;
   if (!data) {
@@ -67,7 +63,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
 
   async generate(input: ReportInput): Promise<ReportContent> {
     const { data } = input.assessment;
-    const keys = activeKeys(input.assessment.unlockExt);
+    const keys = activeExerciseKeys(input.assessment.unlockExt);
     const levelOf = (key: ExerciseKey) => data.lv[key];
 
     // --- 到達レベルの並べ替え（モックの analyze() 相当） ---
@@ -418,7 +414,3 @@ export class RuleBasedReportGenerator implements ReportGenerator {
   }
 }
 
-/** COPM の差分で「意味のある変化」とみなすか。 */
-export function isMeaningfulCopmChange(delta: number | undefined): boolean {
-  return delta !== undefined && Math.abs(delta) >= COPM_MEANINGFUL_DELTA;
-}

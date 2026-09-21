@@ -24,8 +24,7 @@ export const assessmentsRoutes = new Hono<{
 
 function serviceError(context: AppContext, caught: unknown) {
   if (caught instanceof AssessmentServiceError) {
-    const status = caught.code === 'not_found' ? 404 : caught.code === 'forbidden' ? 403 : caught.code === 'validation' ? 400 : 409;
-    return jsonError(context, caught.code, caught.message, status);
+    return jsonError(context, caught.code, caught.message, caught.status);
   }
   return internalError(context, caught, 'assessment.request', 'アセスメントを処理できませんでした。');
 }

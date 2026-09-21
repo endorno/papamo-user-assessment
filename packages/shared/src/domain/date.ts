@@ -58,10 +58,12 @@ export function nextDueDate(assessedOn: string): string {
 export function isValidDateString(value: string): boolean {
   try {
     const [year, month, day] = dateParts(value);
+    // 2月30日のような存在しない日は、UTCで組み立て直すと別の日付へ繰り上がる。
+    const parsed = new Date(Date.UTC(year, month - 1, day));
     return (
-      new Date(Date.UTC(year, month - 1, day)).getUTCFullYear() === year &&
-      new Date(Date.UTC(year, month - 1, day)).getUTCMonth() === month - 1 &&
-      new Date(Date.UTC(year, month - 1, day)).getUTCDate() === day
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
     );
   } catch {
     return false;

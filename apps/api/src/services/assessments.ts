@@ -1,49 +1,56 @@
 import { and, desc, eq, exists, gt, isNull, lt, notExists, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 import {
+  activeExerciseKeys,
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
-  assessmentDataPatchSchema,
   migrateAssessmentData,
   parseStoredAssessmentData,
   parseStoredCompletedData,
-  CORE_EXERCISE_KEYS,
-  EXT_EXERCISE_KEYS,
+  withoutExtExerciseInput,
   COPM_MAX,
   COPM_SCORE_DEFAULT,
-  gradeAt,
   MASTER_VERSION,
   PPI_QUESTIONS,
   reportContentSchema,
   troubleItemsOf,
   todayInJst,
   type AssessmentData,
-  type AssessmentDataPatch,
+  type AssessmentPatchRequest,
   type CompletedAssessmentData,
-  type ExerciseKey,
   type Honorific,
 } from '@papamo/shared';
 
+import { dbFor, type Db } from '../db/client';
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
 import { isUniqueConstraintError } from '../db/errors';
+import { gradeOf, parseGoals } from './child-row';
 import type { CoachRecord, Env } from '../env';
 import { generateReport } from './report';
 
 export type AssessmentStatus = 'draft' | 'done';
 
+type AssessmentErrorCode = 'not_found' | 'forbidden' | 'conflict' | 'validation';
+
+const ERROR_STATUS: Record<AssessmentErrorCode, 400 | 403 | 404 | 409> = {
+  not_found: 404,
+  forbidden: 403,
+  validation: 400,
+  conflict: 409,
+};
+
 export class AssessmentServiceError extends Error {
   constructor(
-    readonly code: 'not_found' | 'forbidden' | 'conflict' | 'validation',
+    readonly code: AssessmentErrorCode,
     message: string,
   ) {
     super(message);
     this.name = 'AssessmentServiceError';
   }
-}
 
-function dbFor(env: Env) {
-  return drizzle(env.DB, { schema: { assessments, childCoaches, children, coaches, reports } });
+  get status() {
+    return ERROR_STATUS[this.code];
+  }
 }
 
 function parseData(value: string): AssessmentData {
@@ -103,7 +110,7 @@ function affectedRows(result: { meta: { changes?: number } }): number {
 }
 
 function writableMutationCondition(
-  db: ReturnType<typeof dbFor>,
+  db: Db,
   assessment: typeof assessments.$inferSelect,
   coachId: string,
 ) {
@@ -186,18 +193,15 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
     childId,
     seqNo: (max?.seqNo ?? 0) + 1,
     status: 'draft',
-    assessedOn: todayInJst(),
+    assessedOn: today,
     coachId,
     unlockExt: child.extUnlocked || unlockExt,
     prevAssessmentId: previous?.id ?? null,
     masterVersion: MASTER_VERSION,
     data: JSON.stringify(initialData(
       previous ? parseCompletedData(previous.data) : null,
-      gradeAt(
-        { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
-        today,
-      ).ageGroup,
-      JSON.parse(child.goals) as string[],
+      gradeOf(child, today).ageGroup,
+      parseGoals(child.goals),
     )),
     revision: 1,
     mutationId: id,
@@ -264,11 +268,8 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
       honorific: child.honorific as Honorific,
       archivedAt: child.archivedAt,
       extUnlocked: child.extUnlocked,
-      goals: JSON.parse(child.goals) as string[],
-      ageGroup: gradeAt(
-        { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
-        assessment.assessedOn,
-      ).ageGroup,
+      goals: parseGoals(child.goals),
+      ageGroup: gradeOf(child, assessment.assessedOn).ageGroup,
     },
   };
 }
@@ -284,33 +285,19 @@ function nextUnlockExt(
   return assessment.unlockExt || Boolean(requested);
 }
 
-// 開放を取り消したときに4・5種目目の入力が残っていると完了検証と食い違うため落とす。
-function withoutClosedExtData(data: AssessmentData, unlockExt: boolean): AssessmentData {
-  if (unlockExt) return data;
-  const lv = { ...data.lv };
-  const observations = { ...data.observations };
-  const observationNotes = { ...data.observationNotes };
-  for (const key of EXT_EXERCISE_KEYS) {
-    delete lv[key];
-    delete observations[key];
-    delete observationNotes[key];
-  }
-  return { ...data, lv, observations, observationNotes };
-}
-
 export async function patchAssessment(
   env: Env,
   assessmentId: string,
   coachId: string,
-  input: { assessedOn?: string; unlockExt?: boolean; data: AssessmentDataPatch; updatedAt: string },
+  input: AssessmentPatchRequest,
 ) {
   const assessment = await assessmentOrThrow(env, assessmentId);
   const child = await ensureWritable(env, assessment, coachId);
   if (assessment.updatedAt !== input.updatedAt) throw concurrentUpdateError();
-  const editableData = assessmentDataPatchSchema.parse(input.data);
   const nextUnlock = nextUnlockExt(child, assessment, input.unlockExt);
-  const draftData = withoutClosedExtData(
-    assessmentDataDraftSchema.parse({ ...editableData, goals: [] }),
+  // 目標（goals）はCOPM表から作る列なので、下書きの保存では常に空で持つ。
+  const draftData = withoutExtExerciseInput(
+    assessmentDataDraftSchema.parse({ ...input.data, goals: [] }),
     nextUnlock,
   );
   const updatedAt = nextUpdatedAt(assessment.updatedAt);
@@ -327,10 +314,7 @@ export async function patchAssessment(
     if (!completedDataResult.success) {
       throw new AssessmentServiceError('validation', '完了済みの記録に必要な入力をすべて残してください。');
     }
-    const ageGroup = gradeAt(
-      { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
-      input.assessedOn ?? assessment.assessedOn,
-    ).ageGroup;
+    const ageGroup = gradeOf(child, input.assessedOn ?? assessment.assessedOn).ageGroup;
     assertCompletable(completedDataResult.data, nextUnlock, ageGroup);
     const reportCoach = await coachOrThrow(env, assessment.coachId);
     const previous = await previousForReport(env, assessment);
@@ -367,7 +351,7 @@ export async function patchAssessment(
   const result = await db.update(assessments).set({
     assessedOn: input.assessedOn ?? assessment.assessedOn,
     unlockExt: nextUnlock,
-    data: JSON.stringify({ ...draftData, goals: [] }),
+    data: JSON.stringify(draftData),
     revision: assessment.revision + 1,
     mutationId,
     updatedAt,
@@ -394,8 +378,7 @@ function goalTextsOf(data: AssessmentData, fallback: string[]): string[] {
 }
 
 function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
-  const requiredKeys: ExerciseKey[] = unlockExt ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS] : [...CORE_EXERCISE_KEYS];
-  const missing = requiredKeys.filter((key) => data.lv[key] === undefined);
+  const missing = activeExerciseKeys(unlockExt).filter((key) => data.lv[key] === undefined);
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
   if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
   const validTroubles = new Set(troubleItemsOf(ageGroup));
@@ -432,7 +415,7 @@ async function previousForReport(
 }
 
 function guardedReportUpsert(
-  db: ReturnType<typeof dbFor>,
+  db: Db,
   input: {
     assessmentId: string;
     assessmentRevision: number;
@@ -538,15 +521,11 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   const unlockExt = child.extUnlocked || assessment.unlockExt;
   const completedData = {
     ...draftData.data,
-    goals: goalTextsOf(draftData.data, JSON.parse(child.goals) as string[]),
+    goals: goalTextsOf(draftData.data, parseGoals(child.goals)),
   };
   const data = assessmentDataCompletedSchema.safeParse(completedData);
   if (!data.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
-  const ageGroup = gradeAt(
-    { gradeCode: child.gradeCode as Parameters<typeof gradeAt>[0]['gradeCode'], gradeBaseYear: child.gradeBaseYear },
-    assessment.assessedOn,
-  ).ageGroup;
-  assertCompletable(data.data, unlockExt, ageGroup);
+  assertCompletable(data.data, unlockExt, gradeOf(child, assessment.assessedOn).ageGroup);
 
   const previous = await previousForReport(env, assessment);
   const generatedAt = nextUpdatedAt(assessment.updatedAt);

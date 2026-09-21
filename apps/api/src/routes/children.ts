@@ -8,7 +8,6 @@ import {
   childPatchRequestSchema,
   childResponseSchema,
   childrenResponseSchema,
-  isValidDateString,
 } from '@papamo/shared';
 import { Hono } from 'hono';
 
@@ -47,7 +46,7 @@ childrenRoutes.post('/', async (context) => {
     return jsonError(context, 'validation', '入力内容を確認してください。', 400);
   }
   const parsed = childCreateRequestSchema.safeParse(body);
-  if (!parsed.success || !isValidDateString(parsed.success ? parsed.data.joinedOn : '')) {
+  if (!parsed.success) {
     return jsonError(context, 'validation', '名前・学年・入会日を確認してください。', 400);
   }
 
@@ -106,8 +105,7 @@ childrenRoutes.post('/:childId/assessments', async (context) => {
     return context.json(assessmentCreateResponseSchema.parse({ assessment }), 201);
   } catch (caught) {
     if (caught instanceof AssessmentServiceError) {
-      const status = caught.code === 'not_found' ? 404 : caught.code === 'forbidden' ? 403 : caught.code === 'validation' ? 400 : 409;
-      return jsonError(context, caught.code, caught.message, status);
+      return jsonError(context, caught.code, caught.message, caught.status);
     }
     return internalError(context, caught, 'assessment.create', 'アセスメントを作成できませんでした。');
   }
@@ -147,12 +145,12 @@ childrenRoutes.patch('/:id', async (context) => {
     return jsonError(context, 'validation', '入力内容を確認してください。', 400);
   }
   const parsed = childPatchRequestSchema.safeParse(body);
-  if (!parsed.success || (parsed.data.joinedOn && !isValidDateString(parsed.data.joinedOn))) {
+  if (!parsed.success) {
     return jsonError(context, 'validation', '入力内容を確認してください。', 400);
   }
-  const updated = await patchChild(context.env, childId, parsed.data);
+  await patchChild(context.env, childId, parsed.data);
   const serialized = await getChildForCoach(context.env, childId, context.get('coach').id);
-  if (!updated || !serialized) {
+  if (!serialized) {
     return jsonError(context, 'internal', '更新結果を読み込めませんでした。', 500);
   }
   return context.json(childDetailResponseSchema.parse({ child: serialized }));
@@ -198,11 +196,9 @@ childrenRoutes.delete('/:id', async (context) => {
 });
 
 async function archive(context: AppContext, archived: boolean) {
+  // AppContext はパス未確定のため param が optional になる。
   const childId = context.req.param('id');
-  if (!childId) {
-    return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
-  }
-  if (!(await childById(context.env, childId))) {
+  if (!childId || !(await childById(context.env, childId))) {
     return jsonError(context, 'not_found', 'お子さまが見つかりません。', 404);
   }
   const membership = await requireMembership(context.env, childId, context.get('coach').id);

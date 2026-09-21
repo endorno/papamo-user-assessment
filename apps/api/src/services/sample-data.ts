@@ -1,14 +1,13 @@
 import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import { drizzle } from 'drizzle-orm/d1';
 import { ulid } from 'ulid';
 import {
+  activeExerciseKeys,
   addMonthsClamped,
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
   CORE_EXERCISE_KEYS,
   EXERCISES,
-  EXT_EXERCISE_KEYS,
   generateShareCode,
   gradeAt,
   MASTER_VERSION,
@@ -17,6 +16,8 @@ import {
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_ITEMS,
   maxLevelOf,
+  PPI_QUESTIONS,
+  PPI_SCORE_MAX,
   reportContentSchema,
   schoolYear,
   troubleItemsOf,
@@ -31,6 +32,7 @@ import {
   type SampleDataProfile,
 } from '@papamo/shared';
 
+import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
 import { isUniqueConstraintError } from '../db/errors';
 import type { CoachRecord, Env } from '../env';
@@ -64,10 +66,6 @@ export class SampleDataServiceError extends Error {
     super(message);
     this.name = 'SampleDataServiceError';
   }
-}
-
-function dbFor(env: Env) {
-  return drizzle(env.DB, { schema: { assessments, childCoaches, children, coaches, reports } });
 }
 
 function secureRandom(): number {
@@ -159,13 +157,10 @@ function completedData(input: {
     troubles,
     wants,
     copm,
-    ppi: {
-      time: randomInt(input.random, 0, 6),
-      emo: randomInt(input.random, 0, 6),
-      soc: randomInt(input.random, 0, 6),
-      fut: randomInt(input.random, 0, 6),
-      nav: randomInt(input.random, 0, 6),
-    },
+    ppi: Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [
+      key,
+      randomInt(input.random, 0, PPI_SCORE_MAX + 1),
+    ])),
     ppiNote: input.sequence % 3 === 0 ? '家庭での取り組み方も相談したい。' : '',
     memo: `サンプル所見（第${input.sequence}回）。継続して経過を確認する。`,
     goals: input.goals,
@@ -183,7 +178,7 @@ function draftData(random: Random, ageGroup: 'pre' | 'sch'): AssessmentData {
     troubles: selectDistinct(random, troubleItemsOf(ageGroup), 1),
     wants: [],
     copm: [],
-    ppi: { time: randomInt(random, 0, 6), emo: randomInt(random, 0, 6) },
+    ppi: { time: randomInt(random, 0, PPI_SCORE_MAX + 1), emo: randomInt(random, 0, PPI_SCORE_MAX + 1) },
     ppiNote: '',
     memo: '入力途中のサンプルです。',
     goals: [],
@@ -313,7 +308,6 @@ export async function createSampleChild(
     const levels = Object.fromEntries(
       EXERCISES.map((exercise) => [exercise.key, randomInt(random, 1, 7)]),
     ) as Record<ExerciseKey, number>;
-    // 伸びは種目ごとの上限で止める。
     let previous: {
       id: string;
       seqNo: number;
@@ -326,9 +320,8 @@ export async function createSampleChild(
       const sequence = index + 1;
       const assessedOn = addMonthsClamped(firstAssessedOn, index * 3);
       const unlockExt = unlockExtended && sequence >= (profile === 'long' ? 4 : 3);
-      const activeKeys = unlockExt
-        ? [...CORE_EXERCISE_KEYS, ...EXT_EXERCISE_KEYS]
-        : CORE_EXERCISE_KEYS;
+      const activeKeys = activeExerciseKeys(unlockExt);
+      // 回を追うごとに少し伸ばす。伸びは種目ごとの上限で止める。
       for (const key of activeKeys) {
         if (index > 0) levels[key] = clamp(levels[key] + pick(random, [-1, 0, 0, 1, 1, 2]), 1, maxLevelOf(key));
       }

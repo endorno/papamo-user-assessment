@@ -132,7 +132,9 @@ export function ReportPage() {
     && report.header.joinedOn
     && report.nextDue >= addMonthsClamped(report.header.joinedOn, 6),
   );
+  // 今回測れなかった種目と、半年目以降に加わる種目は同じ注記でまとめて触れる。
   const notMeasuredNow = report.unmeasured.filter((item) => !item.upcoming);
+  const measuredLater = report.unmeasured.filter((item) => item.upcoming);
   const growNote = exerciseByKey(report.link.lowestKey).grow;
 
   return (
@@ -161,7 +163,7 @@ export function ReportPage() {
             </div>
             {notMeasuredNow.length || report.upcomingExercises.length ? (
               <p className={styles.reportNote}>
-                ※ {[...notMeasuredNow, ...report.unmeasured.filter((item) => item.upcoming)].map((item) => item.name).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、
+                ※ {[...notMeasuredNow, ...measuredLater].map((item) => item.name).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、
                 {report.upcomingExercises.length ? `${report.upcomingExercises.map((item) => item.name).join('・')}は、からだの土台が安定してきた半年目以降にあらためて実施する種目です。` : ''}
                 「できない」という意味ではありません。
               </p>
