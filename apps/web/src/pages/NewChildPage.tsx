@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { GRADES, todayInJst, childViewSchema, type GradeCode, type Honorific } from '@papamo/shared';
+import { GRADES, todayInJst, childViewSchema, type Gender, type GradeCode, type Honorific } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
@@ -15,6 +15,7 @@ export function NewChildPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [honorific, setHonorific] = useState<Honorific>('chan');
+  const [gender, setGender] = useState<Gender>('unspecified');
   // 就学／未就学で困りごとの設問が変わるため、既定値は置かずに必ず選ばせる。
   const [gradeCode, setGradeCode] = useState<GradeCode | ''>('');
   const [joinedOn, setJoinedOn] = useState(todayInJst());
@@ -30,7 +31,7 @@ export function NewChildPage() {
     try {
       const response = await apiRequest<unknown>('/children', session, {
         method: 'POST',
-        body: JSON.stringify({ name, honorific, gradeCode, joinedOn }),
+        body: JSON.stringify({ name, honorific, gender, gradeCode, joinedOn }),
       });
       const parsed = childViewSchema.safeParse((response as { child?: unknown }).child);
       if (!parsed.success) throw new Error('登録結果を読み込めませんでした。');
@@ -68,9 +69,17 @@ export function NewChildPage() {
                   <option value="kun">くん</option>
                   <option value="chan">ちゃん</option>
                   <option value="san">さん</option>
-                  <option value="none">なし</option>
                 </select>
               </div>
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="child-gender">性別</label>
+              <select id="child-gender" value={gender} onChange={(event) => setGender(event.target.value as typeof gender)}>
+                <option value="boy">男の子</option>
+                <option value="girl">女の子</option>
+                <option value="unspecified">選ばない</option>
+              </select>
+              <small>敬称とは連動しません。呼び方は敬称で選んでください。</small>
             </div>
             <div className={styles.formField}>
               <label htmlFor="child-grade">現在の学年</label>

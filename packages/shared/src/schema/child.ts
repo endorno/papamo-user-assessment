@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { exerciseKeySchema, gradeCodeSchema, honorificSchema, storedLevelSchema } from './assessment';
+import { exerciseKeySchema, genderSchema, gradeCodeSchema, honorificSchema, storedLevelSchema } from './assessment';
 import { reportContentSchema } from './report';
 
 export const childListStateSchema = z.discriminatedUnion('key', [
@@ -43,6 +43,7 @@ export const childViewSchema = z.object({
   id: z.string(),
   name: z.string(),
   honorific: honorificSchema,
+  gender: genderSchema,
   gradeCode: gradeCodeSchema,
   gradeBaseYear: z.number().int(),
   grade: z.object({ code: z.string(), name: z.string(), ageHint: z.string(), ageGroup: z.enum(['pre', 'sch']), graduated: z.boolean() }),

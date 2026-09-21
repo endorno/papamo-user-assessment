@@ -13,8 +13,10 @@ describe('データ整合性マイグレーション', () => {
     ));
     const integrityMigration = testEnv.TEST_MIGRATIONS.find(({ name }) => name.startsWith('0002_'));
     const honorificMigration = testEnv.TEST_MIGRATIONS.find(({ name }) => name.startsWith('0003_'));
+    const genderMigration = testEnv.TEST_MIGRATIONS.find(({ name }) => name.startsWith('0004_'));
     expect(integrityMigration).toBeDefined();
     expect(honorificMigration).toBeDefined();
+    expect(genderMigration).toBeDefined();
     await applyD1Migrations(testEnv.DB, initialMigrations);
 
     const coachId = crypto.randomUUID();
@@ -81,11 +83,46 @@ describe('データ整合性マイグレーション', () => {
       assessment_revision: 1,
     });
 
+    const honorificNoneId = crypto.randomUUID();
     await testEnv.DB.prepare(`
       INSERT INTO children (
         id, share_code, owner_share_code, created_by, name, honorific, grade_code,
         grade_base_year, joined_on, ext_unlocked, goals, archived_at, created_at, updated_at
       ) VALUES (?, 'RSTUVWXY', '23456789', ?, '敬称なし', 'none', 'e1', 2026, '2026-09-01', 0, '[]', NULL, ?, ?)
-    `).bind(crypto.randomUUID(), coachId, now, now).run();
+    `).bind(honorificNoneId, coachId, now, now).run();
+
+    await applyD1Migrations(testEnv.DB, [genderMigration!]);
+
+    // 廃止した敬称「なし」は中立な「さん」へ寄せ、性別は未選択として引き継ぐ。
+    expect(await testEnv.DB.prepare(
+      'SELECT honorific, gender FROM children WHERE id = ?',
+    ).bind(honorificNoneId).first()).toEqual({ honorific: 'san', gender: 'unspecified' });
+
+    const withGender = await testEnv.DB.prepare(`
+      SELECT children.honorific,
+             children.gender,
+             child_coaches.role,
+             assessments.revision,
+             reports.assessment_revision
+      FROM children
+      INNER JOIN child_coaches ON child_coaches.child_id = children.id
+      INNER JOIN assessments ON assessments.child_id = children.id
+      INNER JOIN reports ON reports.assessment_id = assessments.id
+      WHERE children.id = ?
+    `).bind(childId).first();
+    expect(withGender).toMatchObject({
+      honorific: 'san',
+      gender: 'unspecified',
+      role: 'owner',
+      revision: 1,
+      assessment_revision: 1,
+    });
+
+    await expect(testEnv.DB.prepare(
+      'UPDATE children SET honorific = ? WHERE id = ?',
+    ).bind('none', childId).run()).rejects.toThrow(/CHECK constraint/);
+    await expect(testEnv.DB.prepare(
+      'UPDATE children SET gender = ? WHERE id = ?',
+    ).bind('unknown', childId).run()).rejects.toThrow(/CHECK constraint/);
   });
 });

@@ -26,6 +26,7 @@ describe('D1データ制約', () => {
     const child = await createChild(testEnv, owner.id, {
       name: '制約確認',
       honorific: 'san',
+      gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
       goals: [],
@@ -43,6 +44,14 @@ describe('D1データ制約', () => {
     await expect(testEnv.DB.prepare(
       'INSERT INTO child_coaches (child_id, coach_id, role, created_at) VALUES (?, ?, ?, ?)',
     ).bind(child.id, anotherCoach.id, 'owner', now).run()).rejects.toThrow(/UNIQUE constraint/);
+
+    await expect(testEnv.DB.prepare(
+      'UPDATE children SET gender = ? WHERE id = ?',
+    ).bind('unknown', child.id).run()).rejects.toThrow(/CHECK constraint/);
+
+    await expect(testEnv.DB.prepare(
+      'UPDATE children SET honorific = ? WHERE id = ?',
+    ).bind('none', child.id).run()).rejects.toThrow(/CHECK constraint/);
   });
 
   it('子どもごとの下書き1件をDBで保証する', async () => {
@@ -53,6 +62,7 @@ describe('D1データ制約', () => {
     const child = await createChild(testEnv, coach.id, {
       name: '下書き制約',
       honorific: 'chan',
+      gender: 'unspecified',
       gradeCode: 'k2',
       joinedOn: '2026-09-01',
       goals: [],

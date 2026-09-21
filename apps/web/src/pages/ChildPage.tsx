@@ -13,6 +13,7 @@ import {
   nextDueDate,
   todayInJst,
   type ChildDetail,
+  type Gender,
   type GradeCode,
   type Honorific,
 } from '@papamo/shared';
@@ -24,7 +25,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CopyCode } from '../components/CopyCode';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
-import { formatJapaneseDate, honorificLabel } from '../utils/display';
+import { formatJapaneseDate, genderLabel, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
 type ConfirmAction = 'start' | 'archive' | 'remove' | 'delete' | null;
@@ -32,6 +33,7 @@ type ConfirmAction = 'start' | 'archive' | 'remove' | 'delete' | null;
 interface ChildFormState {
   name: string;
   honorific: Honorific;
+  gender: Gender;
   gradeCode: GradeCode;
   joinedOn: string;
 }
@@ -41,6 +43,7 @@ function formFromChild(child: ChildDetail): ChildFormState {
   return {
     name: child.name,
     honorific: child.honorific,
+    gender: child.gender,
     gradeCode: currentGrade ?? child.gradeCode,
     joinedOn: child.joinedOn,
   };
@@ -184,6 +187,7 @@ export function ChildPage() {
         body: JSON.stringify({
           name: childForm.name.trim(),
           honorific: childForm.honorific,
+          gender: childForm.gender,
           joinedOn: childForm.joinedOn,
           ...(childForm.gradeCode === child.gradeCode ? {} : { gradeCode: childForm.gradeCode }),
         }),
@@ -482,7 +486,7 @@ export function ChildPage() {
 
               <section className={styles.panel} aria-labelledby="profile-title">
                 <div className={styles.sectionHeader}>
-                  <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・学年・入会日の修正</p></div>
+                  <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・性別・学年・入会日の修正</p></div>
                   {!readOnly && !editingProfile ? <button className={styles.compactButton} type="button" onClick={() => setEditingProfile(true)}>編集</button> : null}
                 </div>
                 {editingProfile && childForm ? (
@@ -495,9 +499,16 @@ export function ChildPage() {
                       <div className={styles.formField}>
                         <label htmlFor="profile-child-honorific">敬称</label>
                         <select id="profile-child-honorific" value={childForm.honorific} onChange={(event) => setChildForm((current) => current ? { ...current, honorific: event.target.value as Honorific } : current)}>
-                          <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option><option value="none">なし</option>
+                          <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option>
                         </select>
                       </div>
+                    </div>
+                    <div className={styles.formField}>
+                      <label htmlFor="profile-child-gender">性別</label>
+                      <select id="profile-child-gender" value={childForm.gender} onChange={(event) => setChildForm((current) => current ? { ...current, gender: event.target.value as Gender } : current)}>
+                        <option value="boy">男の子</option><option value="girl">女の子</option><option value="unspecified">選ばない</option>
+                      </select>
+                      <small>敬称とは連動しません。呼び方は敬称で選んでください。</small>
                     </div>
                     <div className={styles.formField}>
                       <label htmlFor="profile-child-grade">現在の学年</label>
@@ -518,6 +529,7 @@ export function ChildPage() {
                 ) : (
                   <dl className={styles.profileSummary}>
                     <div><dt>お名前</dt><dd>{childName}</dd></div>
+                    <div><dt>性別</dt><dd>{genderLabel(child.gender)}</dd></div>
                     <div><dt>現在の学年</dt><dd>{child.grade.name}（{child.grade.ageHint}）</dd></div>
                     <div><dt>入会日</dt><dd>{formatJapaneseDate(child.joinedOn)}</dd></div>
                   </dl>

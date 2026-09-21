@@ -25,6 +25,7 @@ import {
   type AssessmentData,
   type CompletedAssessmentData,
   type ExerciseKey,
+  type Gender,
   type GradeCode,
   type Honorific,
   type SampleDataProfile,
@@ -47,7 +48,8 @@ const SAMPLE_GOALS = [
 ];
 const LONG_PROFILE_GRADES: GradeCode[] = ['e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
 const ALL_GRADES: GradeCode[] = ['k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
-const HONORIFICS: Honorific[] = ['kun', 'chan', 'san', 'none'];
+const HONORIFICS: Honorific[] = ['kun', 'chan', 'san'];
+const GENDERS: Gender[] = ['boy', 'girl', 'unspecified'];
 const UINT32_RANGE = 4_294_967_296;
 
 type Random = () => number;
@@ -252,6 +254,7 @@ export async function createSampleChild(
       createdBy: owner.id,
       name: `${SAMPLE_NAME_PREFIX}${pick(random, SAMPLE_NAMES)}${randomInt(random, 100, 1000)}`,
       honorific: pick(random, HONORIFICS),
+      gender: pick(random, GENDERS),
       gradeCode,
       gradeBaseYear,
       joinedOn,

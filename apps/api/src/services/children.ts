@@ -15,6 +15,7 @@ import {
   type AssessmentProgress,
   type ChildDetail,
   type ChildView,
+  type Gender,
   type GradeCode,
   type Honorific,
 } from '@papamo/shared';
@@ -91,6 +92,7 @@ function serializeChild(
     id: row.id,
     name: row.name,
     honorific: row.honorific as Honorific,
+    gender: row.gender as Gender,
     gradeCode,
     gradeBaseYear,
     grade: gradeAt({ gradeCode, gradeBaseYear }, today),
@@ -226,6 +228,7 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
       createdBy: coachId,
       name: input.name,
       honorific: input.honorific,
+      gender: input.gender,
       gradeCode: input.gradeCode,
       gradeBaseYear,
       joinedOn: input.joinedOn,
@@ -343,6 +346,7 @@ export async function patchChild(env: Env, childId: string, input: ChildPatchReq
   await db.update(children).set({
     ...(input.name === undefined ? {} : { name: input.name }),
     ...(input.honorific === undefined ? {} : { honorific: input.honorific }),
+    ...(input.gender === undefined ? {} : { gender: input.gender }),
     ...(input.joinedOn === undefined ? {} : { joinedOn: input.joinedOn }),
     ...(input.goals === undefined ? {} : { goals: JSON.stringify(input.goals) }),
     ...(input.gradeCode === undefined ? {} : { gradeCode: nextGrade, gradeBaseYear: schoolYear(todayInJst()) }),

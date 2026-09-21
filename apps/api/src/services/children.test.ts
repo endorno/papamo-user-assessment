@@ -10,6 +10,7 @@ import {
   getChildForCoach,
   importChild,
   listChildren,
+  patchChild,
   removeMembership,
   requireMembership,
   setArchiveState,
@@ -31,6 +32,7 @@ async function createFixture(name: string) {
   const child = await createChild(testEnv, coach.id, {
     name,
     honorific: 'chan',
+    gender: 'unspecified',
     gradeCode: 'k2',
     joinedOn: '2026-01-05',
     goals: [],
@@ -65,6 +67,7 @@ describe('子ども管理サービス', () => {
     const created = await createChild(testEnv, ownerId, {
       name: 'はると',
       honorific: 'kun',
+      gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
       goals: ['姿勢を安定させたい'],
@@ -91,6 +94,7 @@ describe('子ども管理サービス', () => {
     const child = await createChild(testEnv, ownerId, {
       name: 'りく',
       honorific: 'kun',
+      gender: 'unspecified',
       gradeCode: 'e2',
       joinedOn: '2026-09-01',
       goals: [],
@@ -111,6 +115,7 @@ describe('子ども管理サービス', () => {
     const child = await createChild(testEnv, ownerId, {
       name: 'あおい',
       honorific: 'chan',
+      gender: 'unspecified',
       gradeCode: 'k3',
       joinedOn: '2026-09-01',
       goals: [],
@@ -136,6 +141,7 @@ describe('子ども管理サービス', () => {
     const emptyChild = await createChild(testEnv, coach.id, {
       name: 'みお',
       honorific: 'chan',
+      gender: 'unspecified',
       gradeCode: 'k1',
       joinedOn: '2026-09-01',
       goals: [],
@@ -143,6 +149,7 @@ describe('子ども管理サービス', () => {
     const draftingChild = await createChild(testEnv, coach.id, {
       name: 'なお',
       honorific: 'san',
+      gender: 'unspecified',
       gradeCode: 'j1',
       joinedOn: '2026-09-01',
       goals: [],
@@ -165,7 +172,7 @@ describe('子ども管理サービス', () => {
   it('一覧に下書きのIDを載せ、期限超過が大きい子どもを先に並べる', async () => {
     const coachId = crypto.randomUUID();
     await upsertCoach(testEnv, { id: coachId, email: `${coachId}@example.com` });
-    const base = { honorific: 'chan' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05', goals: [] };
+    const base = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05', goals: [] };
     const drafting = await createChild(testEnv, coachId, { ...base, name: 'あさひ' });
     const slightlyOverdue = await createChild(testEnv, coachId, { ...base, name: 'いおり' });
     const longOverdue = await createChild(testEnv, coachId, { ...base, name: 'うみ' });
@@ -232,5 +239,21 @@ describe('子ども管理サービス', () => {
     const listed = (await listChildren(testEnv, coach.id, false)).find(({ id }) => id === child.id);
     expect(listed?.latestAssessment).toMatchObject({ id: second.id, seqNo: 2, status: 'done' });
     expect(listed?.state).toMatchObject({ key: 'ok' });
+  });
+
+  it('性別と敬称をそれぞれ独立して保存できる', async () => {
+    const { coach, child } = await createFixture('かなた');
+    expect(child.gender).toBe('unspecified');
+
+    // 女の子でも「くん」と呼ぶ家庭があるため、性別と敬称は連動させない。
+    await patchChild(testEnv, child.id, { gender: 'girl' });
+    expect((await getChildForCoach(testEnv, child.id, coach.id))?.gender).toBe('girl');
+
+    await patchChild(testEnv, child.id, { honorific: 'kun' });
+    const updated = await getChildForCoach(testEnv, child.id, coach.id);
+    expect(updated).toMatchObject({ gender: 'girl', honorific: 'kun' });
+
+    await patchChild(testEnv, child.id, { name: 'かなで' });
+    expect((await getChildForCoach(testEnv, child.id, coach.id))?.gender).toBe('girl');
   });
 });

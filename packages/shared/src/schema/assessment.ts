@@ -26,7 +26,9 @@ import { isValidDateString } from '../domain/date';
 export const exerciseKeySchema = z.enum(
   EXERCISES.map((exercise) => exercise.key) as [ExerciseKey, ...ExerciseKey[]],
 );
-export const honorificSchema = z.enum(['kun', 'chan', 'san', 'none']);
+export const honorificSchema = z.enum(['kun', 'chan', 'san']);
+// 敬称とは連動させない（女の子でも「くん」で呼ぶなど、呼び方は家庭ごとに違うため）。
+export const genderSchema = z.enum(['boy', 'girl', 'unspecified']);
 export const gradeCodeSchema = z.enum([
   'k0',
   'k1',
@@ -147,6 +149,7 @@ export const assessmentDataCompletedSchema = z.object({
 export const childCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(30),
   honorific: honorificSchema,
+  gender: genderSchema.default('unspecified'),
   gradeCode: gradeCodeSchema,
   joinedOn: dateSchema,
   goals: z.array(z.string().trim().min(1).max(100)).max(COPM_MAX).default([]),
@@ -155,6 +158,7 @@ export const childCreateRequestSchema = z.object({
 export const childPatchRequestSchema = z.object({
   name: z.string().trim().min(1).max(30).optional(),
   honorific: honorificSchema.optional(),
+  gender: genderSchema.optional(),
   gradeCode: gradeCodeSchema.optional(),
   joinedOn: dateSchema.optional(),
   goals: z.array(z.string().trim().min(1).max(100)).max(COPM_MAX).optional(),
@@ -279,6 +283,7 @@ export type AssessmentDataPatch = z.infer<typeof assessmentDataPatchSchema>;
 export type CompletedAssessmentData = z.infer<typeof assessmentDataCompletedSchema>;
 export type CopmGoal = z.infer<typeof copmGoalSchema>;
 export type Honorific = z.infer<typeof honorificSchema>;
+export type Gender = z.infer<typeof genderSchema>;
 export type ChildCreateRequest = z.infer<typeof childCreateRequestSchema>;
 export type ChildPatchRequest = z.infer<typeof childPatchRequestSchema>;
 export type ChildImportRequest = z.infer<typeof childImportRequestSchema>;

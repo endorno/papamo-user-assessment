@@ -68,7 +68,8 @@
 - 子どもレコードの **削除はオーナーのみ、かつ最初のレポートを作成する前だけ** 許可する。入力中のアセスメントがあれば一緒に削除し、共有済みの場合は全コーチの一覧から消す。オーナー移譲後の旧オーナーは member なので削除できない。
 - 退会した子どもは **アーカイブ** する。アーカイブすると全コーチの一覧から消えるが、データは残り **いつでも復元できる**。アーカイブ／復元はオーナーのみ。アーカイブ中の子どもは読み取り専用（アセスメントの新規作成・編集はできない）。
 - 共有コードの失効・再発行はしない。誰がいつ取り込んだかは記録に残るため、運用でカバーする。
-- 子どもの名前は **下の名前のみを想定**。敬称は「くん／ちゃん／さん／なし」。姓・住所・写真などは扱わない。
+- 子どもの名前は **下の名前のみを想定**。敬称は「くん／ちゃん／さん」。姓・住所・写真などは扱わない。
+- 性別は「男の子／女の子／選ばない」。**敬称とは連動させない**（女の子でも「くん」で呼ぶなど、呼び方は家庭ごとに違うため）。既定は「選ばない」。
 
 ### 2.3 アセスメント
 
@@ -218,7 +219,7 @@ ID は ULID（文字列）。日時は ISO 8601 文字列（UTC）で保存し�
 ```ts
 coaches           id (= supabase sub) PK, email, display_name (null 可 → オンボーディング未完), created_at, updated_at
 children          id PK, share_code UNIQUE, owner_share_code UNIQUE, created_by → coaches.id,
-                  name, honorific ('kun'|'chan'|'san'|'none'),
+                  name, honorific ('kun'|'chan'|'san'), gender ('boy'|'girl'|'unspecified'),
                   grade_code ('k0'|'k1'|'k2'|'k3'|'e1'..'e6'|'j1'..'j3'), grade_base_year (int, 年度),
                   joined_on ('YYYY-MM-DD'), ext_unlocked (bool, default false), goals (JSON string[]),
                   archived_at (null 可 → アーカイブ済み), created_at, updated_at
@@ -401,10 +402,10 @@ export interface ReportGenerator {
 | GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）                                                                                                               |
 | PUT    | `/me`                       | `{ displayName }` を更新（1〜30文字）                                                                                                                             |
 | GET    | `/children`                 | 自分に紐づく子ども（作成した子ども＋取り込んだ子ども）の一覧 + 各子どもの状態（§8.3）。**アーカイブ済みは除外**、`?archived=1` でアーカイブ済みのみ。一覧の並び順はサーバーで決める                                                     |
-| POST   | `/children`                 | 作成。`{ name, honorific, gradeCode, joinedOn }`。目標は空配列で初期化する。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
+| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedOn }`（`gender` 省略時は `unspecified`）。目標は空配列で初期化する。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
 | POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、未知のコードは 404 |
 | GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
-| PATCH  | `/children/:id`             | `{ name?, honorific?, gradeCode?, joinedOn?, goals? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` は変更不可。**目標の編集はここに集約**（子どもページ・アセスメント画面のどちらから編集しても同じ） |
+| PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedOn?, goals? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` は変更不可。**目標の編集はここに集約**（子どもページ・アセスメント画面のどちらから編集しても同じ） |
 | DELETE | `/children/:id/membership`  | 自分のリンク解除。role=owner なら 403                                                                                                                               |
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
 | POST   | `/children/:id/archive`     | アーカイブ（退会）。owner のみ。下書きが残っていても可（下書きごと隠れる）                                                                                                                 |
@@ -447,7 +448,7 @@ export interface ReportGenerator {
 | `/login`           | ログイン         | **「Google でログイン」ボタン1つ**（supabase-js の `signInWithOAuth({ provider: 'google' })`）。モックのメール／パスワード欄は作らない（§2.1）                       |
 | `/onboarding`      | 表示名登録        | `displayName` 未登録時のみ。完了後 `/` へ                                                                                          |
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
-| `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称（なしを含む）・**学年**・入会日（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
+| `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会日（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | 育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コードの表示、目標の編集。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、「未実施／実施不可」ボタン＋Lv1〜上限のグリッド、前回Lvの点線枠、ラダー展開、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
 | `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |

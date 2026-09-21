@@ -5,6 +5,7 @@ export type ChildRow = {
   createdBy: string;
   name: string;
   honorific: string;
+  gender: string;
   gradeCode: string;
   gradeBaseYear: number;
   joinedOn: string;

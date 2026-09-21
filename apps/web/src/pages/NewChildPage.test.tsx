@@ -18,6 +18,7 @@ const created = {
   id: 'child-1',
   name: 'ゆい',
   honorific: 'chan' as const,
+  gender: 'girl' as const,
   gradeCode: 'e1' as const,
   gradeBaseYear: 2026,
   grade: { code: 'e1', name: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, graduated: false },
@@ -81,23 +82,25 @@ describe('お子さま登録', () => {
       expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
         name: 'ゆい',
         honorific: 'chan',
+        gender: 'unspecified',
         gradeCode: 'e1',
         joinedOn: expect.any(String),
       });
     });
   });
 
-  it('敬称なしを選んで登録できる', async () => {
+  it('性別と敬称を別々に選んで登録できる', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ child: created }, 201)));
     renderNewChildPage();
 
     fireEvent.change(screen.getByLabelText('お名前（下の名前）'), { target: { value: 'ゆい' } });
-    fireEvent.change(screen.getByLabelText('敬称'), { target: { value: 'none' } });
+    fireEvent.change(screen.getByLabelText('敬称'), { target: { value: 'kun' } });
+    fireEvent.change(screen.getByLabelText('性別'), { target: { value: 'girl' } });
     fireEvent.change(screen.getByLabelText('現在の学年'), { target: { value: 'e1' } });
     fireEvent.click(screen.getByRole('button', { name: 'この内容で登録する' }));
 
     await screen.findByText('子ども一覧です');
     const createCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/api/children'));
-    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ honorific: 'none' });
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ honorific: 'kun', gender: 'girl' });
   });
 });

@@ -176,7 +176,7 @@ describe('API ルート結合', () => {
     expect(childDeletion.status).toBe(409);
   });
 
-  it('敬称なしで登録でき、最初のレポート前なら下書きと共有先ごと削除する', async () => {
+  it('性別つきで登録でき、最初のレポート前なら下書きと共有先ごと削除する', async () => {
     const owner = await createTestClient();
     const member = await createTestClient();
     await onboard(owner);
@@ -186,14 +186,15 @@ describe('API ルート結合', () => {
       method: 'POST',
       body: JSON.stringify({
         name: 'ひなた',
-        honorific: 'none',
+        honorific: 'kun',
+        gender: 'girl',
         gradeCode: 'e1',
         joinedOn: '2026-09-01',
       }),
     });
     expect(createResponse.status).toBe(201);
     const child = childResponseSchema.parse(await createResponse.json()).child;
-    expect(child).toMatchObject({ honorific: 'none', goals: [] });
+    expect(child).toMatchObject({ honorific: 'kun', gender: 'girl', goals: [] });
 
     expect((await request(member, '/children/import', {
       method: 'POST',

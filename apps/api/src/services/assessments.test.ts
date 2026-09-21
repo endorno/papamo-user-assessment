@@ -32,6 +32,7 @@ async function createFixture(name = 'ゆい') {
   const child = await createChild(testEnv, coach.id, {
     name,
     honorific: 'chan',
+    gender: 'unspecified',
     gradeCode: 'k2',
     joinedOn: '2026-09-01',
     goals: ['転びにくくなってほしい'],
@@ -75,6 +76,7 @@ describe('アセスメントサービス', () => {
     const child = await createChild(testEnv, coach.id, {
       name: 'ゆい',
       honorific: 'chan',
+      gender: 'unspecified',
       gradeCode: 'k2',
       joinedOn: '2026-09-01',
       goals: ['転びにくくなってほしい'],
@@ -127,6 +129,7 @@ describe('アセスメントサービス', () => {
     const child = await createChild(testEnv, coach.id, {
       name: 'そうた',
       honorific: 'kun',
+      gender: 'unspecified',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
       goals: [],

@@ -8,13 +8,30 @@ import {
 } from './assessment';
 
 describe('アセスメント入力スキーマ', () => {
-  it('子ども登録では敬称なしを許可し、目標を空で初期化する', () => {
+  it('子ども登録では性別を省くと「選ばない」になり、目標を空で初期化する', () => {
     expect(childCreateRequestSchema.parse({
+      name: 'ひなた',
+      honorific: 'san',
+      gradeCode: 'e1',
+      joinedOn: '2026-09-01',
+    })).toMatchObject({ gender: 'unspecified', goals: [] });
+  });
+
+  it('敬称は3種類だけを受け付け、性別とは独立して選べる', () => {
+    expect(childCreateRequestSchema.safeParse({
       name: 'ひなた',
       honorific: 'none',
       gradeCode: 'e1',
       joinedOn: '2026-09-01',
-    })).toMatchObject({ honorific: 'none', goals: [] });
+    }).success).toBe(false);
+
+    expect(childCreateRequestSchema.parse({
+      name: 'ひなた',
+      honorific: 'kun',
+      gender: 'girl',
+      gradeCode: 'e1',
+      joinedOn: '2026-09-01',
+    })).toMatchObject({ honorific: 'kun', gender: 'girl' });
   });
 
   it('暦に存在しない日付を拒否する', () => {

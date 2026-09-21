@@ -20,6 +20,7 @@ const baseChild = {
   id: 'child-1',
   name: 'そうた',
   honorific: 'kun' as const,
+  gender: 'boy' as const,
   gradeCode: 'e3' as const,
   gradeBaseYear: 2026,
   grade: { code: 'e3', name: '小学3年生', ageHint: '8〜9歳', ageGroup: 'sch' as const, graduated: false },
