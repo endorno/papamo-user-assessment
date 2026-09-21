@@ -4,15 +4,31 @@ import { useNavigate, useParams } from 'react-router';
 import {
   assessmentDataDraftSchema,
   assessmentResponseSchema,
-  bandOf,
+  bandName,
+  COPM_MAX,
+  COPM_SCORE_DEFAULT,
+  COPM_SCORE_MAX,
+  COPM_SCORE_MIN,
+  ENGAGEMENT_AXES,
+  ENGAGEMENT_LEVEL_COUNT,
+  ENVIRONMENT_SUPPORT_GROUPS,
   EXERCISES,
   EXT_EXERCISE_KEYS,
   ladderLabel,
+  LEVEL_NOT_MEASURED,
+  LEVEL_NOT_MEASURED_LABEL,
+  LEVEL_NOT_POSSIBLE,
+  LEVEL_NOT_POSSIBLE_LABEL,
   PPI_QUESTIONS,
-  PLANS,
   TROUBLE_CATEGORIES,
+  WANT_GROUPS,
+  WANT_ITEMS,
+  WANT_MAX,
+  wantToGoalText,
   type AssessmentData,
   type AssessmentDetail,
+  type CopmGoal,
+  type EngagementKey,
   type ExerciseDefinition,
   type PpiKey,
 } from '@papamo/shared';
@@ -21,7 +37,7 @@ import { useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { SpreadsheetGoalImportDialog } from '../components/SpreadsheetGoalImportDialog';
+import { SurveyImportDialog, type SurveyImport } from '../components/SurveyImportDialog';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
@@ -92,24 +108,41 @@ function savedMessageFor(assessment: AssessmentDetail) {
 /** 4・5種目目を閉じたときに残った入力を落とす（サーバー側でも同じ整理をする）。 */
 function withoutExtInput(data: AssessmentData): AssessmentData {
   const lv = { ...data.lv };
-  const errs = { ...data.errs };
+  const observations = { ...data.observations };
+  const observationNotes = { ...data.observationNotes };
   for (const key of EXT_EXERCISE_KEYS) {
     delete lv[key];
-    delete errs[key];
+    delete observations[key];
+    delete observationNotes[key];
   }
-  return { ...data, lv, errs };
+  return { ...data, lv, observations, observationNotes };
 }
 
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
 function hasAnyInput(form: AssessmentFormState) {
-  const { lv, ppi, errs, memo, ppiNote } = form.data;
+  const { lv, ppi, observations, observationNotes, engagement, envSupports, wants, copm, memo, ppiNote } = form.data;
   return Boolean(
     Object.keys(lv).length
     || Object.keys(ppi).length
-    || Object.values(errs).some((selected) => selected?.length)
+    || Object.keys(engagement).length
+    || envSupports.length
+    || wants.length
+    || copm.length
+    || Object.values(observations).some((selected) => selected?.length)
+    || Object.values(observationNotes).some((note) => note?.trim())
     || memo.trim()
     || ppiNote.trim(),
   );
+}
+
+function emptyCopmGoal(text = ''): CopmGoal {
+  return {
+    text,
+    memo: '',
+    performance: COPM_SCORE_DEFAULT,
+    satisfaction: COPM_SCORE_DEFAULT,
+    importance: COPM_SCORE_DEFAULT,
+  };
 }
 
 export function AssessmentPage() {
@@ -131,11 +164,8 @@ export function AssessmentPage() {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [localRestore, setLocalRestore] = useState<LocalDraft | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [goalsText, setGoalsText] = useState('');
-  const [editingGoals, setEditingGoals] = useState(false);
-  const [goalsSaving, setGoalsSaving] = useState(false);
-  const [goalsError, setGoalsError] = useState<string | null>(null);
-  const [showGoalImport, setShowGoalImport] = useState(false);
+  const [showSurveyImport, setShowSurveyImport] = useState(false);
+  const [wantLimitNotice, setWantLimitNotice] = useState(false);
 
   // 保存処理は非同期に連なるため、描画用の state とは別に最新値を ref で持つ。
   const assessmentRef = useRef<AssessmentDetail | null>(null);
@@ -180,7 +210,6 @@ export function AssessmentPage() {
     const loadedForm = formFromAssessment(loaded);
     applyAssessment(loaded);
     applyForm(loadedForm, false);
-    setGoalsText(loaded.child.goals.join('\n'));
     setSaveError(null);
     changeVersionRef.current = 0;
 
@@ -349,19 +378,92 @@ export function AssessmentPage() {
     }));
   }
 
-  function toggleError(exercise: ExerciseDefinition, error: string) {
+  function toggleObservation(exercise: ExerciseDefinition, observation: string) {
     updateData((current) => {
-      const selected = current.errs[exercise.key] ?? [];
+      const selected = current.observations[exercise.key] ?? [];
       return {
         ...current,
-        errs: {
-          ...current.errs,
-          [exercise.key]: selected.includes(error)
-            ? selected.filter((item) => item !== error)
-            : [...selected, error],
+        observations: {
+          ...current.observations,
+          [exercise.key]: selected.includes(observation)
+            ? selected.filter((item) => item !== observation)
+            : [...selected, observation],
         },
       };
     });
+  }
+
+  function setObservationNote(exercise: ExerciseDefinition, note: string) {
+    updateText((current) => ({
+      ...current,
+      observationNotes: { ...current.observationNotes, [exercise.key]: note },
+    }));
+  }
+
+  function toggleEnvSupport(key: string, checked: boolean) {
+    updateData((current) => ({
+      ...current,
+      envSupports: checked
+        ? [...current.envSupports, key]
+        : current.envSupports.filter((item) => item !== key),
+    }));
+  }
+
+  // 「できるようになりたいこと」を選ぶと、空いている目標欄へ仮の文言を入れる。
+  function toggleWant(id: string, checked: boolean) {
+    const current = formRef.current;
+    if (!current) return;
+    if (checked && current.data.wants.length >= WANT_MAX) {
+      setWantLimitNotice(true);
+      return;
+    }
+    setWantLimitNotice(false);
+    const want = WANT_ITEMS.find((item) => item.id === id);
+    const suggestion = want ? wantToGoalText(want.text) : '';
+    updateData((data) => {
+      const wants = checked ? [...data.wants, id] : data.wants.filter((item) => item !== id);
+      if (!checked || !suggestion) return { ...data, wants };
+      const alreadyListed = data.copm.some((goal) => goal.text === suggestion);
+      if (alreadyListed || data.copm.length >= COPM_MAX) return { ...data, wants };
+      return { ...data, wants, copm: [...data.copm, emptyCopmGoal(suggestion)] };
+    });
+  }
+
+  function updateCopmGoal(index: number, update: (goal: CopmGoal) => CopmGoal, delay = SAVE_DELAY_MS) {
+    updateData((data) => ({
+      ...data,
+      copm: data.copm.map((goal, position) => (position === index ? update(goal) : goal)),
+    }), delay);
+  }
+
+  function addCopmGoal() {
+    updateData((data) => (
+      data.copm.length >= COPM_MAX ? data : { ...data, copm: [...data.copm, emptyCopmGoal()] }
+    ));
+  }
+
+  function removeCopmGoal(index: number) {
+    updateData((data) => ({ ...data, copm: data.copm.filter((_, position) => position !== index) }));
+  }
+
+  // 事前アンケートの回答で、お困りごと・目標・お困り度をまとめて置き換える。
+  // 回答がなかった項目には触らず、コーチの手入力を消さない。
+  function importSurvey(result: SurveyImport) {
+    updateData((data) => ({
+      ...data,
+      ...(result.troubles.length ? { troubles: result.troubles } : {}),
+      ...(result.wants.length ? { wants: result.wants } : {}),
+      ...(result.goals.length
+        ? {
+            copm: result.goals.slice(0, COPM_MAX).map((text) => {
+              const existing = data.copm.find((goal) => goal.text === text);
+              return existing ? { ...existing } : emptyCopmGoal(text);
+            }),
+          }
+        : {}),
+      ...(Object.keys(result.ppi).length ? { ppi: { ...data.ppi, ...result.ppi } } : {}),
+      ...(result.ppiNote ? { ppiNote: result.ppiNote } : {}),
+    }));
   }
 
   function toggleUnlockExt(checked: boolean) {
@@ -401,31 +503,6 @@ export function AssessmentPage() {
     const saved = await saveNow();
     setClosing(false);
     if (saved) navigate(`/children/${current.childId}`);
-  }
-
-  async function saveGoals() {
-    if (!session || !assessment) return;
-    const goals = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean);
-    if (goals.length > 5) {
-      setGoalsError('目標は5件以内で入力してください。');
-      return;
-    }
-    setGoalsSaving(true);
-    setGoalsError(null);
-    try {
-      await apiRequest(`/children/${assessment.childId}`, session, {
-        method: 'PATCH',
-        body: JSON.stringify({ goals }),
-      });
-      applyAssessment({ ...assessment, child: { ...assessment.child, goals } });
-      setEditingGoals(false);
-    } catch (caught) {
-      if (!returnToListIfDeleted(caught)) {
-        setGoalsError(caught instanceof Error ? caught.message : '目標を保存できませんでした。');
-      }
-    } finally {
-      setGoalsSaving(false);
-    }
   }
 
   async function discardDraft() {
@@ -469,20 +546,23 @@ export function AssessmentPage() {
   const missingPpi = PPI_QUESTIONS.filter(({ key }) => form.data.ppi[key] === undefined);
   const completionIssues = [
     ...missingExercises.map((exercise) => ({ target: `assessment-${exercise.key}`, label: `${exercise.name}のLv` })),
-    ...(missingPpi.length ? [{ target: 'assessment-ppi', label: `ご家庭の負担度 あと${missingPpi.length}問` }] : []),
-    ...(!form.data.plan ? [{ target: 'assessment-plan', label: '3か月の運動計画' }] : []),
+    ...(missingPpi.length ? [{ target: 'assessment-ppi', label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
   ];
   const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing;
   const conflict = saveError instanceof ApiClientError && saveError.code === 'conflict';
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
-  const goalCount = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean).length;
   const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
+  const answeredEngagement = ENGAGEMENT_AXES.filter(({ key }) => form.data.engagement[key as EngagementKey] !== undefined);
+  const troubleCategories = TROUBLE_CATEGORIES[assessment.child.ageGroup];
+  const troubleOptions = troubleCategories.flatMap((category) => category.items.map(({ text }) => text));
   const navSections = [
     { id: 'assessment-basic', label: '基本情報', complete: true },
     ...exercises.map((exercise) => ({ id: `assessment-${exercise.key}`, label: `${exercise.icon} ${exercise.name}`, complete: form.data.lv[exercise.key] !== undefined })),
+    { id: 'assessment-engagement', label: '取り組みの発達', complete: answeredEngagement.length > 0 },
     { id: 'assessment-troubles', label: 'お困りごと', complete: form.data.troubles.length > 0 },
-    { id: 'assessment-ppi', label: 'ご家庭の負担度', complete: missingPpi.length === 0 },
-    { id: 'assessment-plan', label: '計画・所見', complete: Boolean(form.data.plan) },
+    { id: 'assessment-goals', label: 'ご家族・本人の目標', complete: form.data.copm.length > 0 },
+    { id: 'assessment-ppi', label: 'ご家庭のお困り度', complete: missingPpi.length === 0 },
+    { id: 'assessment-memo', label: 'コーチ所見メモ', complete: true },
   ];
 
   return (
@@ -523,7 +603,7 @@ export function AssessmentPage() {
             {pageError ? <div className={styles.inlineError} role="alert">{pageError}</div> : null}
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-basic" data-assessment-section aria-labelledby="basic-title">
-              <div className={styles.sectionHeader}><div><h2 id="basic-title">基本情報</h2><p className={styles.muted}>今回の実施日と目標を確認します</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="basic-title">基本情報</h2><p className={styles.muted}>今回の実施日を確認します</p></div></div>
               <div className={styles.basicGrid}>
                 <div className={styles.formField}>
                   <label htmlFor="assessed-on">実施日</label>
@@ -535,28 +615,6 @@ export function AssessmentPage() {
                 </div>
               </div>
               {assessment.previous ? <p className={styles.infoNote}>前回（第{assessment.previous.seqNo}回・{formatJapaneseDate(assessment.previous.assessedOn)}）と比較したレポートになります。</p> : null}
-              <div className={styles.goalsEditor}>
-                <div className={styles.sectionHeader}>
-                  <div><strong>ご家族・本人の目標</strong><p className={styles.muted}>変更内容はお子さま情報に保存され、完了時に今回の記録へ写されます。</p></div>
-                  {!assessment.readOnly && !editingGoals ? (
-                    <div className={styles.compactActions}>
-                      {assessment.seqNo === 1 ? <button className={styles.compactButton} type="button" onClick={() => setShowGoalImport(true)}>入会アンケートから取り込む</button> : null}
-                      <button className={styles.compactButton} type="button" onClick={() => setEditingGoals(true)}>編集</button>
-                    </div>
-                  ) : null}
-                </div>
-                {editingGoals ? (
-                  <>
-                    <textarea value={goalsText} onChange={(event) => setGoalsText(event.target.value)} rows={4} aria-label="ご家族・本人の目標" />
-                    <small className={goalCount > 5 ? styles.fieldError : styles.muted}>1行に1件、5件まで（現在 {goalCount}件）</small>
-                    {goalsError ? <p className={styles.formError} role="alert">{goalsError}</p> : null}
-                    <div className={styles.inlineActions}>
-                      <button className={styles.primaryButton} type="button" disabled={goalsSaving || goalCount > 5} onClick={() => void saveGoals()}>{goalsSaving ? '保存中…' : '目標を保存'}</button>
-                      <button className={styles.secondaryButton} type="button" onClick={() => { setGoalsText(assessment.child.goals.join('\n')); setEditingGoals(false); }}>キャンセル</button>
-                    </div>
-                  </>
-                ) : assessment.child.goals.length ? <div className={styles.goalChips}>{assessment.child.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。</p>}
-              </div>
               {assessment.child.extUnlocked ? (
                 <div className={styles.unlockInfo}><strong>4・5種目目は開放済みです</strong><span>以降のアセスメントは5種目で記録します。</span></div>
               ) : canToggleUnlock ? (
@@ -572,34 +630,153 @@ export function AssessmentPage() {
               ) : null}
             </section>
 
+            <div className={`${styles.inputArea} ${styles.inputAreaObserved}`}>
+              <p className={styles.inputAreaHead}>
+                <strong>その場で観察して記入</strong>
+                <small>レッスン中に見た様子をそのまま記録します</small>
+              </p>
+
             {exercises.map((exercise) => (
               <ExerciseSection
                 key={exercise.key}
                 exercise={exercise}
                 level={form.data.lv[exercise.key]}
                 previousLevel={assessment.previous?.lv[exercise.key]}
-                errors={form.data.errs[exercise.key] ?? []}
+                observations={form.data.observations[exercise.key] ?? []}
+                note={form.data.observationNotes[exercise.key] ?? ''}
                 disabled={assessment.readOnly}
                 onLevelChange={(level) => updateData((current) => ({ ...current, lv: { ...current.lv, [exercise.key]: level } }))}
-                onErrorToggle={(error) => toggleError(exercise, error)}
+                onObservationToggle={(observation) => toggleObservation(exercise, observation)}
+                onNoteChange={(note) => setObservationNote(exercise, note)}
               />
             ))}
+
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-engagement" data-assessment-section aria-labelledby="engagement-title">
+              <div className={styles.sectionHeader}><div><h2 id="engagement-title">取り組みの発達</h2><p className={styles.muted}>運動レベルとは別に、どう取り組めたかを記録します</p></div></div>
+              {ENGAGEMENT_AXES.map((axis) => {
+                const value = form.data.engagement[axis.key as EngagementKey];
+                const previous = assessment.previous?.engagement[axis.key as EngagementKey];
+                return (
+                  <div className={styles.engagementRow} key={axis.key}>
+                    <label htmlFor={`engagement-${axis.key}`}>
+                      <strong>{axis.title}</strong>
+                      <small>{axis.subtitle}{previous === undefined ? '' : `（前回 ${previous + 1}/${ENGAGEMENT_LEVEL_COUNT}）`}</small>
+                    </label>
+                    <select
+                      id={`engagement-${axis.key}`}
+                      value={value === undefined ? '' : String(value)}
+                      disabled={assessment.readOnly}
+                      onChange={(event) => updateData((current) => {
+                        const engagement = { ...current.engagement };
+                        if (event.target.value === '') delete engagement[axis.key as EngagementKey];
+                        else engagement[axis.key as EngagementKey] = Number(event.target.value);
+                        return { ...current, engagement };
+                      })}
+                    >
+                      <option value="">未評価</option>
+                      {axis.levels.map((label, index) => <option key={label} value={index}>{index + 1}. {label}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
+              <fieldset className={styles.envSupports}>
+                <legend>環境調整（今回きいた条件・複数選択可）</legend>
+                <p className={styles.muted}>高い低いではなく、この子が取り組みやすくなる条件の記録です。次のレッスンで何を用意するかの引き継ぎに使います。</p>
+                <div className={styles.envGroups}>
+                  {ENVIRONMENT_SUPPORT_GROUPS.map((group) => (
+                    <div className={styles.envGroup} key={group.group}>
+                      <strong>{group.group}</strong>
+                      {group.items.map((item) => (
+                        <label className={`${styles.troubleOption} ${form.data.envSupports.includes(item.key) ? styles.optionSelected : ''}`} key={item.key}>
+                          <input type="checkbox" checked={form.data.envSupports.includes(item.key)} disabled={assessment.readOnly} onChange={(event) => toggleEnvSupport(item.key, event.target.checked)} />
+                          <span>{item.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+            </section>
+
+            </div>
+
+            <div className={`${styles.inputArea} ${styles.inputAreaSurvey}`}>
+              <p className={styles.inputAreaHead}>
+                <strong>保護者と確認して記入</strong>
+                <small>その場で聞いても、あとから相談しても構いません</small>
+                {assessment.readOnly ? null : (
+                  <button className={styles.compactButton} type="button" onClick={() => setShowSurveyImport(true)}>事前アンケートから取り込む</button>
+                )}
+              </p>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" data-assessment-section aria-labelledby="troubles-title">
               <div className={styles.sectionHeader}><div><h2 id="troubles-title">お子さまのお困りごと</h2><p className={styles.muted}>保護者に聞き取り・当てはまるものを選択</p></div></div>
               <div className={styles.troubleCategories}>
-                {TROUBLE_CATEGORIES[assessment.child.ageGroup].map((category) => (
+                {troubleCategories.map((category) => (
                   <fieldset className={styles.troubleCategory} key={category.id}>
                     <legend>{category.icon} {category.title}</legend>
-                    {category.items.map((trouble) => (
-                      <label className={`${styles.troubleOption} ${form.data.troubles.includes(trouble) ? styles.optionSelected : ''}`} key={trouble}>
-                        <input type="checkbox" checked={form.data.troubles.includes(trouble)} disabled={assessment.readOnly} onChange={(event) => toggleTrouble(trouble, event.target.checked)} />
-                        <span>{trouble}{assessment.previous?.troubles.includes(trouble) ? <small className={styles.previousTag}>前回も</small> : null}</span>
+                    {category.items.map(({ text }) => (
+                      <label className={`${styles.troubleOption} ${form.data.troubles.includes(text) ? styles.optionSelected : ''}`} key={text}>
+                        <input type="checkbox" checked={form.data.troubles.includes(text)} disabled={assessment.readOnly} onChange={(event) => toggleTrouble(text, event.target.checked)} />
+                        <span>{text}{assessment.previous?.troubles.includes(text) ? <small className={styles.previousTag}>前回も</small> : null}</span>
                       </label>
                     ))}
                   </fieldset>
                 ))}
               </div>
+            </section>
+
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-goals" data-assessment-section aria-labelledby="goals-title">
+              <div className={styles.sectionHeader}><div><h2 id="goals-title">ご家族・本人の目標</h2><p className={styles.muted}>最大{COPM_MAX}つ。3か月後に同じ設問で採点し直し、差分を見ます</p></div></div>
+
+              <fieldset className={styles.wantBox}>
+                <legend>できるようになりたいこと（{form.data.wants.length}/{WANT_MAX}）</legend>
+                <p className={styles.muted}>お困りごと（いま困っていること）とは別に、達成したい具体的なことを選びます。選ぶと下の目標欄に仮の文言が入るので、ご家族の言葉に書き換えてください。</p>
+                {wantLimitNotice ? <p className={styles.formError} role="alert">できるようになりたいことは最大{WANT_MAX}つまでです。</p> : null}
+                <div className={styles.envGroups}>
+                  {WANT_GROUPS.map((group) => (
+                    <div className={styles.envGroup} key={group}>
+                      <strong>{group}</strong>
+                      {WANT_ITEMS.filter((item) => item.group === group).map((item) => (
+                        <label className={`${styles.troubleOption} ${form.data.wants.includes(item.id) ? styles.optionSelected : ''}`} key={item.id}>
+                          <input type="checkbox" checked={form.data.wants.includes(item.id)} disabled={assessment.readOnly} onChange={(event) => toggleWant(item.id, event.target.checked)} />
+                          <span>{item.icon} {item.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+
+              <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
+
+              {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。上から選ぶか、「目標を追加」で入力してください。</p> : null}
+              {form.data.copm.map((goal, index) => {
+                const previous = assessment.previous?.copm.find((candidate) => candidate.text === goal.text);
+                return (
+                  <div className={styles.copmRow} key={index}>
+                    <div className={styles.formField}>
+                      <label htmlFor={`copm-text-${index}`}>目標 {index + 1}</label>
+                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                    </div>
+                    <div className={styles.formField}>
+                      <label htmlFor={`copm-memo-${index}`}>メモ</label>
+                      <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                    </div>
+                    <div className={styles.copmScores}>
+                      <CopmScore label="遂行度" id={`copm-performance-${index}`} value={goal.performance} previous={previous?.performance} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, performance: value }))} />
+                      <CopmScore label="満足度" id={`copm-satisfaction-${index}`} value={goal.satisfaction} previous={previous?.satisfaction} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, satisfaction: value }))} />
+                      <CopmScore label="重要度" id={`copm-importance-${index}`} value={goal.importance} previous={previous?.importance} disabled={assessment.readOnly} onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, importance: value }))} />
+                      {assessment.readOnly ? null : <button className={styles.textDangerButton} type="button" onClick={() => removeCopmGoal(index)}>この目標を削除</button>}
+                    </div>
+                  </div>
+                );
+              })}
+              {!assessment.readOnly && form.data.copm.length < COPM_MAX ? (
+                <div className={styles.inlineActions}>
+                  <button className={styles.secondaryButton} type="button" onClick={addCopmGoal}>目標を追加</button>
+                </div>
+              ) : null}
             </section>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" data-assessment-section aria-labelledby="ppi-title">
@@ -620,17 +797,10 @@ export function AssessmentPage() {
               </div>
             </section>
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-plan" data-assessment-section aria-labelledby="plan-title">
-              <div className={styles.sectionHeader}><div><h2 id="plan-title">計画・所見</h2><p className={styles.muted}>所見は内部用で、保護者レポートには出ません</p></div></div>
-              <fieldset className={styles.planOptions}>
-                <legend>3〜6か月の運動計画</legend>
-                {Object.entries(PLANS).map(([key, plan]) => (
-                  <label className={form.data.plan === key ? styles.planSelected : ''} key={key}>
-                    <input type="radio" name="plan" value={key} checked={form.data.plan === key} disabled={assessment.readOnly} onChange={() => updateData((current) => ({ ...current, plan: key as AssessmentData['plan'] }))} />
-                    <span><strong>{plan.name}</strong><small>{plan.window}</small><em>{plan.items.join('・')}</em></span>
-                  </label>
-                ))}
-              </fieldset>
+            </div>
+
+            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-memo" data-assessment-section aria-labelledby="memo-title">
+              <div className={styles.sectionHeader}><div><h2 id="memo-title">コーチ所見メモ</h2><p className={styles.muted}>内部用です。保護者レポートには出ません</p></div></div>
               <div className={styles.formField}>
                 <label htmlFor="coach-memo">コーチ所見メモ（内部用）</label>
                 <textarea id="coach-memo" rows={4} value={form.data.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
@@ -677,14 +847,13 @@ export function AssessmentPage() {
           onCancel={() => setConfirmDiscard(false)}
           onConfirm={() => { setConfirmDiscard(false); void discardDraft(); }}
         />
-        <SpreadsheetGoalImportDialog
-          open={showGoalImport}
-          onCancel={() => setShowGoalImport(false)}
-          onImport={(goals) => {
-            setGoalsText(goals.join('\n'));
-            setGoalsError(null);
-            setEditingGoals(true);
-            setShowGoalImport(false);
+        <SurveyImportDialog
+          open={showSurveyImport}
+          troubleOptions={troubleOptions}
+          onCancel={() => setShowSurveyImport(false)}
+          onImport={(result) => {
+            importSurvey(result);
+            setShowSurveyImport(false);
           }}
         />
         <ConfirmDialog
@@ -722,33 +891,61 @@ function ExerciseSection({
   exercise,
   level,
   previousLevel,
-  errors,
+  observations,
+  note,
   disabled,
   onLevelChange,
-  onErrorToggle,
+  onObservationToggle,
+  onNoteChange,
 }: {
   exercise: ExerciseDefinition;
   level: number | undefined;
   previousLevel: number | undefined;
-  errors: string[];
+  observations: string[];
+  note: string;
   disabled: boolean;
   onLevelChange: (level: number) => void;
-  onErrorToggle: (error: string) => void;
+  onObservationToggle: (observation: string) => void;
+  onNoteChange: (note: string) => void;
 }) {
   // ラダーを開かなくても、狙っているLvの課題文を先に読めるようにする。
   const [preview, setPreview] = useState<number | null>(null);
   const shown = preview ?? level;
-  const delta = level === undefined || previousLevel === undefined ? undefined : level - previousLevel;
+  // 未実施・実施不可は差分の対象にしない。
+  const delta = level === undefined || previousLevel === undefined || level <= 0 || previousLevel <= 0
+    ? undefined
+    : level - previousLevel;
+  const ladderLevels = Array.from({ length: exercise.maxLevel }, (_, index) => index + 1);
 
   return (
     <section className={`${styles.panel} ${styles.assessmentSection} ${level === undefined ? styles.sectionIncomplete : ''}`} id={`assessment-${exercise.key}`} data-assessment-section aria-labelledby={`${exercise.key}-title`}>
       <div className={styles.exerciseHeader}>
         <span className={styles.exerciseIcon} aria-hidden="true">{exercise.icon}</span>
-        <div><h2 id={`${exercise.key}-title`}>{exercise.name}</h2><p>{exercise.parentName} — {exercise.clinicalName}</p></div>
+        <div>
+          <h2 id={`${exercise.key}-title`}>{exercise.name}</h2>
+          <p>{exercise.clinicalName}／{exercise.summary}</p>
+        </div>
         {level === undefined ? <span className={styles.unenteredBadge}>未入力</span> : null}
       </div>
-      <div className={styles.lvGrid} aria-label={`${exercise.name}の到達レベル`} onMouseLeave={() => setPreview(null)}>
-        {Array.from({ length: 21 }, (_, candidate) => {
+      <div className={styles.levelStates}>
+        {[
+          { value: LEVEL_NOT_MEASURED, label: '未実施', hint: '今回は測っていない' },
+          { value: LEVEL_NOT_POSSIBLE, label: '実施不可', hint: '取り組めなかった' },
+        ].map((state) => (
+          <button
+            className={level === state.value ? styles.levelStateSelected : styles.levelState}
+            key={state.value}
+            type="button"
+            disabled={disabled}
+            aria-pressed={level === state.value}
+            onClick={() => onLevelChange(state.value)}
+          >
+            <strong>{state.label}</strong><small>{state.hint}</small>
+          </button>
+        ))}
+      </div>
+      <div className={styles.lvGrid} aria-label={`${exercise.name}の到達レベル（Lv1〜${exercise.maxLevel}）`} onMouseLeave={() => setPreview(null)}>
+        {ladderLevels.map((candidate) => {
           const classNames = [styles.lvButton];
           if (level === candidate) classNames.push(styles.lvButtonSelected);
           if (previousLevel === candidate) classNames.push(styles.lvButtonPrevious);
@@ -770,18 +967,20 @@ function ExerciseSection({
         })}
       </div>
       <div className={`${styles.selectedLevel} ${shown === undefined ? styles.selectedLevelEmpty : ''} ${preview !== null && preview !== level ? styles.lvPreview : ''}`} aria-live="polite">
-        <strong>{shown === undefined ? '—' : `Lv${shown}`}</strong>
+        <strong>{shown === undefined ? '—' : shown > 0 ? `Lv${shown}` : shown === LEVEL_NOT_POSSIBLE ? '不可' : '未実施'}</strong>
         <span>
           {shown === undefined
             ? `到達できた一番上のレベルを選びます${previousLevel === undefined ? '' : `（前回 Lv${previousLevel}）`}`
-            : <>{ladderLabel(exercise.key, shown)}<small>帯：{shown === 0 ? '導入前' : bandOf(exercise.key, shown).name}{preview !== null && preview !== level ? '・選ぶ前の下見' : ''}</small></>}
+            : shown > 0
+              ? <>{ladderLabel(exercise.key, shown)}<small>帯：{bandName(exercise.key, shown)}{preview !== null && preview !== level ? '・選ぶ前の下見' : ''}</small></>
+              : <>{shown === LEVEL_NOT_POSSIBLE ? LEVEL_NOT_POSSIBLE_LABEL : LEVEL_NOT_MEASURED_LABEL}<small>レポートでは「できない」という意味では扱いません</small></>}
         </span>
         {delta !== undefined && preview === null ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
       </div>
       <details className={styles.ladderDetails}>
-        <summary>ラダーの一覧（各Lvの課題）を見る</summary>
-        <ol className={styles.ladderList} start={0}>
-          {Array.from({ length: 21 }, (_, candidate) => (
+        <summary>ラダーの一覧（Lv1〜{exercise.maxLevel}の課題）を見る</summary>
+        <ol className={styles.ladderList}>
+          {ladderLevels.map((candidate) => (
             <li key={candidate}>
               <button className={level === candidate ? styles.ladderSelected : ''} type="button" disabled={disabled} onClick={() => onLevelChange(candidate)}>
                 <strong>Lv{candidate}</strong><span>{ladderLabel(exercise.key, candidate)}</span>{previousLevel === candidate ? <em>前回</em> : null}
@@ -791,12 +990,55 @@ function ExerciseSection({
         </ol>
       </details>
       <div className={styles.errorChips}>
-        <strong>見えたつまずき（あれば）</strong>
+        <strong>見えた動作（該当するものを選択）</strong>
         <div>
-          {exercise.errors.map((error) => <button className={errors.includes(error) ? styles.errorChipSelected : styles.errorChip} aria-pressed={errors.includes(error)} type="button" disabled={disabled} onClick={() => onErrorToggle(error)} key={error}>{error}</button>)}
+          {exercise.observations.map(({ text }) => (
+            <button className={observations.includes(text) ? styles.errorChipSelected : styles.errorChip} aria-pressed={observations.includes(text)} type="button" disabled={disabled} onClick={() => onObservationToggle(text)} key={text}>{text}</button>
+          ))}
         </div>
       </div>
+      <div className={styles.formField}>
+        <label htmlFor={`observation-note-${exercise.key}`}>見えた動作（自由記入）</label>
+        <small className={styles.muted}>選択肢に当てはまらない動きだけ書きます。</small>
+        <textarea
+          id={`observation-note-${exercise.key}`}
+          rows={2}
+          value={note}
+          disabled={disabled}
+          placeholder="例：Lv9で頭上物が2試行とも落下。後進になると振り返る動作が出る。"
+          onChange={(event) => onNoteChange(event.target.value)}
+        />
+      </div>
     </section>
+  );
+}
+
+function CopmScore({
+  label,
+  id,
+  value,
+  previous,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  id: string;
+  value: number;
+  previous: number | undefined;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  const scores = Array.from(
+    { length: COPM_SCORE_MAX - COPM_SCORE_MIN + 1 },
+    (_, index) => COPM_SCORE_MIN + index,
+  );
+  return (
+    <div className={styles.formField}>
+      <label htmlFor={id}>{label}{previous === undefined ? '' : `（前回 ${previous}）`}</label>
+      <select id={id} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))}>
+        {scores.map((score) => <option key={score} value={score}>{score}</option>)}
+      </select>
+    </div>
   );
 }
 
@@ -807,7 +1049,7 @@ function PpiRow({
   disabled,
   onChange,
 }: {
-  question: { key: PpiKey; name: string; question: string };
+  question: { key: PpiKey; name: string; question: string; lowLabel: string; highLabel: string };
   value: number | undefined;
   previousValue: number | undefined;
   disabled: boolean;
@@ -816,7 +1058,7 @@ function PpiRow({
   return (
     <fieldset className={styles.ppiQuestion}>
       <legend>{question.question}{previousValue === undefined ? '' : `（前回 ${previousValue}）`}</legend>
-      <div className={styles.ppiScaleLabels}><span>ほぼ感じない</span><span>とても大きい</span></div>
+      <div className={styles.ppiScaleLabels}><span>0 {question.lowLabel}</span><span>{question.highLabel} 5</span></div>
       <div className={styles.ppiButtons} aria-label={question.name}>
         {Array.from({ length: 6 }, (_, score) => <button disabled={disabled} className={value === score ? styles.lvButtonSelected : styles.lvButton} key={score} type="button" aria-pressed={value === score} onClick={() => onChange(score)}>{score}</button>)}
       </div>

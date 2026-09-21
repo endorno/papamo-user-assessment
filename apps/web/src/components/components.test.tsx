@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { reportContentSchema } from '@papamo/shared';
+import { MASTER_VERSION, reportContentSchema, RuleBasedReportGenerator } from '@papamo/shared';
 import { ChildStatusBadge } from './ChildStatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CopyCode } from './CopyCode';
@@ -74,33 +74,29 @@ describe('共通UI', () => {
     expect(new Set(ids).size).toBe(2);
   });
 
-  it('レーダーは前回と今回、未開放種目を読み上げ可能にする', () => {
-    const report = reportContentSchema.parse({
-      kind: 'comparison',
-      generator: 'rule_v1',
-      masterVersion: '2026-09',
+  it('レーダーは前回と今回、未開放種目を読み上げ可能にする', async () => {
+    const data = {
+      lv: { post: 8, eyeh: 7, hand: 6 },
+      observations: {},
+      observationNotes: {},
+      engagement: {},
+      envSupports: [],
+      troubles: [],
+      wants: [],
+      copm: [],
+      ppi: { time: 1, emo: 1, soc: 1, fut: 1, nav: 1 },
+      ppiNote: '',
+      memo: '',
+      goals: [],
+    };
+    const report = reportContentSchema.parse(await new RuleBasedReportGenerator().generate({
+      child: { name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', goals: [] },
+      coach: { displayName: 'さとうコーチ' },
+      assessment: { seqNo: 2, assessedOn: '2026-09-01', unlockExt: false, data },
+      previous: { seqNo: 1, assessedOn: '2026-06-01', unlockExt: false, data: { ...data, lv: { post: 5, eyeh: 6, hand: 6 } } },
+      master: { version: MASTER_VERSION },
       generatedAt: '2026-09-01T00:00:00.000Z',
-      header: { childName: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', seqNo: 2, assessedOn: '2026-09-01', prevAssessedOn: '2026-06-01', coachName: 'さとうコーチ' },
-      levels: [
-        { key: 'post', lv: 8, prevLv: 5, delta: 3, band: '17cm 一巡', ladderLabel: '課題' },
-        { key: 'eyeh', lv: 7, prevLv: 6, delta: 1, band: '一人操作・逆手', ladderLabel: '課題' },
-        { key: 'hand', lv: 6, prevLv: 6, delta: 0, band: '手形の切り替え', ladderLabel: '課題' },
-      ],
-      upcomingExercises: [
-        { key: 'sacc', name: 'あしあとものまね', parentName: '見つけて覚える力', teaser: '説明' },
-        { key: 'inhi', name: '信号ゲーム', parentName: '止まる・切り替える力', teaser: '説明' },
-      ],
-      priorities: [],
-      strengths: [],
-      changes3m: [],
-      troubles: { current: [], gone: [], stayed: [], added: [] },
-      link: { lowestKey: 'hand', text: '見立て' },
-      ppi: { current: { time: 1, emo: 1, soc: 1, fut: 1, nav: 1 }, previous: { time: 2, emo: 2, soc: 2, fut: 2, nav: 2 }, note: '' },
-      plan: null,
-      outlook: [],
-      nextDue: '2026-12-01',
-      coach: { strategies: [], memo: '' },
-    });
+    }));
     render(<RadarChart report={report} extUnlocked={false} />);
     expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('半年目以降');
     expect(screen.getByText('前回')).toBeInTheDocument();

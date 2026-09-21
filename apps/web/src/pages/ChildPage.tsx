@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import {
+  COPM_MAX,
   EXERCISES,
   GRADES,
   PPI_QUESTIONS,
@@ -157,8 +158,8 @@ export function ChildPage() {
   async function saveGoals() {
     if (!session || !id || !child) return;
     const goals = goalsText.split('\n').map((goal) => goal.trim()).filter(Boolean);
-    if (goals.length > 5) {
-      setActionError('目標は5件以内で入力してください。');
+    if (goals.length > COPM_MAX) {
+      setActionError(`目標は${COPM_MAX}件以内で入力してください。`);
       return;
     }
     await runAction(async () => {
@@ -367,8 +368,8 @@ export function ChildPage() {
                         return (
                           <div className={styles.levelRow} key={exercise.key}>
                             <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
-                            <span className={styles.levelTrack}><i style={{ width: `${level.lv * 5}%` }} /></span>
-                            <span><strong>Lv{level.lv}</strong><small>{deltaLabel}</small></span>
+                            <span className={styles.levelTrack}><i style={{ width: `${(Math.max(0, level.lv) / level.maxLv) * 100}%` }} /></span>
+                            <span><strong>{level.measured ? `Lv${level.lv}` : level.band}</strong><small>{level.measured ? deltaLabel : ''}</small></span>
                           </div>
                         );
                       })}
@@ -445,7 +446,7 @@ export function ChildPage() {
                 {editingGoals ? (
                   <>
                     <textarea value={goalsText} onChange={(event) => setGoalsText(event.target.value)} rows={5} aria-label="目標（1行1項目）" />
-                    <small className={goalCount > 5 ? styles.fieldError : styles.muted}>1行に1件、5件まで（現在 {goalCount}件）</small>
+                    <small className={goalCount > COPM_MAX ? styles.fieldError : styles.muted}>1行に1件、{COPM_MAX}件まで（現在 {goalCount}件）</small>
                     <div className={styles.inlineActions}>
                       <button className={styles.primaryButton} type="button" onClick={() => void saveGoals()} disabled={busy || goalCount > 5}>保存</button>
                       <button className={styles.secondaryButton} type="button" onClick={() => { setGoalsText(child.goals.join('\n')); setEditingGoals(false); }}>キャンセル</button>
@@ -465,15 +466,15 @@ export function ChildPage() {
                           <article className={styles.strategyCard} key={strategy.key}>
                             <span className={styles.strategyNumber}>{index + 1}</span>
                             <div>
-                              <strong>{exercise.parentName}<small>{exercise.name}・Lv{strategy.lv}</small></strong>
+                              <strong>{exercise.parentName}<small>{exercise.name}・Lv{strategy.lv}/{exercise.maxLevel}</small></strong>
                               <p>次は <b>Lv{strategy.nextLv}</b>：{strategy.nextLabel}</p>
-                              {strategy.errs.length ? <div className={styles.watch}>見えたつまずき：<b>{strategy.errs.join('・')}</b></div> : null}
+                              {strategy.observations.length ? <div className={styles.watch}>見えた動作：<b>{strategy.observations.join('・')}</b></div> : null}
+                              {strategy.note ? <div className={styles.watch}>{strategy.note}</div> : null}
                             </div>
                           </article>
                         );
                       })}
                     </div>
-                    {report.plan ? <div className={styles.planBox}><strong>{report.plan.name}（{report.plan.window}）</strong><ul>{report.plan.items.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
                     {report.coach.memo ? <div className={styles.coachMemo}><strong>コーチ所見（内部用）</strong><p>{report.coach.memo}</p></div> : null}
                   </>
                 ) : <p className={styles.muted}>初回アセスメント後に、優先テーマ・次に狙うLv・観察ポイントが表示されます。</p>}

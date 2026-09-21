@@ -23,14 +23,18 @@ const assessment = {
   coachId: 'coach-1',
   unlockExt: false,
   prevAssessmentId: null,
-  masterVersion: '2026-09',
+  masterVersion: '2026-09.2',
   data: {
     lv: {},
-    errs: {},
+    observations: {},
+    observationNotes: {},
+    engagement: {},
+    envSupports: [],
     troubles: [],
+    wants: [],
+    copm: [],
     ppi: {},
     ppiNote: '',
-    plan: 'pre' as const,
     memo: '',
     goals: [],
   },
@@ -166,29 +170,89 @@ describe('アセスメント入力', () => {
     }, { timeout: 2000 });
   });
 
-  it('初回はスプレッドシートの複数セルから目標を一括入力できる', async () => {
+  it('目標セルだけを貼り付けた事前アンケートをCOPM表へ入れる', async () => {
     renderAssessmentPage();
-    fireEvent.click(await screen.findByRole('button', { name: '入会アンケートから取り込む' }));
+    fireEvent.click(await screen.findByRole('button', { name: '事前アンケートから取り込む' }));
 
-    const dialog = screen.getByRole('dialog', { name: '入会アンケートから目標を取り込む' });
-    fireEvent.change(within(dialog).getByLabelText('コピーした目標'), {
+    const dialog = screen.getByRole('dialog', { name: '事前アンケートから取り込む' });
+    fireEvent.change(within(dialog).getByLabelText('コピーした回答'), {
       target: { value: '姿勢を安定させたい\t着替えを自分でできるようになりたい' },
     });
-    fireEvent.click(within(dialog).getByRole('button', { name: '目標欄に取り込む' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: '入力欄に取り込む' }));
 
-    expect(screen.getByRole('textbox', { name: 'ご家族・本人の目標' })).toHaveValue(
-      '姿勢を安定させたい\n着替えを自分でできるようになりたい',
-    );
-    fireEvent.click(screen.getByRole('button', { name: '目標を保存' }));
+    expect(screen.getByRole('textbox', { name: '目標 1' })).toHaveValue('姿勢を安定させたい');
+    expect(screen.getByRole('textbox', { name: '目標 2' })).toHaveValue('着替えを自分でできるようになりたい');
 
     await waitFor(() => {
-      const saveCall = vi.mocked(fetch).mock.calls.find(([input, init]) => (
-        String(input).endsWith('/api/children/child-1') && init?.method === 'PATCH'
-      ));
-      expect(JSON.parse(String(saveCall?.[1]?.body))).toEqual({
-        goals: ['姿勢を安定させたい', '着替えを自分でできるようになりたい'],
-      });
+      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { copm: { text: string }[] } };
+      expect(body.data.copm.map(({ text }) => text)).toEqual([
+        '姿勢を安定させたい',
+        '着替えを自分でできるようになりたい',
+      ]);
+    }, { timeout: 2000 });
+  });
+
+  it('列名つきの事前アンケートからお困りごと・目標・お困り度をまとめて取り込む', async () => {
+    renderAssessmentPage();
+    fireEvent.click(await screen.findByRole('button', { name: '事前アンケートから取り込む' }));
+
+    const dialog = screen.getByRole('dialog', { name: '事前アンケートから取り込む' });
+    fireEvent.change(within(dialog).getByLabelText('コピーした回答'), {
+      target: {
+        value: [
+          'trouble\twant\tgoal\tppi_time\tppi_note',
+          '転びやすい・つまずきやすい｜じっと座っていられない\tw9\t転びにくくなる\t4\t朝の支度に時間がかかる',
+        ].join('\n'),
+      },
     });
+    fireEvent.click(within(dialog).getByRole('button', { name: '入力欄に取り込む' }));
+
+    await waitFor(() => {
+      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as {
+        data: { troubles: string[]; wants: string[]; copm: { text: string }[]; ppi: Record<string, number>; ppiNote: string };
+      };
+      expect(body.data.troubles).toEqual(['転びやすい・つまずきやすい', 'じっと座っていられない']);
+      expect(body.data.wants).toEqual(['w9']);
+      expect(body.data.copm.map(({ text }) => text)).toEqual(['転びにくくなる']);
+      expect(body.data.ppi.time).toBe(4);
+      expect(body.data.ppiNote).toBe('朝の支度に時間がかかる');
+    }, { timeout: 2000 });
+  });
+
+  it('できるようになりたいことを選ぶと、目標欄に仮の文言が入る', async () => {
+    renderAssessmentPage();
+    const goalsSection = await screen.findByRole('region', { name: 'ご家族・本人の目標' });
+    fireEvent.click(within(goalsSection).getByRole('checkbox', { name: /縄跳びが跳べるようになりたい/ }));
+
+    expect(within(goalsSection).getByRole('textbox', { name: '目標 1' })).toHaveValue('縄跳びが跳べるようになる');
+  });
+
+  it('取り組みの発達と環境調整を記録できる', async () => {
+    renderAssessmentPage();
+    const section = await screen.findByRole('region', { name: '取り組みの発達' });
+    fireEvent.change(within(section).getByLabelText(/参加の持続/), { target: { value: '3' } });
+    fireEvent.click(within(section).getByRole('checkbox', { name: /視覚（手本・図・写真を見せる）/ }));
+
+    await waitFor(() => {
+      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { engagement: Record<string, number>; envSupports: string[] } };
+      expect(body.data.engagement.dur).toBe(3);
+      expect(body.data.envSupports).toEqual(['e-vis']);
+    }, { timeout: 2000 });
+  });
+
+  it('未実施・実施不可も到達の選択肢として記録できる', async () => {
+    renderAssessmentPage();
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: /実施不可/ }));
+
+    await waitFor(() => {
+      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number } } };
+      expect(body.data.lv.post).toBe(-1);
+    }, { timeout: 2000 });
   });
 
   it('共有先で削除済みになったアセスメントは担当一覧へ戻す', async () => {

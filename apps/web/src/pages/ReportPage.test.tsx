@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 
@@ -28,13 +28,17 @@ beforeAll(async () => {
     unlockExt: false,
     data: {
       lv: { post: 5, eyeh: 5, hand: 5 },
-      errs: { post: [], eyeh: [], hand: [] },
+      observations: { post: [], eyeh: [], hand: [] },
+      observationNotes: {},
+      engagement: { dur: 1, sup: 2 },
+      envSupports: ['e-vis'],
       troubles: ['姿勢がすぐ崩れる／机に伏せる', '忘れ物・なくし物が多い'],
+      wants: ['w18'],
+      copm: [{ text: '授業中に座っていられるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 }],
       ppi: { time: 3, emo: 3, soc: 2, fut: 4, nav: 3 },
       ppiNote: '',
-      plan: 'base' as const,
       memo: '',
-      goals: [],
+      goals: ['授業中に座っていられるようになる'],
     },
   };
   const common = {
@@ -52,13 +56,17 @@ beforeAll(async () => {
       unlockExt: false,
       data: {
         lv: { post: 8, eyeh: 7, hand: 6 },
-        errs: { post: [], eyeh: [], hand: [] },
+        observations: { post: [], eyeh: [], hand: [] },
+        observationNotes: {},
+        engagement: { dur: 3, sup: 3 },
+        envSupports: ['e-vis', 'e-cnt'],
         troubles: ['姿勢がすぐ崩れる／机に伏せる'],
+        wants: ['w18'],
+        copm: [{ text: '授業中に座っていられるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
         ppi: { time: 2, emo: 2, soc: 1, fut: 3, nav: 2 },
         ppiNote: '宿題の声かけが負担になっている',
-        plan: 'base',
-        memo: '',
-        goals: [],
+          memo: '',
+        goals: ['授業中に座っていられるようになる'],
       },
     },
     previous,
@@ -77,17 +85,34 @@ describe('保護者向けレポート', () => {
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
     expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('今のお困りごとと、その理由');
-    expect(screen.queryByText('3か月でできるようになったこと')).not.toBeInTheDocument();
+    expect(screen.queryByText(/3か月でできるようになったこと/)).not.toBeInTheDocument();
+    // ルールが未確定の箇所には目印を出す。
+    expect(screen.getAllByText(/アルゴリズム調整中/).length).toBeGreaterThan(0);
   });
 
-  it('比較レポートを3枚構成と日本語ラベルで表示する', async () => {
+  it('比較レポートを4枚構成と日本語ラベルで表示する', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
-    expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('時間の負担');
-    expect(screen.getByRole('region', { name: 'レポート3ページ目' })).toHaveTextContent('これからの3か月');
-    expect(screen.getByRole('region', { name: 'レポート3ページ目' })).toHaveTextContent('4・5種目目を追加');
+    const troubleSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
+    expect(troubleSheet).toHaveTextContent('育ちのピラミッド');
+    // ピラミッドは5段。上の段ほど狭くするための段クラスが付いている。
+    const pyramidRows = troubleSheet.querySelectorAll('[class*="pyramidRow"]');
+    expect(pyramidRows).toHaveLength(5);
+    expect(pyramidRows[0]?.className).toMatch(/pyramidTier5/);
+    expect(pyramidRows[4]?.className).toMatch(/pyramidTier1/);
+    const roadmapSheet = screen.getByRole('region', { name: 'レポート3ページ目' });
+    expect(roadmapSheet).toHaveTextContent('6か月成長ロードマップ');
+    // 現在地 → 3か月後 → 6か月後 → 目指す未来 の4本立て。
+    expect(within(roadmapSheet).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      '現在地（今ここ）',
+      '3か月後の目安（土台づくり）',
+      '6か月後の目安（目標へつなげる）',
+      '目指す未来（生活・学習の中で）',
+    ]);
+    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('時間の負担');
+    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('4・5種目目を追加');
     expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
   });
 

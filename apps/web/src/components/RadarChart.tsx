@@ -1,14 +1,25 @@
-import { EXERCISES, type ReportContent } from '@papamo/shared';
+import { EXERCISES, RADAR_MAX_LEVEL, type ReportContent } from '@papamo/shared';
 
 import styles from '../styles/page.module.css';
 
-const CENTER_X = 150;
-const CENTER_Y = 142;
-const RADIUS = 96;
+const CENTER_X = 210;
+const CENTER_Y = 196;
+const RADIUS = 142;
+/**
+ * 目盛りは全軸そろえて 0〜30。低いLvの差が潰れないよう、モックと同じ指数で外側を詰める。
+ * 種目ごとの上限（30／20）の違いは軸ラベル側で補う。
+ */
+const GAMMA = 1.55;
+const GRID_LEVELS = [6, 12, 18, 24, 30];
 
-function pointFor(index: number, value: number, radius = RADIUS) {
+function radiusFor(value: number) {
+  const ratio = Math.max(0, Math.min(RADAR_MAX_LEVEL, value)) / RADAR_MAX_LEVEL;
+  return RADIUS * ratio ** GAMMA;
+}
+
+function pointFor(index: number, value: number) {
   const angle = -Math.PI / 2 + (Math.PI * 2 * index) / EXERCISES.length;
-  const distance = (Math.max(0, Math.min(20, value)) / 20) * radius;
+  const distance = radiusFor(value);
   return {
     x: CENTER_X + Math.cos(angle) * distance,
     y: CENTER_Y + Math.sin(angle) * distance,
@@ -32,14 +43,19 @@ function axisPoint(index: number, radius = RADIUS) {
   };
 }
 
+/** 未実施（0）・実施不可（-1）は中心に寄せて描く。「できない」という意味ではない。 */
+function chartValue(level: number | undefined) {
+  return Math.max(0, level ?? 0);
+}
+
 export function RadarChart({ report, extUnlocked }: { report: ReportContent | null; extUnlocked: boolean }) {
-  const current = EXERCISES.map((exercise) => report?.levels.find((level) => level.key === exercise.key)?.lv ?? 0);
-  const previous = EXERCISES.map((exercise) => report?.levels.find((level) => level.key === exercise.key)?.prevLv ?? 0);
+  const current = EXERCISES.map((exercise) => chartValue(report?.levels.find((level) => level.key === exercise.key)?.lv));
+  const previous = EXERCISES.map((exercise) => chartValue(report?.levels.find((level) => level.key === exercise.key)?.prevLv));
 
   return (
     <div className={styles.radarWrap}>
-      <svg className={styles.radar} viewBox="0 0 300 285" role="img" aria-label="5種目の到達レベル">
-        {[4, 8, 12, 16, 20].map((level) => (
+      <svg className={styles.radar} viewBox="0 0 420 400" role="img" aria-label="5種目の到達レベル">
+        {GRID_LEVELS.map((level) => (
           <polygon
             className={styles.radarGrid}
             key={level}
@@ -48,7 +64,7 @@ export function RadarChart({ report, extUnlocked }: { report: ReportContent | nu
         ))}
         {EXERCISES.map((exercise, index) => {
           const end = axisPoint(index);
-          const label = axisPoint(index, RADIUS + 24);
+          const label = axisPoint(index, RADIUS + 30);
           const available = exercise.core || extUnlocked;
           return (
             <g key={exercise.key}>
@@ -56,7 +72,9 @@ export function RadarChart({ report, extUnlocked }: { report: ReportContent | nu
               <text className={styles.radarLabel} x={label.x} y={label.y} textAnchor="middle">
                 {exercise.name}
               </text>
-              {!available ? <text className={styles.radarTeaser} x={label.x} y={label.y + 16} textAnchor="middle">半年目以降</text> : null}
+              <text className={styles.radarTeaser} x={label.x} y={label.y + 16} textAnchor="middle">
+                {available ? `Lv1〜${exercise.maxLevel}` : '半年目以降'}
+              </text>
             </g>
           );
         })}

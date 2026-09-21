@@ -1464,7 +1464,7 @@
 }
 
 .radar {
-  width: min(100%, 360px);
+  width: min(100%, 460px);
   height: auto;
   overflow: visible;
 }
@@ -1502,12 +1502,14 @@
 .radarLabel,
 .radarTeaser {
   fill: var(--ink2);
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .radarTeaser {
   fill: var(--mute);
-  font-size: 7px;
+  font-size: 9.5px;
+  font-weight: 400;
 }
 
 .radarLegend {
@@ -1919,13 +1921,13 @@
 
 .reportHero {
   display: grid;
-  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(300px, 1.05fr) minmax(0, 1fr);
   align-items: center;
   gap: 20px;
 }
 
 .reportHero .radar {
-  max-width: 270px;
+  max-width: 100%;
 }
 
 .reportHero p {
@@ -2378,4 +2380,439 @@
   background: var(--green-soft);
   color: var(--green-ink);
   font-weight: 700;
+}
+
+/* =========================================================
+   design-mock-v2 で追加された項目のスタイル
+   ========================================================= */
+
+/* --- 到達レベル：未実施・実施不可 --- */
+
+.levelStates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.levelState,
+.levelStateSelected {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink2);
+  font: inherit;
+  text-align: left;
+}
+
+.levelState small,
+.levelStateSelected small {
+  font-size: 0.72rem;
+}
+
+.levelStateSelected {
+  border-color: var(--violet);
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+  font-weight: 700;
+}
+
+.levelState:focus-visible,
+.levelStateSelected:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- 取り組みの発達（入力） --- */
+
+.engagementRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(260px, 2fr);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line2);
+}
+
+.engagementRow label {
+  display: grid;
+  gap: 2px;
+  color: var(--ink2);
+}
+
+.engagementRow label small {
+  color: var(--mute);
+  font-size: 0.76rem;
+}
+
+.engagementRow select {
+  margin-top: 0;
+}
+
+.envSupports,
+.wantBox {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 14px 16px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.envSupports > legend,
+.wantBox > legend {
+  padding: 0 6px;
+  color: var(--ink2);
+  font-weight: 700;
+}
+
+.envGroups {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.envGroup > strong {
+  display: block;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line2);
+  color: var(--green-ink);
+  font-size: 0.84rem;
+}
+
+/* --- ご家族・本人の目標（COPM） --- */
+
+.copmRow {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, auto);
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+}
+
+.copmScores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.copmScores > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* --- レポート：アルゴリズム調整中の目印 --- */
+
+.tuningTag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px dashed var(--orange);
+  border-radius: 999px;
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.reportNote {
+  margin: 8px 0 0;
+  color: var(--ink2);
+  font-size: 0.78rem;
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+/* --- レポート：これから加わる種目（1行の注記） --- */
+
+.upcomingNote {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border: 1px dashed #c4b7e6;
+  border-radius: 10px;
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+  font-size: 0.78rem;
+  line-height: 1.75;
+}
+
+.upcomingNote b {
+  margin-right: 6px;
+}
+
+/* --- レポート：取り組みの発達 --- */
+
+.engagementBars {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.engagementBars > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(90px, 140px) 84px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.engagementTrack {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+}
+
+.engagementTrack i {
+  height: 10px;
+  border-radius: 3px;
+  background: var(--line2);
+}
+
+.engagementTrack .engagementFilled {
+  background: var(--green);
+}
+
+.engagementBars em {
+  color: var(--ink2);
+  font-size: 0.76rem;
+  font-style: normal;
+}
+
+/* --- レポート：困りごとの見立て --- */
+
+.troubleLine {
+  display: block;
+}
+
+.verdictTag {
+  display: block;
+  color: var(--mute);
+}
+
+/* --- レポート：育ちのピラミッド --- */
+
+.pyramid {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+}
+
+.pyramidRow {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 上の段ほど狭くして、全体をピラミッドの形にする。 */
+.pyramidTier5 { width: 38%; }
+.pyramidTier4 { width: 56%; }
+.pyramidTier3 { width: 74%; }
+.pyramidTier2 { width: 88%; }
+.pyramidTier1 { width: 100%; }
+
+.pyramidRow > * {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+}
+
+.pyramidCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  line-height: 1.3;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2ec;
+  color: var(--ink2);
+  font-size: 0.76rem;
+}
+
+.pyramidCell.pyramidHot {
+  border-color: var(--orange);
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+  font-weight: 700;
+}
+
+.pyramidCell.pyramidRoot {
+  border-width: 2px;
+  background: var(--orange);
+  color: #fff;
+}
+
+.pyramidBase {
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+/* --- レポート：6か月ロードマップ --- */
+
+.roadmap {
+  display: grid;
+  grid-template-columns: 1fr 18px 1fr 18px 1fr 18px 1fr;
+  align-items: stretch;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.roadmapArrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange);
+  font-size: 1rem;
+}
+
+.roadmapColumn {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.roadmapColumn h3 {
+  margin: 0;
+  padding: 8px 6px;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.roadmapColumn h3 span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.roadmapBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 9px 10px;
+}
+
+.roadmapLabel {
+  margin: 0 0 3px;
+  color: #4a5a54;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.roadmapColumn ul {
+  margin: 0;
+  padding-left: 1em;
+  font-size: 0.74rem;
+  line-height: 1.7;
+}
+
+/* 「期待する変化」はひとまわり淡い色の帯にして、上のリストと分ける。 */
+.roadmapSub {
+  margin: 8px -10px -9px;
+  padding: 8px 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.roadmapNow h3 { background: #4f9e6a; }
+.roadmapMonth3 h3 { background: #e08a2e; }
+.roadmapMonth6 h3 { background: #3a7cc0; }
+.roadmapFuture h3 { background: #d6437a; }
+
+.roadmapNow .roadmapSub { background: #eef6f0; }
+.roadmapMonth3 .roadmapSub { background: #fdf3ea; }
+.roadmapMonth3 .roadmapSub .roadmapLabel { color: #c87220; }
+.roadmapMonth6 .roadmapSub { background: #f0f5fc; }
+.roadmapMonth6 .roadmapSub .roadmapLabel { color: #2f6fb5; }
+.roadmapFuture li { color: #c13566; }
+
+@media (max-width: 720px) {
+  .engagementRow,
+  .copmRow {
+    grid-template-columns: 1fr;
+  }
+
+  .reportHero {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmapArrow {
+    transform: rotate(90deg);
+  }
+
+  .engagementBars > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* =========================================================
+   入力のエリア分け
+   その場の観察と、保護者と確認する項目をゆるく分ける。
+   実際は順不同で行き来するので、枠線と淡い地色だけにとどめる。
+   ========================================================= */
+
+.inputArea {
+  margin-top: 18px;
+  padding: 4px 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 20px;
+}
+
+.inputAreaObserved {
+  background: rgba(47, 125, 110, 0.035);
+}
+
+.inputAreaSurvey {
+  background: rgba(124, 100, 174, 0.045);
+}
+
+.inputAreaHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 12px 10px 0;
+}
+
+.inputAreaHead strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.inputAreaHead small {
+  flex: 1;
+  color: var(--mute);
+  font-size: 0.76rem;
+}
+
+.inputArea > .panel:first-of-type {
+  margin-top: 10px;
 }

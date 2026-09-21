@@ -5,6 +5,8 @@ import {
   childImportResponseSchema,
   childrenResponseSchema,
   EXERCISES,
+  LEVEL_NOT_MEASURED,
+  LEVEL_NOT_POSSIBLE,
   sampleChildCreateResponseSchema,
   sampleDataStatusResponseSchema,
   todayInJst,
@@ -94,9 +96,14 @@ function ChildCard({ child, highlighted }: { child: ChildView; highlighted: bool
       <div className={styles.levelChips} aria-label={assessment ? `第${assessment.seqNo}回の入力状況` : 'アセスメント未実施'}>
         {assessment ? exercises.map((exercise) => {
           const level = assessment.lv[exercise.key];
+          // -1 実施不可 / 0 未実施 は Lv 表記にしない。
+          const label = level === undefined ? '未入力'
+            : level === LEVEL_NOT_POSSIBLE ? '実施不可'
+              : level === LEVEL_NOT_MEASURED ? '未実施'
+                : `Lv${level}`;
           return (
             <span className={level === undefined ? styles.levelChipTodo : styles.levelChip} key={exercise.key}>
-              <span aria-hidden="true">{exercise.icon}</span> {level === undefined ? '未入力' : `Lv${level}`}
+              <span aria-hidden="true">{exercise.icon}</span> {label}
             </span>
           );
         }) : <span className={styles.cardHint}>初回は基本の3種目から始めます。</span>}
