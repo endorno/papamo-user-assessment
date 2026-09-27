@@ -1,4 +1,5 @@
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 const JST_TIME_ZONE = 'Asia/Tokyo';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -70,10 +71,29 @@ export function isValidDateString(value: string): boolean {
   }
 }
 
-// 入会からの経過月数。月末は addMonthsClamped と同じ規則で丸める。
-export function monthsBetween(from: string, to: string): number {
-  const [fromYear, fromMonth] = dateParts(from);
-  const [toYear, toMonth] = dateParts(to);
-  const naive = (toYear - fromYear) * 12 + (toMonth - fromMonth);
-  return addMonthsClamped(from, naive) <= to ? naive : naive - 1;
+// 入会月は YYYY-MM。入会日までは記録していないため月単位で扱う。
+export function isValidMonthString(value: string): boolean {
+  const match = MONTH_PATTERN.exec(value);
+  if (!match) return false;
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12;
+}
+
+export function monthOfDate(date: string): string {
+  const [year, month] = dateParts(date);
+  return formatDate(year, month, 1).slice(0, 7);
+}
+
+export function firstDayOfMonth(month: string): string {
+  if (!isValidMonthString(month)) {
+    throw new Error(`年月の形式が不正です: ${month}`);
+  }
+  return `${month}-01`;
+}
+
+// 入会月を「1か月目」と数える。入会月より前の日付でも0以下にしない。
+export function monthOrdinalSince(joinedMonth: string, today: string): number {
+  const [fromYear, fromMonth] = dateParts(firstDayOfMonth(joinedMonth));
+  const [toYear, toMonth] = dateParts(today);
+  return Math.max(1, (toYear - fromYear) * 12 + (toMonth - fromMonth) + 1);
 }

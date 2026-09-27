@@ -9,7 +9,7 @@ import {
   childDetailSchema,
   daysBetween,
   exerciseByKey,
-  monthsBetween,
+  monthOrdinalSince,
   nextDueDate,
   todayInJst,
   type ChildDetail,
@@ -23,9 +23,10 @@ import { AppHeader } from '../components/AppHeader';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CopyCode } from '../components/CopyCode';
+import { MonthSelect } from '../components/MonthSelect';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
-import { formatJapaneseDate, genderLabel, honorificLabel } from '../utils/display';
+import { formatJapaneseDate, formatJapaneseMonth, genderLabel, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
 type ConfirmAction = 'start' | 'archive' | 'remove' | 'delete' | null;
@@ -35,7 +36,7 @@ interface ChildFormState {
   honorific: Honorific;
   gender: Gender;
   gradeCode: GradeCode;
-  joinedOn: string;
+  joinedMonth: string;
 }
 
 function formFromChild(child: ChildDetail): ChildFormState {
@@ -45,13 +46,8 @@ function formFromChild(child: ChildDetail): ChildFormState {
     honorific: child.honorific,
     gender: child.gender,
     gradeCode: currentGrade ?? child.gradeCode,
-    joinedOn: child.joinedOn,
+    joinedMonth: child.joinedMonth,
   };
-}
-
-// 入会日を「1か月目」と数える。入会前の日付でも0以下にしない。
-function monthsSinceJoinedOn(joinedOn: string, today: string): number {
-  return Math.max(1, monthsBetween(joinedOn, today) + 1);
 }
 
 function readChild(value: unknown): ChildDetail {
@@ -168,7 +164,7 @@ export function ChildPage() {
           name: childForm.name.trim(),
           honorific: childForm.honorific,
           gender: childForm.gender,
-          joinedOn: childForm.joinedOn,
+          joinedMonth: childForm.joinedMonth,
           ...(childForm.gradeCode === child.gradeCode ? {} : { gradeCode: childForm.gradeCode }),
         }),
       });
@@ -276,7 +272,7 @@ export function ChildPage() {
   const report = child.latestReport;
   const confirmation = confirmAction ? confirmationFor(confirmAction) : null;
   const today = todayInJst();
-  const monthsSinceJoined = monthsSinceJoinedOn(child.joinedOn, today);
+  const monthsSinceJoined = monthOrdinalSince(child.joinedMonth, today);
   // モックの案内に合わせ、入会半年を過ぎて未開放なら次の回で足せることを伝える。
   const canSuggestUnlock = !child.extUnlocked && monthsSinceJoined >= 6 && Boolean(latestCompleted);
   const startDetail = latestCompleted ? (
@@ -297,7 +293,7 @@ export function ChildPage() {
               <div>
                 <p className={styles.eyebrow}>{readOnly ? 'アーカイブ中・閲覧のみ' : '担当のお子さま'}</p>
                 <h1>{childName}</h1>
-                <p>{child.grade.name}（{child.grade.ageHint}）・入会 {formatJapaneseDate(child.joinedOn)}（{monthsSinceJoined}か月目）</p>
+                <p>{child.grade.name}（{child.grade.ageHint}）・入会 {formatJapaneseMonth(child.joinedMonth)}（{monthsSinceJoined}か月目）</p>
                 <ChildStatusBadge state={child.state} />
               </div>
             </div>
@@ -458,7 +454,7 @@ export function ChildPage() {
 
               <section className={styles.panel} aria-labelledby="profile-title">
                 <div className={styles.sectionHeader}>
-                  <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・性別・学年・入会日の修正</p></div>
+                  <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・性別・学年・入会月の修正</p></div>
                   {!readOnly && !editingProfile ? <button className={styles.compactButton} type="button" onClick={() => setEditingProfile(true)}>編集</button> : null}
                 </div>
                 {editingProfile && childForm ? (
@@ -490,8 +486,8 @@ export function ChildPage() {
                       <small>修正した学年を現在年度の基準として、次の4月から自動で進級します。</small>
                     </div>
                     <div className={styles.formField}>
-                      <label htmlFor="profile-child-joined">入会日</label>
-                      <input id="profile-child-joined" type="date" value={childForm.joinedOn} required onChange={(event) => setChildForm((current) => current ? { ...current, joinedOn: event.target.value } : current)} />
+                      <label htmlFor="profile-child-joined">入会月</label>
+                      <MonthSelect id="profile-child-joined" label="入会月" value={childForm.joinedMonth} onChange={(joinedMonth) => setChildForm((current) => current ? { ...current, joinedMonth } : current)} />
                     </div>
                     <div className={styles.inlineActions}>
                       <button className={styles.primaryButton} type="submit" disabled={busy}>保存</button>
@@ -503,7 +499,7 @@ export function ChildPage() {
                     <div><dt>お名前</dt><dd>{childName}</dd></div>
                     <div><dt>性別</dt><dd>{genderLabel(child.gender)}</dd></div>
                     <div><dt>現在の学年</dt><dd>{child.grade.name}（{child.grade.ageHint}）</dd></div>
-                    <div><dt>入会日</dt><dd>{formatJapaneseDate(child.joinedOn)}</dd></div>
+                    <div><dt>入会月</dt><dd>{formatJapaneseMonth(child.joinedMonth)}</dd></div>
                   </dl>
                 )}
               </section>

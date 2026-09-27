@@ -69,7 +69,7 @@ async function createChild(client: TestClient, name: string) {
       name,
       honorific: 'chan',
       gradeCode: 'k2',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     }),
   });
   expect(response.status).toBe(201);
@@ -188,7 +188,7 @@ describe('API ルート結合', () => {
         honorific: 'kun',
         gender: 'girl',
         gradeCode: 'e1',
-        joinedOn: '2026-09-01',
+        joinedMonth: '2026-09',
       }),
     });
     expect(createResponse.status).toBe(201);
@@ -278,16 +278,16 @@ describe('API ルート結合', () => {
     expect(draftDeletion.status).toBe(204);
   });
 
-  it('存在しない日付とマスタ外のつまずきを400で拒否する', async () => {
+  it('存在しない年月とマスタ外のつまずきを400で拒否する', async () => {
     const client = await createTestClient();
     await onboard(client);
     const invalidChild = await request(client, '/children', {
       method: 'POST',
       body: JSON.stringify({
-        name: '無効日付',
+        name: '無効年月',
         honorific: 'san',
         gradeCode: 'e1',
-        joinedOn: '2026-02-30',
+        joinedMonth: '2026-13',
       }),
     });
     expect(invalidChild.status).toBe(400);

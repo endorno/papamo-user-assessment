@@ -34,7 +34,7 @@ async function createFixture(name: string) {
     honorific: 'chan',
     gender: 'unspecified',
     gradeCode: 'k2',
-    joinedOn: '2026-01-05',
+    joinedMonth: '2026-01',
   });
   return { coach, child };
 }
@@ -70,7 +70,7 @@ describe('子ども管理サービス', () => {
       honorific: 'kun',
       gender: 'unspecified',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
 
     const joined = await importChild(testEnv, memberId, created.shareCode);
@@ -96,7 +96,7 @@ describe('子ども管理サービス', () => {
       honorific: 'kun',
       gender: 'unspecified',
       gradeCode: 'e2',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     await importChild(testEnv, memberId, child.shareCode);
 
@@ -116,7 +116,7 @@ describe('子ども管理サービス', () => {
       honorific: 'chan',
       gender: 'unspecified',
       gradeCode: 'k3',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
 
     await setArchiveState(testEnv, child.id, true);
@@ -141,14 +141,14 @@ describe('子ども管理サービス', () => {
       honorific: 'chan',
       gender: 'unspecified',
       gradeCode: 'k1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const draftingChild = await createChild(testEnv, coach.id, {
       name: 'なお',
       honorific: 'san',
       gender: 'unspecified',
       gradeCode: 'j1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const member = await upsertCoach(testEnv, {
       id: crypto.randomUUID(),
@@ -168,7 +168,7 @@ describe('子ども管理サービス', () => {
   it('一覧に下書きのIDを載せ、期限超過が大きい子どもを先に並べる', async () => {
     const coachId = crypto.randomUUID();
     await upsertCoach(testEnv, { id: coachId, email: `${coachId}@example.com` });
-    const base = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedOn: '2026-01-05' };
+    const base = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedMonth: '2026-01' };
     const drafting = await createChild(testEnv, coachId, { ...base, name: 'あさひ' });
     const slightlyOverdue = await createChild(testEnv, coachId, { ...base, name: 'いおり' });
     const longOverdue = await createChild(testEnv, coachId, { ...base, name: 'うみ' });

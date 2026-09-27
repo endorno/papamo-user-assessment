@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import { GRADES, todayInJst, childViewSchema, type Gender, type GradeCode, type Honorific } from '@papamo/shared';
+import { GRADES, monthOfDate, todayInJst, childViewSchema, type Gender, type GradeCode, type Honorific } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { MonthSelect } from '../components/MonthSelect';
 import { useToast } from '../components/Toast';
 import { honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
@@ -18,7 +19,7 @@ export function NewChildPage() {
   const [gender, setGender] = useState<Gender>('unspecified');
   // 就学／未就学で困りごとの設問が変わるため、既定値は置かずに必ず選ばせる。
   const [gradeCode, setGradeCode] = useState<GradeCode | ''>('');
-  const [joinedOn, setJoinedOn] = useState(todayInJst());
+  const [joinedMonth, setJoinedMonth] = useState(() => monthOfDate(todayInJst()));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +32,7 @@ export function NewChildPage() {
     try {
       const response = await apiRequest<unknown>('/children', session, {
         method: 'POST',
-        body: JSON.stringify({ name, honorific, gender, gradeCode, joinedOn }),
+        body: JSON.stringify({ name, honorific, gender, gradeCode, joinedMonth }),
       });
       const parsed = childViewSchema.safeParse((response as { child?: unknown }).child);
       if (!parsed.success) throw new Error('登録結果を読み込めませんでした。');
@@ -90,8 +91,8 @@ export function NewChildPage() {
               <small>毎年4月1日に自動で進級します。お困りごとの設問は学年で切り替わります。</small>
             </div>
             <div className={styles.formField}>
-              <label htmlFor="joined-on">入会日</label>
-              <input id="joined-on" type="date" value={joinedOn} onChange={(event) => setJoinedOn(event.target.value)} required />
+              <label htmlFor="joined-month">入会月</label>
+              <MonthSelect id="joined-month" label="入会月" value={joinedMonth} onChange={setJoinedMonth} />
             </div>
             {error ? <p className={styles.formError} role="alert">{error}</p> : null}
             <div className={styles.formActions}>

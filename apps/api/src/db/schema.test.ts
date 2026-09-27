@@ -28,7 +28,7 @@ describe('D1データ制約', () => {
       honorific: 'san',
       gender: 'unspecified',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const now = new Date().toISOString();
 
@@ -51,6 +51,12 @@ describe('D1データ制約', () => {
     await expect(testEnv.DB.prepare(
       'UPDATE children SET honorific = ? WHERE id = ?',
     ).bind('none', child.id).run()).rejects.toThrow(/CHECK constraint/);
+
+    for (const joinedMonth of ['2026-09-01', '2026-13', '2026-00']) {
+      await expect(testEnv.DB.prepare(
+        'UPDATE children SET joined_month = ? WHERE id = ?',
+      ).bind(joinedMonth, child.id).run()).rejects.toThrow(/CHECK constraint/);
+    }
   });
 
   it('子どもごとの下書き1件をDBで保証する', async () => {
@@ -63,7 +69,7 @@ describe('D1データ制約', () => {
       honorific: 'chan',
       gender: 'unspecified',
       gradeCode: 'k2',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const id = crypto.randomUUID();

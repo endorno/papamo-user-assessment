@@ -18,6 +18,8 @@ describe('D1初期マイグレーション', () => {
     const childColumns = await testEnv.DB.prepare('PRAGMA table_info(children)').all<{ name: string }>();
     expect(childColumns.results.map(({ name }) => name)).toContain('gender');
     expect(childColumns.results.map(({ name }) => name)).not.toContain('goals');
+    expect(childColumns.results.map(({ name }) => name)).toContain('joined_month');
+    expect(childColumns.results.map(({ name }) => name)).not.toContain('joined_on');
 
     const triggers = await testEnv.DB.prepare(`
       SELECT name FROM sqlite_master

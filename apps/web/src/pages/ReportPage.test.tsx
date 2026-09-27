@@ -21,7 +21,7 @@ let firstReport: ReportContent;
 
 beforeAll(async () => {
   const generator = new RuleBasedReportGenerator();
-  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedOn: '2026-03-01' };
+  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedMonth: '2026-03' };
   const previous = {
     seqNo: 1,
     assessedOn: '2026-06-01',

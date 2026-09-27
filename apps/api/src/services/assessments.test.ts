@@ -33,7 +33,7 @@ async function createFixture(name = 'ゆい') {
     honorific: 'chan',
     gender: 'unspecified',
     gradeCode: 'k2',
-    joinedOn: '2026-09-01',
+    joinedMonth: '2026-09',
   });
   return { coach, child };
 }
@@ -76,7 +76,7 @@ describe('アセスメントサービス', () => {
       honorific: 'chan',
       gender: 'unspecified',
       gradeCode: 'k2',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const created = await createAssessment(testEnv, child.id, coach.id, false);
     const draft = JSON.parse(created.data) as {
@@ -126,7 +126,7 @@ describe('アセスメントサービス', () => {
       honorific: 'kun',
       gender: 'unspecified',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     });
     const draft = await createAssessment(testEnv, child.id, coach.id, false);
     await setArchiveState(testEnv, child.id, true);

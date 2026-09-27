@@ -22,7 +22,7 @@ const child = {
   gradeCode: 'e1' as const,
   gradeBaseYear: 2025,
   grade: { code: 'e2', name: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch' as const, graduated: false },
-  joinedOn: '2025-06-01',
+  joinedMonth: '2025-06',
   extUnlocked: false,
   archivedAt: null,
   shareCode: 'ABCD-EFGH',
@@ -55,15 +55,18 @@ describe('子どもページ', () => {
     renderChildPage();
 
     const profile = await screen.findByRole('region', { name: '登録情報' });
+    expect(profile).toHaveTextContent('2025年6月');
     fireEvent.click(within(profile).getByRole('button', { name: '編集' }));
     expect(within(profile).getByLabelText('現在の学年')).toHaveValue('e2');
     fireEvent.change(within(profile).getByLabelText('お名前（下の名前）'), { target: { value: 'ゆいな' } });
+    expect(within(profile).getByLabelText('入会月')).toHaveValue('2025');
+    fireEvent.change(within(profile).getByLabelText('入会月の月'), { target: { value: '04' } });
     fireEvent.click(within(profile).getByRole('button', { name: '保存' }));
 
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       expect(patchCall).toBeDefined();
-      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({ name: 'ゆいな', gradeCode: 'e2' });
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({ name: 'ゆいな', gradeCode: 'e2', joinedMonth: '2025-04' });
     });
   });
 
@@ -105,7 +108,7 @@ describe('子どもページ', () => {
   it('入会から半年を過ぎて未開放なら、4・5種目目の目安を伝える', async () => {
     const longTermChild = {
       ...child,
-      joinedOn: '2025-01-06',
+      joinedMonth: '2025-01',
       state: { key: 'ok' as const, label: '次回 2026-12-01 予定', dueDate: '2026-12-01', order: 2 as const },
       assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
     };

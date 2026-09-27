@@ -62,7 +62,7 @@ export const reportContentSchema = z.object({
     honorific: honorificSchema,
     grade: z.string(),
     ageHint: z.string(),
-    joinedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    joinedMonth: z.string().regex(/^\d{4}-\d{2}$/),
     seqNo: z.number().int().positive(),
     assessedOn: z.string(),
     prevAssessedOn: z.string().optional(),

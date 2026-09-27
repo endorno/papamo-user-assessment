@@ -27,6 +27,12 @@ export function formatJapaneseDate(date: string) {
   return `${year}年${month}月${day}日`;
 }
 
+export function formatJapaneseMonth(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  if (!year || !monthNumber) return month;
+  return `${year}年${monthNumber}月`;
+}
+
 // 一覧の状態バッジ用。次回予定は3か月以内なので、モックにならって年を省く。
 export function formatJapaneseMonthDay(date: string) {
   const [, month, day] = date.split('-').map(Number);

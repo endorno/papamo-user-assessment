@@ -10,6 +10,7 @@ import {
   RISK_DISCLAIMER,
   addMonthsClamped,
   exerciseByKey,
+  firstDayOfMonth,
   reportResponseSchema,
   type TuningKey,
 } from '@papamo/shared';
@@ -129,8 +130,7 @@ export function ReportPage() {
   const previousPpiTotal = report.ppi.previous ? Object.values(report.ppi.previous).reduce((sum, value) => sum + value, 0) : null;
   const showUnlockAtNextAssessment = Boolean(
     report.upcomingExercises.length
-    && report.header.joinedOn
-    && report.nextDue >= addMonthsClamped(report.header.joinedOn, 6),
+    && report.nextDue >= addMonthsClamped(firstDayOfMonth(report.header.joinedMonth), 6),
   );
   // 今回測れなかった種目と、半年目以降に加わる種目は同じ注記でまとめて触れる。
   const notMeasuredNow = report.unmeasured.filter((item) => !item.upcoming);

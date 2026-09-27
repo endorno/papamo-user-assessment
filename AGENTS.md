@@ -229,7 +229,7 @@ coaches           id (= supabase sub) PK, email, display_name (null 可 → オ�
 children          id PK, share_code UNIQUE, owner_share_code UNIQUE, created_by → coaches.id,
                   name, honorific ('kun'|'chan'|'san'), gender ('boy'|'girl'|'unspecified'),
                   grade_code ('k0'|'k1'|'k2'|'k3'|'e1'..'e6'|'j1'..'j3'), grade_base_year (int, 年度),
-                  joined_on ('YYYY-MM-DD'), ext_unlocked (bool, default false),
+                  joined_month ('YYYY-MM'), ext_unlocked (bool, default false),
                   archived_at (null 可 → アーカイブ済み), created_at, updated_at
 child_coaches     child_id, coach_id, role ('owner'|'member'), created_at   PK(child_id, coach_id)
 assessments       id PK, child_id → children.id, seq_no (1,2,3...), status ('draft'|'done'), assessed_on,
@@ -328,7 +328,7 @@ export interface ReportGenerator {
 {
   kind: 'first' | 'comparison',
   generator: string, masterVersion: string, generatedAt: string,
-  header: { childName, honorific, grade, ageHint, joinedOn?, seqNo, assessedOn, prevAssessedOn?, coachName },
+  header: { childName, honorific, grade, ageHint, joinedMonth, seqNo, assessedOn, prevAssessedOn?, coachName },
   levels: { key, name, parentName, lv, maxLv, measured, prevLv?, delta?, band, ladderLabel }[],  // 未開放種目は含めない
   unmeasured: { key, name, upcoming, notPossible }[],        // 今回測っていない種目（図の注記）
   conditionNotes: { key, name, notes[] }[],                  // 当日の様子（指示理解の難しさ など）
@@ -409,10 +409,10 @@ export interface ReportGenerator {
 | GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）                                                                                                               |
 | PUT    | `/me`                       | `{ displayName }` を更新（1〜30文字）                                                                                                                             |
 | GET    | `/children`                 | 自分に紐づく子ども（作成した子ども＋取り込んだ子ども）の一覧 + 各子どもの状態（§8.3）。**アーカイブ済みは除外**、`?archived=1` でアーカイブ済みのみ。一覧の並び順はサーバーで決める                                                     |
-| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedOn }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
+| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedMonth }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
 | POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、未知のコードは 404 |
 | GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` を含む）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
-| PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedOn? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` と目標は変更不可 |
+| PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedMonth? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` と目標は変更不可 |
 | DELETE | `/children/:id/membership`  | 自分のリンク解除。role=owner なら 403                                                                                                                               |
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
 | POST   | `/children/:id/archive`     | アーカイブ（退会）。owner のみ。下書きが残っていても可（下書きごと隠れる）                                                                                                                 |
@@ -455,7 +455,7 @@ export interface ReportGenerator {
 | `/login`           | ログイン         | **「Google でログイン」ボタン1つ**（supabase-js の `signInWithOAuth({ provider: 'google' })`）。モックのメール／パスワード欄は作らない（§2.1）                       |
 | `/onboarding`      | 表示名登録        | `displayName` 未登録時のみ。完了後 `/` へ                                                                                          |
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
-| `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会日（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
+| `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | 育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、「未実施／実施不可」ボタン＋Lv1〜上限のグリッド、前回Lvの点線枠、ラダー展開、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
 | `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
@@ -599,7 +599,7 @@ REPORT_GENERATOR = "rule_v1"
 - `ConfirmDialog` の `tone` は、取り消せない操作が `danger`（初期フォーカスはキャンセル）、確認だけの操作が `primary`（初期フォーカスは確定）。判断材料は `detail`、3つ目の選択肢は `secondary` に渡す。
 - 未保存の入力がある画面は `UnsavedChangesContext` にガードを登録する。ヘッダーのリンクは `GuardedLink` を通し、「保存して移動／保存せずに移動／入力に戻る」を選ばせる。「保存せずに移動」を選んだときは離脱時の自動送信もしない（`discard`）。
 - 子ども一覧は「初回アセスメント未実施」「まずやること」「次の予定まで余裕あり」に分け、下書きがある場合は新規作成ではなく既存下書きへの導線を出す。カードのクリックは常に子どもページへ行き、入力中の回があるときだけ「入力を続ける」ボタンをカードに添えてその回へ直接飛ばす。8名以上で名前のしぼり込みを出す。
-- 子ども登録は名前・敬称・性別・学年・入会日だけにし、完了画面や共有コード表示を挟まず一覧へ戻す。「続けて登録」は遷移後の通知から選べる。アセスメント未作成の子どもは一覧最上段の専用セクションにまとめる。
+- 子ども登録は名前・敬称・性別・学年・入会月だけにし、完了画面や共有コード表示を挟まず一覧へ戻す。「続けて登録」は遷移後の通知から選べる。アセスメント未作成の子どもは一覧最上段の専用セクションにまとめる。
 - 性別（男の子／女の子／選ばない）と敬称（くん／ちゃん／さん）は連動させない。どちらも独立して選ばせる。敬称の「なし」は廃止済みで、旧値がある場合は「さん」へ寄せる。
 - 目標は「ご家族・本人の目標」セクション1か所で入力する。できるようになりたいこと（最大4）を選ぶと、空いている COPM 行へ「〜たい」を言い切りに直した仮の文言を入れる。COPM は目標文言・メモ・遂行度・満足度・親御さんの重要度（1〜10）を回ごとに保存する。採点欄のラベルと並びは `COPM_FIELDS` から出し、画面側に重複定義しない。初回だけ「入会アンケートから取り込む」を表示し、目標セルをタブ・改行で分割して最大4件まで COPM 行へ入れる。専用の保存ボタンは置かず自動保存する。
 - 到達レベルは「未実施」「実施不可」を独立したボタンにし、その下に Lv1〜種目ごとの上限（現在はすべて30）のグリッドを置く。未入力とは別物で、未入力が残っているとレポートを作れない。
@@ -627,7 +627,7 @@ REPORT_GENERATOR = "rule_v1"
 - 409 は「他コーチの更新」「アーカイブ中」「後続の回あり」で共通。Web は文言ではなく `error.code` で判定する。401 は `apiRequest` が拾ってサインアウトし、中断画面は `sessionStorage` に記録して再ログイン後に戻す。
 - 存在する子ども・アセスメントに membership がない場合は403、ID自体が存在しない場合は404を返す。
 - 子ども一覧と子ども詳細では、アセスメント・レポートを1件ずつ取得せず一括取得する。
-- `ReportContent.header.joinedOn` は既存レポートとの互換性のため optional。新しく生成するレポートには必ず入会日を含める。
+- 入会は **月単位（`joined_month` = `YYYY-MM`）** で持つ。サービス側で入会日を記録していないため（2026-09-28 変更）。入力は年・月の2つのセレクト（`MonthSelect`）で、`<input type="month">` は PC 版 Safari・Firefox で文字入力になるため使わない。「入会から何か月目」は入会月を1か月目として `monthOrdinalSince` で数え、日付計算が要る箇所は `firstDayOfMonth` でその月の1日に寄せる。`ReportContent.header.joinedMonth` は必須。
 - 外部キー、列の値域、子どもごとの単一owner・単一下書きはD1制約でも保証する。サービス層の事前確認は分かりやすいエラー表示のために残す。
 - アセスメント更新は内部の `revision` と `mutation_id` でCASを行う。`updatedAt` はクライアント向けの競合検知契約として維持する。
 - 完了済みアセスメントの自動保存では、完了用検証・レポート再生成・アセスメント更新を同じD1 batchで行う。`reports.assessment_revision` はアセスメントのrevisionと一致させる。

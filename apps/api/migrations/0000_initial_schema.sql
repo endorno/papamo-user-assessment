@@ -52,7 +52,7 @@ CREATE TABLE `children` (
 	`gender` text DEFAULT 'unspecified' NOT NULL,
 	`grade_code` text NOT NULL,
 	`grade_base_year` integer NOT NULL,
-	`joined_on` text NOT NULL,
+	`joined_month` text NOT NULL,
 	`ext_unlocked` integer DEFAULT false NOT NULL,
 	`archived_at` text,
 	`created_at` text NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE `children` (
 	CONSTRAINT "children_honorific" CHECK("children"."honorific" IN ('kun', 'chan', 'san')),
 	CONSTRAINT "children_gender" CHECK("children"."gender" IN ('boy', 'girl', 'unspecified')),
 	CONSTRAINT "children_grade_code" CHECK("children"."grade_code" IN ('k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3')),
-	CONSTRAINT "children_joined_on_format" CHECK("children"."joined_on" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+	CONSTRAINT "children_joined_month_format" CHECK("children"."joined_month" GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]' AND substr("children"."joined_month", 6, 2) BETWEEN '01' AND '12'),
 	CONSTRAINT "children_ext_unlocked_boolean" CHECK("children"."ext_unlocked" IN (0, 1))
 );
 --> statement-breakpoint

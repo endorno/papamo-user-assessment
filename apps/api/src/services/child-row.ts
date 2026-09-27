@@ -10,7 +10,7 @@ export type ChildRow = {
   gender: string;
   gradeCode: string;
   gradeBaseYear: number;
-  joinedOn: string;
+  joinedMonth: string;
   extUnlocked: boolean;
   archivedAt: string | null;
   createdAt: string;
