@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import {
@@ -910,14 +910,25 @@ function ExerciseSection({
   onObservationToggle: (observation: string) => void;
   onNoteChange: (note: string) => void;
 }) {
-  // ラダーを開かなくても、狙っているLvの課題文を先に読めるようにする。
-  const [preview, setPreview] = useState<number | null>(null);
-  const shown = preview ?? level;
   // 未実施・実施不可は差分の対象にしない。
   const delta = level === undefined || previousLevel === undefined || level <= 0 || previousLevel <= 0
     ? undefined
     : level - previousLevel;
-  const ladderLevels = Array.from({ length: exercise.maxLevel }, (_, index) => index + 1);
+  const ladderListRef = useRef<HTMLDivElement>(null);
+  // 開いた時点の選択（無ければ前回）を中央に据える。初回は先頭のまま。
+  const [scrollAnchor] = useState(() => (level !== undefined && level > 0 ? level : previousLevel !== undefined && previousLevel > 0 ? previousLevel : undefined));
+  useLayoutEffect(() => {
+    const list = ladderListRef.current;
+    if (!list || scrollAnchor === undefined) return;
+    const row = list.querySelector<HTMLElement>(`[data-level="${scrollAnchor}"]`);
+    if (!row) return;
+    // scrollIntoView はページ全体も動かすため、リスト内だけをスクロールする。
+    list.scrollTop = row.offsetTop - (list.clientHeight - row.offsetHeight) / 2;
+  }, [scrollAnchor]);
+  const bandGroups = exercise.bands.map((band, index) => {
+    const from = index === 0 ? 1 : exercise.bands[index - 1]!.to + 1;
+    return { ...band, from, levels: Array.from({ length: band.to - from + 1 }, (_, offset) => from + offset) };
+  });
 
   return (
     <section className={`${styles.panel} ${styles.assessmentSection} ${level === undefined ? styles.sectionIncomplete : ''}`} id={`assessment-${exercise.key}`} data-assessment-section aria-labelledby={`${exercise.key}-title`}>
@@ -946,51 +957,33 @@ function ExerciseSection({
           </button>
         ))}
       </div>
-      <div className={styles.lvGrid} aria-label={`${exercise.name}の到達レベル（Lv1〜${exercise.maxLevel}）`} onMouseLeave={() => setPreview(null)}>
-        {ladderLevels.map((candidate) => {
-          const classNames = [styles.lvButton];
-          if (level === candidate) classNames.push(styles.lvButtonSelected);
-          if (previousLevel === candidate) classNames.push(styles.lvButtonPrevious);
-          return (
-            <button
-              disabled={disabled}
-              className={classNames.join(' ')}
-              key={candidate}
-              type="button"
-              aria-pressed={level === candidate}
-              aria-label={`Lv${candidate}${previousLevel === candidate ? '、前回のレベル' : ''}`}
-              title={ladderLabel(exercise.key, candidate)}
-              onMouseEnter={() => setPreview(candidate)}
-              onFocus={() => setPreview(candidate)}
-              onBlur={() => setPreview(null)}
-              onClick={() => onLevelChange(candidate)}
-            >{candidate}</button>
-          );
-        })}
-      </div>
-      <div className={`${styles.selectedLevel} ${shown === undefined ? styles.selectedLevelEmpty : ''} ${preview !== null && preview !== level ? styles.lvPreview : ''}`} aria-live="polite">
-        <strong>{shown === undefined ? '—' : shown > 0 ? `Lv${shown}` : shown === LEVEL_NOT_POSSIBLE ? '不可' : '未実施'}</strong>
+      <div className={`${styles.selectedLevel} ${level === undefined ? styles.selectedLevelEmpty : ''}`} aria-live="polite">
+        <strong>{level === undefined ? '—' : level > 0 ? `Lv${level}` : level === LEVEL_NOT_POSSIBLE ? '不可' : '未実施'}</strong>
         <span>
-          {shown === undefined
+          {level === undefined
             ? `到達できた一番上のレベルを選びます${previousLevel === undefined ? '' : `（前回 Lv${previousLevel}）`}`
-            : shown > 0
-              ? <>{ladderLabel(exercise.key, shown)}<small>帯：{bandName(exercise.key, shown)}{preview !== null && preview !== level ? '・選ぶ前の下見' : ''}</small></>
-              : <>{shown === LEVEL_NOT_POSSIBLE ? LEVEL_NOT_POSSIBLE_LABEL : LEVEL_NOT_MEASURED_LABEL}<small>レポートでは「できない」という意味では扱いません</small></>}
+            : level > 0
+              ? <>{ladderLabel(exercise.key, level)}<small>帯：{bandName(exercise.key, level)}</small></>
+              : <>{level === LEVEL_NOT_POSSIBLE ? LEVEL_NOT_POSSIBLE_LABEL : LEVEL_NOT_MEASURED_LABEL}<small>レポートでは「できない」という意味では扱いません</small></>}
         </span>
-        {delta !== undefined && preview === null ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
+        {delta !== undefined ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
       </div>
-      <details className={styles.ladderDetails}>
-        <summary>ラダーの一覧（Lv1〜{exercise.maxLevel}の課題）を見る</summary>
-        <ol className={styles.ladderList}>
-          {ladderLevels.map((candidate) => (
-            <li key={candidate}>
-              <button className={level === candidate ? styles.ladderSelected : ''} type="button" disabled={disabled} onClick={() => onLevelChange(candidate)}>
-                <strong>Lv{candidate}</strong><span>{ladderLabel(exercise.key, candidate)}</span>{previousLevel === candidate ? <em>前回</em> : null}
-              </button>
-            </li>
-          ))}
-        </ol>
-      </details>
+      <div className={styles.ladderList} ref={ladderListRef} role="group" aria-label={`${exercise.name}の到達レベル（Lv1〜${exercise.maxLevel}）`}>
+        {bandGroups.map((band) => (
+          <div className={styles.ladderBand} key={band.to}>
+            <p className={styles.ladderBandTitle}>{band.name}<small>Lv{band.from}〜{band.to}</small></p>
+            <ol>
+              {band.levels.map((candidate) => (
+                <li key={candidate} data-level={candidate}>
+                  <button className={level === candidate ? styles.ladderSelected : ''} type="button" disabled={disabled} aria-pressed={level === candidate} onClick={() => onLevelChange(candidate)}>
+                    <strong>Lv{candidate}</strong><span>{ladderLabel(exercise.key, candidate)}</span>{previousLevel === candidate ? <em>前回</em> : null}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
       <div className={styles.errorChips}>
         <strong>見えた動作（該当するものを選択）</strong>
         <div>
