@@ -1,0 +1,21 @@
+# Orca のワークツリー作成時の初期化設定
+# ローカル設定ファイルのコピーは .worktreeinclude で行う
+# node_modules は sharedDirectories で共有せず、ワークツリーごとに pnpm install で作る
+# （pnpm のストアからのハードリンクなので、ディスク消費は小さい）
+scripts:
+  setup: |
+    set -eu
+    cd "${ORCA_WORKTREE_PATH:-$PWD}"
+
+    # web のビルドは .env.local の VITE_* を埋め込むため、無いまま進めると気づきにくい
+    if [ ! -f apps/web/.env.local ]; then
+      echo "警告: apps/web/.env.local がありません。.worktreeinclude のコピー結果を確認してください" >&2
+    fi
+
+    pnpm install --frozen-lockfile
+
+    # wrangler dev は apps/web/dist を静的アセットとして配信するため、先にビルドしておく
+    pnpm -r build
+
+    # ローカル D1 はワークツリーごとの .wrangler/ に作られるので、マイグレーションを適用する
+    pnpm db:migrate:local

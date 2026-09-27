@@ -1,0 +1,5 @@
+# ワークツリー作成時に元のチェックアウトからコピーする gitignore 済みのローカル設定
+# Orca はリテラルパスのみ解釈するため、glob は使わない
+apps/api/.dev.vars
+apps/web/.env.local
+apps/web/.env.staging.local

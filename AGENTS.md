@@ -208,6 +208,7 @@ VITE_SUPABASE_ANON_KEY=...   # reference/papamo-lesson-admin/.env.local の同�
 
 - ローカルの JWKS は `http://127.0.0.1:15421/auth/v1/.well-known/jwks.json`。**ES256 の鍵が返ることを確認済み**（2026-09-12）。
 - D1 のバインディング名は `DB`、`database_name` は `papamo-user-assessment`。ローカルは `wrangler dev` が `.wrangler/` 配下に自動で作る。
+- Orca でワークツリーを作ると、`.worktreeinclude` に列挙した `.dev.vars` / `.env.local` / `.env.staging.local` が元のチェックアウトからコピーされ、`orca.yaml` の setup で `pnpm install` → `pnpm -r build` → ローカル D1 マイグレーションを行う。`node_modules` とローカル D1 はワークツリーごとに別々に持つ（共有しない）。
 - 動作環境：Node 24 / pnpm 10.33 / wrangler 4 で確認。`engines.node` は `>=22`。依存のバージョンは初回 install 時に最新安定版で解決し、**lockfile をコミットする**。
 
 ### 4.1 公式リリース前のデータとマイグレーション
