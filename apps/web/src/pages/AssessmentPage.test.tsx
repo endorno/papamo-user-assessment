@@ -87,7 +87,7 @@ describe('アセスメント入力', () => {
   it('Lvと0点の回答を選択し、800ms後に全体を自動保存する', async () => {
     renderAssessmentPage();
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
-    const levelButton = within(exerciseSection).getByRole('button', { name: 'Lv3' });
+    const levelButton = within(exerciseSection).getByRole('button', { name: /^Lv3(?!\d)/ });
     fireEvent.click(levelButton);
     expect(levelButton).toHaveAttribute('aria-pressed', 'true');
 
@@ -109,7 +109,7 @@ describe('アセスメント入力', () => {
   it('未保存のままヘッダーから移動しようとすると確認を出す', async () => {
     renderAssessmentPage();
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
-    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: /^Lv3(?!\d)/ }));
 
     fireEvent.click(screen.getByRole('link', { name: '担当の子ども' }));
 
@@ -122,7 +122,7 @@ describe('アセスメント入力', () => {
   it('「保存せずに移動」を選んだら、離脱時にも保存を送らない', async () => {
     const { unmount } = renderAssessmentPage();
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
-    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: /^Lv3(?!\d)/ }));
     fireEvent.click(screen.getByRole('link', { name: '担当の子ども' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '保存せずに移動' }));
     unmount();
@@ -141,7 +141,7 @@ describe('アセスメント入力', () => {
       { route: '/assessments/assessment-1' },
     );
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
-    fireEvent.click(within(exerciseSection).getByRole('button', { name: 'Lv3' }));
+    fireEvent.click(within(exerciseSection).getByRole('button', { name: /^Lv3(?!\d)/ }));
     fireEvent.click(screen.getByRole('button', { name: 'いったん閉じる' }));
 
     expect(await screen.findByText('子どもページです')).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe('アセスメント入力', () => {
     fireEvent.click(unlock);
 
     const extSection = await screen.findByRole('region', { name: 'あしあとものまね' });
-    fireEvent.click(within(extSection).getByRole('button', { name: 'Lv4' }));
+    fireEvent.click(within(extSection).getByRole('button', { name: /^Lv4(?!\d)/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /この回から4・5種目目も記録する/ }));
 
     expect(screen.queryByRole('region', { name: 'あしあとものまね' })).not.toBeInTheDocument();
@@ -238,6 +238,45 @@ describe('アセスメント入力', () => {
       expect(body.data.engagement.dur).toBe(3);
       expect(body.data.envSupports).toEqual(['e-vis']);
     }, { timeout: 2000 });
+  });
+
+  it('到達レベルは帯ごとのリストで、前回のLvを中央に寄せて表示する', async () => {
+    // jsdom はレイアウトしないため、行の位置とリストの高さを与える。
+    const rowHeight = 48;
+    const listHeight = rowHeight * 7;
+    const layoutSpies = [
+      vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) {
+        return (Number(this.dataset.level ?? 0) - 1) * rowHeight;
+      }),
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(rowHeight),
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(listHeight),
+    ];
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse({
+      assessment: {
+        ...assessment,
+        seqNo: 2,
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: { post: 10 }, troubles: [], ppi: {}, engagement: {}, copm: [] },
+      },
+    }));
+
+    renderAssessmentPage();
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    const ladder = within(exerciseSection).getByRole('group', { name: /ラインウォークの到達レベル/ });
+
+    expect(within(ladder).getByText('17cm一巡')).toBeInTheDocument();
+    expect(within(ladder).getByText('8.5cm一巡')).toBeInTheDocument();
+    expect(within(ladder).getByRole('button', { name: /^Lv10(?!\d)/ })).toHaveTextContent('前回');
+    expect(ladder.scrollTop).toBe((10 - 1) * rowHeight - (listHeight - rowHeight) / 2);
+    layoutSpies.forEach((spy) => spy.mockRestore());
+  });
+
+  it('初回の到達レベルはリストの先頭から表示する', async () => {
+    renderAssessmentPage();
+    const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
+    const ladder = within(exerciseSection).getByRole('group', { name: /ラインウォークの到達レベル/ });
+
+    expect(ladder.scrollTop).toBe(0);
+    expect(within(ladder).queryByText('前回')).not.toBeInTheDocument();
   });
 
   it('未実施・実施不可も到達の選択肢として記録できる', async () => {
