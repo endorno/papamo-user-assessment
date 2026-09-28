@@ -79,7 +79,7 @@ describe('アセスメント入力', () => {
 
     expect(await screen.findByRole('heading', { name: 'ゆいちゃんのアセスメント' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: '入力項目' })).toHaveTextContent('ラインウォーク');
-    expect(screen.getByRole('region', { name: 'ご家庭のお困り度' })).toHaveTextContent('5問すべて回答');
+    expect(screen.getByRole('region', { name: '5.ご家庭のお困り度' })).toHaveTextContent('5問すべて回答');
     expect(screen.getByRole('link', { name: 'ラインウォークのLv' })).toHaveAttribute('href', '#assessment-post');
     expect(screen.getByRole('button', { name: 'レポートを作る' })).toBeDisabled();
   });
@@ -91,7 +91,7 @@ describe('アセスメント入力', () => {
     fireEvent.click(levelButton);
     expect(levelButton).toHaveAttribute('aria-pressed', 'true');
 
-    const ppiSection = screen.getByRole('region', { name: 'ご家庭のお困り度' });
+    const ppiSection = screen.getByRole('region', { name: '5.ご家庭のお困り度' });
     const firstQuestion = within(ppiSection).getAllByRole('group')[0]!;
     const zeroButton = within(firstQuestion).getByRole('button', { name: '0' });
     fireEvent.click(zeroButton);
@@ -220,7 +220,7 @@ describe('アセスメント入力', () => {
 
   it('できるようになりたいことを選ぶと、目標欄に仮の文言が入る', async () => {
     renderAssessmentPage();
-    const goalsSection = await screen.findByRole('region', { name: 'ご家族・本人の目標' });
+    const goalsSection = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
     fireEvent.click(within(goalsSection).getByRole('checkbox', { name: /縄跳びが跳べるようになりたい/ }));
 
     expect(within(goalsSection).getByRole('textbox', { name: '目標 1' })).toHaveValue('縄跳びが跳べるようになる');
@@ -228,7 +228,7 @@ describe('アセスメント入力', () => {
 
   it('取り組みの発達と環境調整を記録できる', async () => {
     renderAssessmentPage();
-    const section = await screen.findByRole('region', { name: '取り組みの発達' });
+    const section = await screen.findByRole('region', { name: '2.取り組みの発達' });
     fireEvent.change(within(section).getByLabelText(/参加の持続/), { target: { value: '3' } });
     fireEvent.click(within(section).getByRole('checkbox', { name: /視覚（手本・図・写真を見せる）/ }));
 
@@ -308,7 +308,7 @@ describe('アセスメント入力', () => {
 
   it('お困りごとだけ選んだ下書きでも、破棄の前に確認を出す', async () => {
     renderAssessmentPage();
-    const troubles = await screen.findByRole('region', { name: 'お子さまのお困りごと' });
+    const troubles = await screen.findByRole('region', { name: '3.お子さまのお困りごと' });
     fireEvent.click(within(troubles).getByRole('checkbox', { name: /転びやすい・つまずきやすい/ }));
 
     fireEvent.click(screen.getByRole('button', { name: '下書きを破棄' }));

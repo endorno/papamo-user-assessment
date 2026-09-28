@@ -626,7 +626,7 @@ export function AssessmentPage() {
 
             <div className={`${styles.inputArea} ${styles.inputAreaObserved}`}>
               <p className={styles.inputAreaHead}>
-                <strong>その場で観察して記入</strong>
+                <strong>1.アセスメント</strong>
                 <small>レッスン中に見た様子をそのまま記録します</small>
               </p>
 
@@ -646,7 +646,7 @@ export function AssessmentPage() {
             ))}
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-engagement" data-assessment-section aria-labelledby="engagement-title">
-              <div className={styles.sectionHeader}><div><h2 id="engagement-title">取り組みの発達</h2><p className={styles.muted}>運動レベルとは別に、どう取り組めたかを記録します</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="engagement-title">2.取り組みの発達</h2><p className={styles.muted}>運動レベルとは別に、どう取り組めたかを記録します</p></div></div>
               {ENGAGEMENT_AXES.map((axis) => {
                 const value = form.data.engagement[axis.key as EngagementKey];
                 const previous = assessment.previous?.engagement[axis.key as EngagementKey];
@@ -704,7 +704,7 @@ export function AssessmentPage() {
               </p>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" data-assessment-section aria-labelledby="troubles-title">
-              <div className={styles.sectionHeader}><div><h2 id="troubles-title">お子さまのお困りごと</h2><p className={styles.muted}>保護者に聞き取り・当てはまるものを選択</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="troubles-title">3.お子さまのお困りごと</h2><p className={styles.muted}>保護者に聞き取り・当てはまるものを選択</p></div></div>
               <div className={styles.troubleCategories}>
                 {troubleCategories.map((category) => (
                   <fieldset className={styles.troubleCategory} key={category.id}>
@@ -721,7 +721,7 @@ export function AssessmentPage() {
             </section>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-goals" data-assessment-section aria-labelledby="goals-title">
-              <div className={styles.sectionHeader}><div><h2 id="goals-title">ご家族・本人の目標</h2><p className={styles.muted}>最大{COPM_MAX}つ。3か月後に同じ設問で採点し直し、差分を見ます</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="goals-title">4.ご家族・本人の目標</h2><p className={styles.muted}>最大{COPM_MAX}つ。3か月後に同じ設問で採点し直し、差分を見ます</p></div></div>
 
               <fieldset className={styles.wantBox}>
                 <legend>できるようになりたいこと（{form.data.wants.length}/{WANT_MAX}）</legend>
@@ -782,7 +782,7 @@ export function AssessmentPage() {
             </section>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" data-assessment-section aria-labelledby="ppi-title">
-              <div className={styles.sectionHeader}><div><h2 id="ppi-title">ご家庭のお困り度</h2><p className={styles.muted}>0〜{PPI_SCORE_MAX}・{PPI_QUESTIONS.length}問すべて回答してください</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="ppi-title">5.ご家庭のお困り度</h2><p className={styles.muted}>0〜{PPI_SCORE_MAX}・{PPI_QUESTIONS.length}問すべて回答してください</p></div></div>
               {PPI_QUESTIONS.map((question) => (
                 <PpiRow
                   key={question.key}
@@ -802,7 +802,7 @@ export function AssessmentPage() {
             </div>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-memo" data-assessment-section aria-labelledby="memo-title">
-              <div className={styles.sectionHeader}><div><h2 id="memo-title">コーチ所見メモ</h2><p className={styles.muted}>内部用です。保護者レポートには出ません</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="memo-title">6.コーチ所見メモ</h2><p className={styles.muted}>内部用です。保護者レポートには出ません</p></div></div>
               <div className={styles.formField}>
                 <label htmlFor="coach-memo">コーチ所見メモ（内部用）</label>
                 <textarea id="coach-memo" rows={4} value={form.data.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
