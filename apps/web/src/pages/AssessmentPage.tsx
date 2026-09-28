@@ -1029,7 +1029,7 @@ function CopmScore({
   );
   return (
     <div className={styles.formField}>
-      <label htmlFor={id}>{label}{previous === undefined ? '' : `（前回 ${previous}）`}</label>
+      <label htmlFor={id}>{label}{previous === undefined ? null : <small className={styles.copmPrevious}>前回 {previous}</small>}</label>
       <select id={id} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))}>
         {scores.map((score) => <option key={score} value={score}>{score}</option>)}
       </select>

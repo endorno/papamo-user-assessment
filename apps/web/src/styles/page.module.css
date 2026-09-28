@@ -2219,9 +2219,10 @@
 
 /* --- ご家族・本人の目標（COPM） --- */
 
+/* 3列横並びだと採点欄が入力欄幅を超えてはみ出すため、目標・メモを上段、採点を下段に分ける。 */
 .copmRow {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(220px, auto);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 14px;
   margin-top: 14px;
   padding: 14px;
@@ -2230,16 +2231,27 @@
   background: var(--paper);
 }
 
+.copmRow .formField {
+  align-content: start;
+}
+
 .copmScores {
   display: grid;
-  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 150px)) 1fr;
   gap: 10px;
   align-items: end;
 }
 
 .copmScores > button {
-  grid-column: 1 / -1;
-  justify-self: start;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+/* 「（前回 N）」を項目名に続けると折り返して高さが揃わないため別行にする。 */
+.copmPrevious {
+  display: block;
+  font-weight: 400;
 }
 
 /* --- レポート：アルゴリズム調整中の目印 --- */
@@ -2485,6 +2497,15 @@
   .engagementRow,
   .copmRow {
     grid-template-columns: 1fr;
+  }
+
+  .copmScores {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .copmScores > button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .reportHero {
