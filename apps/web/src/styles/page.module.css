@@ -1337,6 +1337,47 @@
   font-weight: 400;
 }
 
+.radarLevel {
+  fill: var(--ink2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.radarDot {
+  fill: var(--green);
+}
+
+.radarDotEmpty {
+  fill: #fff;
+  stroke: #b6bfb9;
+  stroke-width: 1.4;
+}
+
+.radarIcon {
+  fill: #fff;
+  stroke: var(--green);
+  stroke-width: 1.8;
+}
+
+.radarIconGlyph {
+  font-size: 13px;
+}
+
+/* 未実施・実施不可・未開放の軸は、ラベルごと薄くして「まだ測っていない」ことを色と破線で伝える。 */
+.radarAxisMuted .radarIcon {
+  stroke: #a8b3ae;
+  stroke-dasharray: 3 2.4;
+}
+
+.radarAxisMuted .radarIconGlyph {
+  opacity: 0.45;
+}
+
+.radarAxisMuted .radarLabel,
+.radarAxisMuted .radarLevel {
+  fill: #a8b3ae;
+}
+
 .radarScale {
   fill: var(--mute);
   font-size: 9.5px;
@@ -1680,21 +1721,73 @@
   text-align: right;
 }
 
+/* 1枚目の主役。レーダーを枠の中央に大きく置き、説明はその下に回す（design-mock-v2 準拠）。 */
 .reportHero {
   display: grid;
-  grid-template-columns: minmax(300px, 1.05fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 20px;
+  justify-items: center;
+  padding: 14px 18px 16px;
+  border: 1.5px solid #cfe3d2;
+  border-radius: 12px;
+  background: #f6faf6;
+}
+
+.reportHeroTitle {
+  justify-self: start;
+  color: var(--green-ink);
+  font-size: 0.92rem;
+}
+
+.reportHero .radarWrap {
+  width: 100%;
+  margin-top: 4px;
 }
 
 .reportHero .radar {
-  max-width: 100%;
+  width: min(100%, 620px);
+}
+
+.reportHero .radarLabel {
+  font-size: 13px;
 }
 
 .reportHero p {
-  margin: 10px 0 0;
+  width: 100%;
+  margin: 8px 0 0;
   color: var(--ink2);
   font-size: 0.86rem;
+}
+
+.reportHero .radarScaleNote {
+  margin-top: 4px;
+  color: var(--mute);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.reportHero .reportTotal {
+  margin-top: 4px;
+  color: var(--green-ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+.reportTotal strong {
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reportTotal small {
+  margin-left: 4px;
+  color: var(--mute);
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
+@media print {
+  /* A4 1枚に収めるため、印刷時だけレーダーを少し詰める。 */
+  .reportHero .radar {
+    width: 440px;
+  }
 }
 
 .reportLead {
@@ -1744,15 +1837,6 @@
 
 .numberCell small {
   font-size: 0.7rem !important;
-}
-
-.arrowCell {
-  color: var(--mute);
-  text-align: center;
-}
-
-.lockedRow {
-  color: var(--mute);
 }
 
 .numberedHeading {
@@ -1967,7 +2051,6 @@
     text-align: left;
   }
 
-  .reportHero,
   .reportTwoColumns {
     grid-template-columns: 1fr;
   }

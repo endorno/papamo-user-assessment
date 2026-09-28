@@ -84,6 +84,11 @@ describe('保護者向けレポート', () => {
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
     expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('今のお困りごとと、その理由');
     expect(screen.queryByText(/3か月でできるようになったこと/)).not.toBeInTheDocument();
+    // 総合点の分母は実施した種目（基本3種目 × 30）だけで数える。
+    expect(screen.getByRole('region', { name: '育ちマップ' })).toHaveTextContent(/今の到達\s*15\s*\/90（実施した3種目の合計）/);
+    // 線が1本だけの初回は凡例を出さず、軸には運動名ではなく力の名前を出す。
+    expect(screen.queryByText('今回')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('姿勢制御/動的バランス');
     // ルールが未確定の箇所には目印を出す。
     expect(screen.getAllByText(/アルゴリズム調整中/).length).toBeGreaterThan(0);
   });

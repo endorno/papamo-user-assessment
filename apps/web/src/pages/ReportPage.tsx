@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 
 import {
-  EXERCISES,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
   PROPRIOCEPTION_NOTE,
@@ -56,42 +55,6 @@ function NumberedHeading({ number, children }: { number: number; children: React
   return <h2 className={styles.numberedHeading}><span>{number}</span>{children}</h2>;
 }
 
-function LevelTable({ report }: { report: ParsedReport }) {
-  return (
-    <div className={styles.levelTableWrap}>
-      <table className={styles.levelTable}>
-        <thead>
-          <tr><th>種目</th>{report.kind === 'comparison' ? <><th>前回</th><th aria-label="変化" /></> : null}<th>今回</th><th>いまの帯・課題</th></tr>
-        </thead>
-        <tbody>
-          {EXERCISES.map((exercise) => {
-            const level = report.levels.find((item) => item.key === exercise.key);
-            if (!level) return (
-              <tr className={styles.lockedRow} key={exercise.key}>
-                <td><strong>{exercise.icon} {exercise.name}</strong><small>{exercise.parentName}</small></td>
-                {report.kind === 'comparison' ? <><td /><td /></> : null}
-                <td>半年目以降</td><td>土台が安定してから追加</td>
-              </tr>
-            );
-            const delta = level.measured && level.prevLv !== undefined && level.prevLv > 0 ? level.delta : undefined;
-            return (
-              <tr key={exercise.key}>
-                <td><strong>{exercise.icon} {exercise.name}</strong><small>{exercise.parentName}</small></td>
-                {report.kind === 'comparison' ? <><td className={styles.numberCell}>{level.prevLv === undefined || level.prevLv <= 0 ? '—' : `Lv${level.prevLv}`}</td><td className={styles.arrowCell}>→</td></> : null}
-                <td className={styles.numberCell}>
-                  {level.measured ? <>Lv{level.lv}<small>/{level.maxLv}</small></> : <small>{level.band}</small>}
-                  {delta === undefined ? null : <small className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '±0'}</small>}
-                </td>
-                <td><strong>{level.measured ? level.band : '—'}</strong><small>{level.ladderLabel}</small></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function ReportFooter({ page }: { page: number }) {
   return <footer className={styles.reportFooter}><span>へやすぽ 育ちマップ</span><span>ご家庭説明用｜Page {page}</span></footer>;
 }
@@ -136,6 +99,10 @@ export function ReportPage() {
   const notMeasuredNow = report.unmeasured.filter((item) => !item.upcoming);
   const measuredLater = report.unmeasured.filter((item) => item.upcoming);
   const growNote = exerciseByKey(report.link.lowestKey).grow;
+  // 総合点は実際に測れた種目だけで出す。未実施・実施不可を分母に入れると低く見えてしまうため。
+  const measuredLevels = report.levels.filter((level) => level.measured);
+  const measuredTotal = measuredLevels.reduce((sum, level) => sum + level.lv, 0);
+  const measuredMax = measuredLevels.reduce((sum, level) => sum + level.maxLv, 0);
 
   return (
     <div className={styles.pageFrame}>
@@ -154,13 +121,19 @@ export function ReportPage() {
           {/* Page 1：現在地と強み */}
           <section className="sheet" aria-label="レポート1ページ目">
             <ReportSheetHeader report={report} title={report.kind === 'comparison' ? `${childName}の3か月の変化` : `${childName}の現在地と強み`} />
-            <div className={styles.reportHero}>
-              <RadarChart report={report} extUnlocked={report.upcomingExercises.length === 0} />
-              <div>
-                <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : 'できた・できなかったの採点ではなく、いまどの段にいるかを確かめた記録です。ここから3か月ごとに同じ課題で測り直します。'}</p>
-                <p>{growNote}</p>
-              </div>
-            </div>
+            <section className={styles.reportHero} aria-label="育ちマップ">
+              <strong className={styles.reportHeroTitle}>🧭 育ちマップ（5つの土台のレーダーチャート）</strong>
+              <RadarChart report={report} extUnlocked={report.upcomingExercises.length === 0} showLevels />
+              <p className={styles.radarScaleNote}>外側ほどLvが高い（Lv1＝入口 〜 Lv30＝最上位）{measuredLevels.length < report.levels.length + report.upcomingExercises.length ? '／白い点の軸は「未実施」で、まだ測っていません' : ''}</p>
+              {measuredLevels.length ? (
+                <p className={styles.reportTotal}>
+                  今の到達 <strong>{measuredTotal}</strong> /{measuredMax}
+                  <small>（実施した{measuredLevels.length}種目の合計）</small>
+                </p>
+              ) : null}
+              <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : <>できた・できなかったの採点ではなく、<strong>いまどの段にいるか</strong>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。</>}</p>
+              <p>{growNote}</p>
+            </section>
             {notMeasuredNow.length || report.upcomingExercises.length ? (
               <p className={styles.reportNote}>
                 ※ {[...notMeasuredNow, ...measuredLater].map((item) => item.name).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、
@@ -173,7 +146,6 @@ export function ReportPage() {
                 ※ {report.conditionNotes.map((item) => item.name).join('・')} は当日の様子（{[...new Set(report.conditionNotes.flatMap((item) => item.notes))].join('・')}）の影響を受けている可能性があります。次回あらためて確認します。
               </p>
             ) : null}
-            <LevelTable report={report} />
             {report.kind === 'comparison' ? (
               <>
                 <NumberedHeading number={1}>3か月でできるようになったこと<TuningTag report={report} section="comparison" /></NumberedHeading>
