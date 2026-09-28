@@ -54,10 +54,10 @@ pnpm db:migrate:staging
 pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-staging
 ```
 
-コーチ行ごと初期化して新規ログインから確認したい場合はリセットを使います。実行前に対象D1を表示して y/N で確認します。
+適用済みマイグレーションを書き換えた場合や、コーチ行ごと初期化して新規ログインから確認したい場合は、DBを作り直します。全テーブルをマイグレーション履歴ごと削除し、マイグレーションを最初から適用し直します。実行前に対象D1を表示して y/N で確認します。
 
 ```bash
-pnpm --filter @papamo/api db:reset:staging -- --confirm papamo-user-assessment-staging
+pnpm --filter @papamo/api db:rebuild:staging -- --confirm papamo-user-assessment-staging
 ```
 
 ## 通常のデプロイ

@@ -39,15 +39,20 @@ export function describeDatabase(target) {
 }
 
 /** ローカルは `--local`、ステージングは `--env staging --remote`。本番向けの引数は組み立てない。 */
+function locationArgs(target) {
+  return target === 'local' ? ['--local'] : ['--env', 'staging', '--remote'];
+}
+
 export function executeSqlFile(target, file) {
-  return spawnSync('pnpm', [
-    'exec',
-    'wrangler',
-    'd1',
-    'execute',
-    'DB',
-    ...(target === 'local' ? ['--local'] : ['--env', 'staging', '--remote']),
-    '--file',
-    file,
-  ], { stdio: 'inherit' });
+  return spawnSync('pnpm', ['exec', 'wrangler', 'd1', 'execute', 'DB', ...locationArgs(target), '--file', file], {
+    stdio: 'inherit',
+  });
+}
+
+/** 呼び出し側で y/N 確認を済ませているので、Wrangler 側の適用確認は CI 扱いで省く。 */
+export function applyMigrations(target) {
+  return spawnSync('pnpm', ['exec', 'wrangler', 'd1', 'migrations', 'apply', 'DB', ...locationArgs(target)], {
+    stdio: 'inherit',
+    env: { ...process.env, CI: 'true' },
+  });
 }

@@ -662,7 +662,7 @@ REPORT_GENERATOR = "rule_v1"
 - 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
-- 非本番リセット（`pnpm --filter @papamo/api db:reset:local` / `db:reset:staging`）はコーチ行も含めて本リポジトリのD1全テーブルを空にし、マイグレーション直後の状態に戻す。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
+- 非本番の作り直し（`pnpm --filter @papamo/api db:rebuild:local` / `db:rebuild:staging`）は本リポジトリのD1の全テーブルを `d1_migrations` ごと DROP し（`seeds/drop-all.sql`）、マイグレーションを最初から適用し直す。適用済みマイグレーションを書き換えたときは `db:migrate:*` では反映されない（ファイル名で適用済みと判定される）ため、これを使う。行だけ消すコマンドは作り直しで代替できるため持たない。テーブルを追加したら `drop-all.sql` にも足す（`seeds.test.ts` が消し残しを検出する）。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
 - 開発用の一括削除（`DELETE /dev-tools/children`）は担当一覧を空にする操作。自分がオーナーの子どもはアーカイブ中も含めてアセスメント・レポートごと消し、他コーチがオーナーの子どもは自分の担当紐づきだけを消す。`prev_assessment_id` は `RESTRICT` なので、先に参照を `NULL` にしてから回をまとめて消す。
 - コーチID管理は lesson-admin の責務。画面の文言でも「コーチ管理サイト」ではなく「メニュー構築サイト」と書く。
 - staging でもアプリ内の許可リストは持たず、lesson-admin と共用する Supabase Auth のユーザーを受け入れる。service role、Admin Auth API、コーチなりすましは導入しない。
