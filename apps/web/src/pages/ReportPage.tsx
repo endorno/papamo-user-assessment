@@ -2,10 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 
 import {
-  EXERCISES,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
-  PROPRIOCEPTION_NOTE,
   REPORT_DISCLAIMER,
   RISK_DISCLAIMER,
   addMonthsClamped,
@@ -52,44 +50,14 @@ function ReportSheetHeader({ report, title }: { report: ParsedReport; title: str
   );
 }
 
-function NumberedHeading({ number, children }: { number: number; children: ReactNode }) {
-  return <h2 className={styles.numberedHeading}><span>{number}</span>{children}</h2>;
+/** 見出しが1つしかないページで「1」だけ振ると続きがあるように見えるため、番号は省けるようにする。 */
+function NumberedHeading({ number, children }: { number?: number | undefined; children: ReactNode }) {
+  return <h2 className={styles.numberedHeading}>{number === undefined ? null : <span>{number}</span>}{children}</h2>;
 }
 
-function LevelTable({ report }: { report: ParsedReport }) {
-  return (
-    <div className={styles.levelTableWrap}>
-      <table className={styles.levelTable}>
-        <thead>
-          <tr><th>種目</th>{report.kind === 'comparison' ? <><th>前回</th><th aria-label="変化" /></> : null}<th>今回</th><th>いまの帯・課題</th></tr>
-        </thead>
-        <tbody>
-          {EXERCISES.map((exercise) => {
-            const level = report.levels.find((item) => item.key === exercise.key);
-            if (!level) return (
-              <tr className={styles.lockedRow} key={exercise.key}>
-                <td><strong>{exercise.icon} {exercise.name}</strong><small>{exercise.parentName}</small></td>
-                {report.kind === 'comparison' ? <><td /><td /></> : null}
-                <td>半年目以降</td><td>土台が安定してから追加</td>
-              </tr>
-            );
-            const delta = level.measured && level.prevLv !== undefined && level.prevLv > 0 ? level.delta : undefined;
-            return (
-              <tr key={exercise.key}>
-                <td><strong>{exercise.icon} {exercise.name}</strong><small>{exercise.parentName}</small></td>
-                {report.kind === 'comparison' ? <><td className={styles.numberCell}>{level.prevLv === undefined || level.prevLv <= 0 ? '—' : `Lv${level.prevLv}`}</td><td className={styles.arrowCell}>→</td></> : null}
-                <td className={styles.numberCell}>
-                  {level.measured ? <>Lv{level.lv}<small>/{level.maxLv}</small></> : <small>{level.band}</small>}
-                  {delta === undefined ? null : <small className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '±0'}</small>}
-                </td>
-                <td><strong>{level.measured ? level.band : '—'}</strong><small>{level.ladderLabel}</small></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+/** 番号つき見出しが2つ以上あるときだけ連番を振る。 */
+function headingNumber(position: number, count: number) {
+  return count >= 2 ? position : undefined;
 }
 
 function ReportFooter({ page }: { page: number }) {
@@ -136,6 +104,13 @@ export function ReportPage() {
   const notMeasuredNow = report.unmeasured.filter((item) => !item.upcoming);
   const measuredLater = report.unmeasured.filter((item) => item.upcoming);
   const growNote = exerciseByKey(report.link.lowestKey).grow;
+  // 総合点は実際に測れた種目だけで出す。未実施・実施不可を分母に入れると低く見えてしまうため。
+  const measuredLevels = report.levels.filter((level) => level.measured);
+  const measuredTotal = measuredLevels.reduce((sum, level) => sum + level.lv, 0);
+  const measuredMax = measuredLevels.reduce((sum, level) => sum + level.maxLv, 0);
+  const page1HeadingCount = [report.kind === 'comparison', report.engagement.length > 0].filter(Boolean).length;
+  // 4枚目は「ご家庭のお困り度」が必ず入り、目標系は入力があったときだけ加わる。
+  const page3HeadingCount = (report.copm.length > 0 ? 1 : 0) + 1;
 
   return (
     <div className={styles.pageFrame}>
@@ -154,13 +129,19 @@ export function ReportPage() {
           {/* Page 1：現在地と強み */}
           <section className="sheet" aria-label="レポート1ページ目">
             <ReportSheetHeader report={report} title={report.kind === 'comparison' ? `${childName}の3か月の変化` : `${childName}の現在地と強み`} />
-            <div className={styles.reportHero}>
-              <RadarChart report={report} extUnlocked={report.upcomingExercises.length === 0} />
-              <div>
-                <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : 'できた・できなかったの採点ではなく、いまどの段にいるかを確かめた記録です。ここから3か月ごとに同じ課題で測り直します。'}</p>
-                <p>{growNote}</p>
-              </div>
-            </div>
+            <section className={styles.reportHero} aria-label="育ちマップ">
+              <strong className={styles.reportHeroTitle}>🧭 育ちマップ（5つの土台のレーダーチャート）</strong>
+              <RadarChart report={report} extUnlocked={report.upcomingExercises.length === 0} showLevels />
+              <p className={styles.radarScaleNote}>外側ほどLvが高い（Lv1＝入口 〜 Lv30＝最上位）{measuredLevels.length < report.levels.length + report.upcomingExercises.length ? '／白い点の軸は「未実施」で、まだ測っていません' : ''}</p>
+              {measuredLevels.length ? (
+                <p className={styles.reportTotal}>
+                  今の到達 <strong>{measuredTotal}</strong> /{measuredMax}
+                  <small>（実施した{measuredLevels.length}種目の合計）</small>
+                </p>
+              ) : null}
+              <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : <>できた・できなかったの採点ではなく、<strong>いまどの段にいるか</strong>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。</>}</p>
+              <p>{growNote}</p>
+            </section>
             {notMeasuredNow.length || report.upcomingExercises.length ? (
               <p className={styles.reportNote}>
                 ※ {[...notMeasuredNow, ...measuredLater].map((item) => item.name).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、
@@ -173,10 +154,9 @@ export function ReportPage() {
                 ※ {report.conditionNotes.map((item) => item.name).join('・')} は当日の様子（{[...new Set(report.conditionNotes.flatMap((item) => item.notes))].join('・')}）の影響を受けている可能性があります。次回あらためて確認します。
               </p>
             ) : null}
-            <LevelTable report={report} />
             {report.kind === 'comparison' ? (
               <>
-                <NumberedHeading number={1}>3か月でできるようになったこと<TuningTag report={report} section="comparison" /></NumberedHeading>
+                <NumberedHeading number={headingNumber(1, page1HeadingCount)}>3か月でできるようになったこと<TuningTag report={report} section="comparison" /></NumberedHeading>
                 <div className={`${styles.reportBox} ${styles.reportBoxGreen}`}>
                   <ul>{(report.changes3m?.length ? report.changes3m : ['今回は大きなレベル変化はありません。同じ段で安定して取り組めています。']).map((change) => <li key={change}>{change}</li>)}</ul>
                 </div>
@@ -194,8 +174,8 @@ export function ReportPage() {
             </div>
             {report.engagement.length ? (
               <>
-                <NumberedHeading number={report.kind === 'comparison' ? 2 : 1}>取り組みの様子<TuningTag report={report} section="engagementDelta" /></NumberedHeading>
-                <p className={styles.reportNote}>運動そのものの段階とは別に、どう取り組めたかの記録です。ここは運動より先に変わることが多く、3か月後に同じ見方で並べます。</p>
+                <NumberedHeading number={headingNumber(report.kind === 'comparison' ? 2 : 1, page1HeadingCount)}>取り組みの様子<TuningTag report={report} section="engagementDelta" /></NumberedHeading>
+                <p className={styles.reportNote}>運動そのものの段階とは別に、どう取り組めたかの記録です。</p>
                 <div className={styles.engagementBars}>
                   {report.engagement.map((axis) => (
                     <div key={axis.key}>
@@ -210,24 +190,7 @@ export function ReportPage() {
                     </div>
                   ))}
                 </div>
-                {report.envSupports.length ? (
-                  <div className={styles.reportBox}>
-                    <strong>今回、取り組みやすくなった条件</strong>
-                    {report.envSupports.map((group) => (
-                      <p key={group.group}><b>{group.group}</b>{'\u3000'}{group.items.map((item) => item.split('（')[0]).join('・')}</p>
-                    ))}
-                    <small>どれが良い・悪いではなく、このお子さまが取り組みやすくなる条件です。ご家庭でも同じ形が効くことがあります。</small>
-                  </div>
-                ) : null}
               </>
-            ) : null}
-            {report.upcomingExercises.length ? (
-              <p className={styles.upcomingNote}>
-                <b>これから加わる種目（半年目以降）</b>
-                からだの土台が安定してきたら、
-                {report.upcomingExercises.map((exercise) => `${exercise.name}（${exercise.parentName}）`).join('・')}
-                を加えて「5つの土台」で見ていきます。
-              </p>
             ) : null}
             <ReportFooter page={1} />
           </section>
@@ -259,8 +222,8 @@ export function ReportPage() {
                       {report.domainHits.map((hit) => (
                         <tr key={hit.id}>
                           <td>{hit.troubles.map((trouble) => <span className={styles.troubleLine} key={trouble}>{trouble}</span>)}</td>
-                          <td>{hit.parentLabel}<small className={styles.verdictTag}>見立て：{hit.verdict}</small></td>
-                          <td><strong>{hit.priorityParentName}</strong><small>{hit.priorityName}{'\u3000'}{hit.priorityMeasured ? `Lv${hit.priorityLv}/${hit.priorityMaxLv}` : '未実施'}</small></td>
+                          <td>{hit.parentLabel}</td>
+                          <td><strong>{hit.priorityParentName}</strong></td>
                         </tr>
                       ))}
                     </tbody>
@@ -269,7 +232,7 @@ export function ReportPage() {
                 <div className={`${styles.reportBox} ${styles.reportBoxOrange}`}>
                   <strong>今の困りごとが続いた場合に起こりうること</strong>
                   <ul>{report.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul>
-                  <small>※ {RISK_DISCLAIMER}</small>
+                  <small className={styles.riskDisclaimer}>※ {RISK_DISCLAIMER}</small>
                 </div>
               </>
             ) : null}
@@ -278,12 +241,6 @@ export function ReportPage() {
               <div className={styles.reportBox}>
                 <strong>いちばん見ておきたい土台</strong>
                 <p>今回チェックいただいた中で、最初に見ていきたいのは「{report.rootDomain.parentLabel}」です。{report.rootDomain.parentText}</p>
-              </div>
-            ) : null}
-            {report.proprioceptionNote ? (
-              <div className={styles.reportBox}>
-                <strong>当日みられた特徴：力加減の基準</strong>
-                <p>{PROPRIOCEPTION_NOTE}</p>
               </div>
             ) : null}
 
@@ -312,8 +269,55 @@ export function ReportPage() {
             <ReportFooter page={2} />
           </section>
 
-          {/* Page 3：6か月成長ロードマップ */}
+          {/* Page 3：これから一緒に見ていくこと */}
           <section className="sheet" aria-label="レポート3ページ目">
+            <ReportSheetHeader report={report} title="これから一緒に見ていくこと" />
+            {report.copm.length ? (
+              <>
+                <NumberedHeading number={headingNumber(1, page3HeadingCount)}>ご家族・本人の目標{report.copm.some((goal) => goal.previous) ? <TuningTag report={report} section="copmDelta" /> : null}</NumberedHeading>
+                <p className={styles.reportNote}>「できるか」（遂行度）と「その状態に納得しているか」（満足度）を分けて記録しています。3か月後に同じ質問をして並べます。</p>
+                <div className={styles.levelTableWrap}>
+                  <table className={styles.levelTable}>
+                    <thead><tr><th>目標</th><th>メモ</th><th>遂行度</th><th>満足度</th><th>重要度</th></tr></thead>
+                    <tbody>
+                      {report.copm.map((goal) => (
+                        <tr key={goal.text}>
+                          <td><strong>{goal.text}</strong></td>
+                          <td><small>{goal.memo}</small></td>
+                          <td className={styles.numberCell}>{goal.performance}{goal.previous ? <small>前回 {goal.previous.performance}</small> : null}</td>
+                          <td className={styles.numberCell}>{goal.satisfaction}{goal.previous ? <small>前回 {goal.previous.satisfaction}</small> : null}</td>
+                          <td className={styles.numberCell}>{goal.importance}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className={styles.reportNote}>※ 点数の高い低いを評価するものではありません。3か月後に同じ質問をしたときの動き方を見るための記録です。「できる」より先に「納得」が動くこともよくあります。</p>
+              </>
+            ) : null}
+
+            <NumberedHeading number={headingNumber(page3HeadingCount, page3HeadingCount)}>ご家庭のお困り度{previousPpiTotal === null ? null : <small>{previousPpiTotal} → {ppiTotal}（{PPI_QUESTIONS.length * PPI_SCORE_MAX}点満点）</small>}</NumberedHeading>
+            <div className={styles.reportPpi}>
+              {PPI_QUESTIONS.map((question) => {
+                const value = report.ppi.current[question.key];
+                const previous = report.ppi.previous?.[question.key];
+                return (
+                  <div key={question.key}>
+                    <span>{question.name}</span>
+                    <span className={styles.reportPpiTrack}>{previous === undefined ? null : <i className={styles.reportPpiPrevious} style={{ width: `${(previous / PPI_SCORE_MAX) * 100}%` }} />}<i style={{ width: `${(value / PPI_SCORE_MAX) * 100}%` }} /></span>
+                    <strong>{value}{previous === undefined ? '' : ` / ${previous}`}</strong>
+                  </div>
+                );
+              })}
+            </div>
+            <p className={styles.ppiLegend}>{report.ppi.previous ? '今回 / 前回（各5点満点）' : '各5点満点'}・お子さまの育ちマップは外へ広がるほど、こちらの棒は短くなるほど良い状態です</p>
+            {report.ppi.note ? <p className={styles.reportQuote}>いま一番負担に感じている場面：「{report.ppi.note}」</p> : null}
+
+            <ReportFooter page={3} />
+          </section>
+
+          {/* Page 4：6か月成長ロードマップと次回の予定 */}
+          <section className="sheet" aria-label="レポート4ページ目">
             <ReportSheetHeader report={report} title={`${childName}の6か月成長ロードマップ`} />
             <p className={styles.reportLead}>土台から順に力を育て、目標のスキルへつなげます。</p>
             <div className={styles.roadmap}>
@@ -366,73 +370,6 @@ export function ReportPage() {
               </section>
             </div>
             <p className={styles.reportNote}>※ 伸びる速さは目標によって違います。姿勢や体の使い方は比較的早く、読み書きのように土台の上に乗るスキルは半年〜1年かけて育つこともあります。順番に積みます。</p>
-            <ReportFooter page={3} />
-          </section>
-
-          {/* Page 4：これから一緒に見ていくこと */}
-          <section className="sheet" aria-label="レポート4ページ目">
-            <ReportSheetHeader report={report} title="これから一緒に見ていくこと" />
-            <div className={styles.reportTwoColumns}>
-              <div className={`${styles.reportBox} ${styles.reportBoxGreen}`}>
-                <strong>成長のサイン</strong>
-                <ul>{report.growthSigns.map((sign) => <li key={sign}>{sign}</li>)}</ul>
-              </div>
-              <div className={styles.reportBox}>
-                <strong>今月、ご家庭で見つけてほしい変化（観察ポイント）</strong>
-                <ul>{report.watchPoints.map((point) => <li key={point}>{point}</li>)}</ul>
-                <small>「できるようになったか」よりも、小さな変化を見つけてコーチに伝えることをお願いします。評価する役ではなく、気づく役をお願いしたいのです。</small>
-              </div>
-            </div>
-
-            {report.wants.length ? (
-              <>
-                <NumberedHeading number={1}>できるようになりたいこと</NumberedHeading>
-                <div className={styles.troublePills}>{report.wants.map((want) => <span key={want.id}>{want.icon} {want.short}</span>)}</div>
-                <p className={styles.reportNote}>これらはいま直接練習するものではありません。土台が育つと、そのうえに乗ってできるようになっていくものです。3か月・6か月の予定は、この土台づくりから組んでいます。</p>
-              </>
-            ) : null}
-
-            {report.copm.length ? (
-              <>
-                <NumberedHeading number={report.wants.length ? 2 : 1}>ご家族・本人の目標{report.copm.some((goal) => goal.previous) ? <TuningTag report={report} section="copmDelta" /> : null}</NumberedHeading>
-                <p className={styles.reportNote}>「できるか」（遂行度）と「その状態に納得しているか」（満足度）を分けて記録しています。3か月後に同じ質問をして並べます。</p>
-                <div className={styles.levelTableWrap}>
-                  <table className={styles.levelTable}>
-                    <thead><tr><th>目標</th><th>メモ</th><th>遂行度</th><th>満足度</th><th>重要度</th></tr></thead>
-                    <tbody>
-                      {report.copm.map((goal) => (
-                        <tr key={goal.text}>
-                          <td><strong>{goal.text}</strong></td>
-                          <td><small>{goal.memo}</small></td>
-                          <td className={styles.numberCell}>{goal.performance}{goal.previous ? <small>前回 {goal.previous.performance}</small> : null}</td>
-                          <td className={styles.numberCell}>{goal.satisfaction}{goal.previous ? <small>前回 {goal.previous.satisfaction}</small> : null}</td>
-                          <td className={styles.numberCell}>{goal.importance}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className={styles.reportNote}>※ 点数の高い低いを評価するものではありません。3か月後に同じ質問をしたときの動き方を見るための記録です。「できる」より先に「納得」が動くこともよくあります。</p>
-              </>
-            ) : null}
-
-            <NumberedHeading number={[report.wants.length, report.copm.length].filter(Boolean).length + 1}>ご家庭のお困り度{previousPpiTotal === null ? null : <small>{previousPpiTotal} → {ppiTotal}（{PPI_QUESTIONS.length * PPI_SCORE_MAX}点満点）</small>}</NumberedHeading>
-            <div className={styles.reportPpi}>
-              {PPI_QUESTIONS.map((question) => {
-                const value = report.ppi.current[question.key];
-                const previous = report.ppi.previous?.[question.key];
-                return (
-                  <div key={question.key}>
-                    <span>{question.name}</span>
-                    <span className={styles.reportPpiTrack}>{previous === undefined ? null : <i className={styles.reportPpiPrevious} style={{ width: `${(previous / PPI_SCORE_MAX) * 100}%` }} />}<i style={{ width: `${(value / PPI_SCORE_MAX) * 100}%` }} /></span>
-                    <strong>{value}{previous === undefined ? '' : ` / ${previous}`}</strong>
-                  </div>
-                );
-              })}
-            </div>
-            <p className={styles.ppiLegend}>{report.ppi.previous ? '今回 / 前回（各5点満点）' : '各5点満点'}・お子さまの育ちマップは外へ広がるほど、こちらの棒は短くなるほど良い状態です</p>
-            {report.ppi.note ? <p className={styles.reportQuote}>いま一番負担に感じている場面：「{report.ppi.note}」</p> : null}
-
             <div className={styles.miniTimeline}>
               {report.header.prevAssessedOn ? <><span>前回<br />{formatJapaneseDate(report.header.prevAssessedOn)}</span><b aria-hidden="true">→</b></> : null}
               <span className={styles.timelineCurrent}>今回<br />{formatJapaneseDate(report.header.assessedOn)}</span>

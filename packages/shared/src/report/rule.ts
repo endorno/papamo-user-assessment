@@ -2,10 +2,13 @@ import {
   activeExerciseKeys,
   bandName,
   bandOf,
+  COACH_CAUTIONS,
   CORE_EXERCISE_KEYS,
+  DOMAIN_MENUS,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_ITEMS,
+  EXERCISE_MENUS,
   EXERCISES,
   EXT_EXERCISE_KEYS,
   exerciseByKey,
@@ -24,6 +27,7 @@ import {
   TUNING_NOTES,
   wantById,
   wantShortText,
+  type CoachCautionKey,
   type EngagementKey,
   type ExerciseKey,
   type PpiKey,
@@ -31,17 +35,31 @@ import {
 } from '../master';
 import { addMonthsClamped, nextDueDate } from '../domain/date';
 import type {
+  CoachFocusRole,
   DomainVerdict,
   ReportContent,
   ReportDomainHit,
   ReportGenerator,
   ReportInput,
+  WantPackageStatus,
 } from './types';
 
 /** 種目の定義順。同 Lv のタイブレークに使う（AGENTS.md §7.2）。 */
 const EXERCISE_ORDER = EXERCISES.map((exercise) => exercise.key);
 
 const VERDICT_ORDER: DomainVerdict[] = ['強く一致', '一致', '未測定', '不一致'];
+
+const COACH_FOCUS_ROLES: CoachFocusRole[] = ['main', 'next', 'keep'];
+
+/** 当てるメニューの件数。主軸を厚く、次点・維持は絞る（モックの配分）。 */
+const FOCUS_MENU_COUNT: Record<CoachFocusRole, { month3: number; month6: number }> = {
+  main: { month3: 5, month6: 5 },
+  next: { month3: 2, month6: 2 },
+  keep: { month3: 1, month6: 2 },
+};
+
+/** 支える種目が上限のこの割合以下なら「土台が届いていない」とみなす。 */
+const WANT_FOUNDATION_RATIO = 0.3;
 
 function ppiSnapshot(input: ReportInput, previous = false): Record<PpiKey, number> {
   const data = previous ? input.previous?.data : input.assessment.data;
@@ -121,18 +139,20 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       }));
 
     // 当日の様子（指示理解の難しさなど）は測定条件の注記として別に出す。
-    const conditionNotes = keys.flatMap((key) => {
-      const exercise = exerciseByKey(key);
+    const conditionsOf = (key: ExerciseKey) => {
       const selected = data.observations[key] ?? [];
-      const notes = exercise.observations
+      return exerciseByKey(key).observations
         .filter((observation) => 'condition' in observation && observation.condition)
         .map((observation) => observation.text)
         .filter((text) => selected.includes(text));
-      return notes.length ? [{ key, name: exercise.name, notes }] : [];
+    };
+    const conditionNotes = keys.flatMap((key) => {
+      const notes = conditionsOf(key);
+      return notes.length ? [{ key, name: exerciseByKey(key).name, notes }] : [];
     });
 
-    // 力加減の基準（固有覚）の所見を出すかどうか。
-    const proprioceptionNote = keys.some((key) => {
+    // 力加減の基準（固有覚）の所見が出た種目。
+    const proprioceptionKeys = keys.filter((key) => {
       const selected = data.observations[key] ?? [];
       return exerciseByKey(key).observations.some(
         (observation) => 'proprioception' in observation
@@ -140,6 +160,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           && selected.includes(observation.text),
       );
     });
+    const proprioceptionNote = proprioceptionKeys.length > 0;
 
     const priorities = priorityKeys.map((key) => {
       const exercise = exerciseByKey(key);
@@ -319,6 +340,29 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     if (copm.some((goal) => goal.previous)) tuningKeys.push('copmDelta');
     if (input.child.ageGroup === 'pre' && domainHits.length) tuningKeys.push('troubleDomainPre');
 
+    // --- コーチ向け（子どもページ） ---
+    // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。
+    const coachFocus = unique([sorted[0], sorted[1], sorted.at(-1)].filter((key): key is ExerciseKey => key !== undefined))
+      .map((key, index) => ({ key, role: COACH_FOCUS_ROLES[index]! }));
+    const toCaution = (key: CoachCautionKey, exercises: ExerciseKey[]) => ({ key, ...COACH_CAUTIONS[key], exercises });
+    const coachCautions = [
+      { key: 'notMeasuredCore' as const, exercises: keys.filter((key) => exerciseByKey(key).core && levelOf(key) === 0) },
+      { key: 'notPossible' as const, exercises: keys.filter((key) => levelOf(key) === LEVEL_NOT_POSSIBLE) },
+      { key: 'condition' as const, exercises: conditionNotes.map((note) => note.key) },
+      { key: 'saccWorkingMemory' as const, exercises: keys.filter((key) => key === 'sacc' && bandOf(key, levelOf(key) ?? 0)?.name === 'WM・逆順') },
+      { key: 'inhiEarly' as const, exercises: keys.filter((key) => key === 'inhi' && isMeasured(levelOf(key)) && (levelOf(key) ?? 0) <= 6) },
+      { key: 'proprioception' as const, exercises: proprioceptionKeys },
+      { key: 'postVor' as const, exercises: keys.filter((key) => key === 'post' && bandOf(key, levelOf(key) ?? 0)?.name === 'VOR') },
+    ]
+      .filter(({ exercises }) => exercises.length > 0)
+      .map(({ key, exercises }) => toCaution(key, exercises))
+      .concat(toCaution('parentBelief', []));
+    // 重要度が同じなら入力順で先の目標を採る。
+    const mostImportantGoal = data.copm.reduce<(typeof data.copm)[number] | null>(
+      (best, goal) => (best === null || goal.importance > best.importance ? goal : best),
+      null,
+    );
+
     return {
       kind: input.previous ? 'comparison' : 'first',
       generator: this.id,
@@ -409,6 +453,63 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           };
         }),
         memo: data.memo,
+        plan: {
+          focus: coachFocus.map(({ key, role }) => {
+            const exercise = exerciseByKey(key);
+            const menus = EXERCISE_MENUS[key];
+            return {
+              key,
+              role,
+              lv: levelOf(key) ?? 0,
+              maxLv: exercise.maxLevel,
+              month3: menus.base.slice(0, FOCUS_MENU_COUNT[role].month3),
+              month6: menus.dev.slice(0, FOCUS_MENU_COUNT[role].month6),
+            };
+          }),
+          domainMenus: domainHits
+            .filter((hit) => hit.verdict === '強く一致' || hit.verdict === '一致')
+            .slice(0, 2)
+            .map((hit) => ({
+              id: hit.id,
+              title: hit.title,
+              region: NEURO_DOMAINS.find((domain) => domain.id === hit.id)?.region ?? '',
+              menus: (DOMAIN_MENUS[hit.id] ?? []).slice(0, 3),
+            })),
+        },
+        exerciseNotes: keys.map((key) => ({
+          key,
+          lv: levelOf(key) ?? 0,
+          observations: [...(data.observations[key] ?? [])],
+          conditions: conditionsOf(key),
+          note: data.observationNotes[key] ?? '',
+        })),
+        cautions: coachCautions,
+        wantPackages: data.wants.flatMap((id) => {
+          const want = wantById(id);
+          if (!want) return [];
+          const axisLv = levelOf(want.axis) ?? 0;
+          const axisMaxLv = exerciseByKey(want.axis).maxLevel;
+          // 支える種目が上限の3割以下なら、パッケージより先に土台を上げる。
+          const status: WantPackageStatus = !isMeasured(axisLv)
+            ? 'unmeasured'
+            : axisLv <= Math.ceil(axisMaxLv * WANT_FOUNDATION_RATIO) ? 'foundationFirst' : 'ready';
+          return [{
+            id: want.id,
+            icon: want.icon,
+            short: wantShortText(want.text),
+            menu: want.menu,
+            axisKey: want.axis,
+            axisLv,
+            axisMaxLv,
+            status,
+          }];
+        }),
+        copmFocus: {
+          mostImportant: mostImportantGoal ? { text: mostImportantGoal.text, importance: mostImportantGoal.importance } : null,
+          lowSatisfaction: data.copm
+            .filter((goal) => goal.performance >= 6 && goal.satisfaction <= 4)
+            .map((goal) => goal.text),
+        },
       },
     };
   }

@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import {
   EXERCISES,
   GRADES,
-  PPI_QUESTIONS,
-  PPI_SCORE_MAX,
   childDetailSchema,
   daysBetween,
-  exerciseByKey,
   monthOrdinalSince,
   nextDueDate,
   todayInJst,
@@ -21,6 +18,18 @@ import { apiRequest, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
+import { ChildTabs, isChildTabKey, tabPanelProps, type ChildTabKey } from '../components/ChildTabs';
+import {
+  CoachCautionsPanel,
+  EngagementPanel,
+  ExerciseNotesPanel,
+  GoalFocusPanel,
+  LessonMenuPanel,
+  NextLessonCard,
+  StrategyPanel,
+  TroubleMatchPanel,
+  TroubleSummaryPanel,
+} from '../components/CoachInsights';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CopyCode } from '../components/CopyCode';
 import { MonthSelect } from '../components/MonthSelect';
@@ -83,8 +92,20 @@ function confirmationFor(action: Exclude<ConfirmAction, null>) {
   };
 }
 
+function TabEmpty() {
+  return (
+    <div className={`${styles.panel} ${styles.mapEmpty}`}>
+      <span aria-hidden="true">🧭</span>
+      <p>初回アセスメントを完了すると、ここに前回の振り返りとこれからの計画が表示されます。</p>
+    </div>
+  );
+}
+
 export function ChildPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: ChildTabKey = isChildTabKey(tabParam) ? tabParam : 'overview';
   const { session } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -123,6 +144,11 @@ export function ChildPage() {
       active = false;
     };
   }, [reload, returnToListIfDeleted]);
+
+  // タブは URL に残し、リロードや共有でも同じタブを開けるようにする。履歴は増やさない。
+  function selectTab(next: ChildTabKey) {
+    setSearchParams(next === 'overview' ? {} : { tab: next }, { replace: true });
+  }
 
   async function runAction(action: () => Promise<void>, fallbackMessage: string) {
     setBusy(true);
@@ -271,6 +297,7 @@ export function ChildPage() {
   const readOnly = Boolean(child.archivedAt);
   const report = child.latestReport;
   const confirmation = confirmAction ? confirmationFor(confirmAction) : null;
+  const reportSource = latestCompleted ? `第${latestCompleted.seqNo}回で記録` : '';
   const today = todayInJst();
   const monthsSinceJoined = monthOrdinalSince(child.joinedMonth, today);
   // モックの案内に合わせ、入会半年を過ぎて未開放なら次の回で足せることを伝える。
@@ -321,215 +348,209 @@ export function ChildPage() {
 
           {actionError ? <div className={styles.inlineError} role="alert">{actionError}</div> : null}
 
-          <div className={styles.hubColumns}>
-            <div>
-              <section className={styles.panel} aria-labelledby="map-title">
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <h2 id="map-title">育ちマップ</h2>
-                    <p className={styles.muted}>{latestCompleted ? `第${latestCompleted.seqNo}回・${formatJapaneseDate(latestCompleted.assessedOn)}` : 'まだ測っていません'}</p>
-                  </div>
-                </div>
-                {report ? (
-                  <div className={styles.mapLayout}>
-                    <RadarChart report={report} extUnlocked={child.extUnlocked} />
-                    <div className={styles.levelRows} aria-label="種目ごとの到達レベル">
-                      {EXERCISES.map((exercise) => {
-                        const level = report.levels.find((item) => item.key === exercise.key);
-                        if (!level) return (
-                          <div className={`${styles.levelRow} ${styles.levelRowLocked}`} key={exercise.key}>
-                            <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
-                            <span className={styles.levelTrack} />
-                            <span>半年目以降</span>
-                          </div>
-                        );
-                        const deltaLabel = level.delta === undefined ? '初回' : level.delta > 0 ? `▲${level.delta}` : level.delta < 0 ? `▼${Math.abs(level.delta)}` : '±0';
-                        return (
-                          <div className={styles.levelRow} key={exercise.key}>
-                            <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
-                            <span className={styles.levelTrack}><i style={{ width: `${(Math.max(0, level.lv) / level.maxLv) * 100}%` }} /></span>
-                            <span><strong>{level.measured ? `Lv${level.lv}` : level.band}</strong><small>{level.measured ? deltaLabel : ''}</small></span>
-                          </div>
-                        );
-                      })}
+          <ChildTabs current={tab} onSelect={selectTab} />
+
+          {tab === 'overview' ? (
+            <div className={styles.hubColumns} {...tabPanelProps('overview')}>
+              <div>
+                <section className={styles.panel} aria-labelledby="map-title">
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <h2 id="map-title">育ちマップ</h2>
+                      <p className={styles.muted}>{latestCompleted ? `第${latestCompleted.seqNo}回・${formatJapaneseDate(latestCompleted.assessedOn)}` : 'まだ測っていません'}</p>
                     </div>
                   </div>
-                ) : (
-                  <div className={styles.mapEmpty}>
-                    <span aria-hidden="true">🧭</span>
-                    <p>初回アセスメントを取ると、5つの土台のマップが表示されます。</p>
-                    {draft ? <Link to={`/assessments/${draft.id}`}>入力中のアセスメントを続ける</Link> : null}
-                  </div>
-                )}
-                {canSuggestUnlock ? (
-                  <div className={styles.unlockNote}>
-                    <strong>🔓 4・5種目目を開放できる時期です</strong>
-                    <span>
-                      入会から{monthsSinceJoined}か月目です。土台が安定していれば、次のアセスメントで「あしあとものまね」「信号ゲーム」を追加できます（コーチ判断）。
-                    </span>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className={styles.panel} aria-labelledby="history-title">
-                <div className={styles.sectionHeader}>
-                  <div><h2 id="history-title">これまでの歩み</h2><p className={styles.muted}>3か月ごとに同じ課題で測り直します</p></div>
-                </div>
-                {child.assessments.length ? (
-                  <ol className={styles.assessmentTimeline}>
-                    {[...child.assessments].reverse().map((assessment, index) => {
-                      const isLatest = index === 0;
-                      return (
-                        <li key={assessment.id}>
-                          <div><strong>第{assessment.seqNo}回</strong><span>{formatJapaneseDate(assessment.assessedOn)}</span></div>
-                          <span className={assessment.status === 'done' ? styles.badgeDone : styles.badgeDraft}>{assessment.status === 'done' ? '完了' : '入力中'}</span>
-                          <div className={styles.historyActions}>
-                            {assessment.status === 'draft' ? <Link to={`/assessments/${assessment.id}`}>入力を続ける</Link> : (
-                              <>
-                                {assessment.reportAvailable ? <Link to={`/reports/${assessment.id}`}>レポート</Link> : null}
-                                {isLatest && !readOnly ? <Link to={`/assessments/${assessment.id}`}>入力内容を編集</Link> : null}
-                              </>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                ) : <p className={styles.muted}>まだアセスメントはありません。</p>}
-              </section>
-
-              {report ? (
-                <section className={styles.panel} aria-labelledby="observation-title">
-                  <div className={styles.sectionHeader}><div><h2 id="observation-title">おうちでの困りごと・ご家庭の負担</h2><p className={styles.muted}>保護者ヒアリング</p></div></div>
-                  <div className={styles.summaryMetrics}>
-                    <div><span>チェックされた困りごと</span><strong>{report.troubles.current.length}件</strong></div>
-                    <div><span>ご家庭の負担度 合計</span><strong>{Object.values(report.ppi.current).reduce((sum, value) => sum + value, 0)}<small> / {PPI_QUESTIONS.length * PPI_SCORE_MAX}</small></strong></div>
-                  </div>
-                  <div className={styles.ppiBars}>
-                    {PPI_QUESTIONS.map((question) => {
-                      const value = report.ppi.current[question.key];
-                      return <div key={question.key}><span>{question.name}</span><span className={styles.ppiTrack}><i style={{ width: `${(value / PPI_SCORE_MAX) * 100}%` }} /></span><strong>{value}</strong></div>;
-                    })}
-                  </div>
-                  {report.ppi.note ? <p className={styles.memo}>「{report.ppi.note}」</p> : null}
-                </section>
-              ) : null}
-            </div>
-
-            <div>
-              <section className={styles.panel} aria-labelledby="goals-title">
-                <div className={styles.sectionHeader}>
-                  <div>
-                    <h2 id="goals-title">今期の目標</h2>
-                    <p className={styles.muted}>{latestCompleted ? `第${latestCompleted.seqNo}回アセスメントで設定` : '初回アセスメントで設定'}</p>
-                  </div>
-                </div>
-                {latestCompleted?.goals.length ? <div className={styles.goalChips}>{latestCompleted.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。初回アセスメントで設定してください。</p>}
-              </section>
-
-              <section className={styles.panel} aria-labelledby="strategy-title">
-                <div className={styles.sectionHeader}><div><h2 id="strategy-title">今期のレッスン戦略</h2><p className={styles.muted}>レッスン前に確認</p></div></div>
-                {report ? (
-                  <>
-                    <div className={styles.strategyList}>
-                      {report.coach.strategies.map((strategy, index) => {
-                        const exercise = exerciseByKey(strategy.key);
-                        return (
-                          <article className={styles.strategyCard} key={strategy.key}>
-                            <span className={styles.strategyNumber}>{index + 1}</span>
-                            <div>
-                              <strong>{exercise.parentName}<small>{exercise.name}・Lv{strategy.lv}/{exercise.maxLevel}</small></strong>
-                              <p>次は <b>Lv{strategy.nextLv}</b>：{strategy.nextLabel}</p>
-                              {strategy.observations.length ? <div className={styles.watch}>見えた動作：<b>{strategy.observations.join('・')}</b></div> : null}
-                              {strategy.note ? <div className={styles.watch}>{strategy.note}</div> : null}
+                  {report ? (
+                    <div className={styles.mapLayout}>
+                      <RadarChart report={report} extUnlocked={child.extUnlocked} />
+                      <div className={styles.levelRows} aria-label="種目ごとの到達レベル">
+                        {EXERCISES.map((exercise) => {
+                          const level = report.levels.find((item) => item.key === exercise.key);
+                          if (!level) return (
+                            <div className={`${styles.levelRow} ${styles.levelRowLocked}`} key={exercise.key}>
+                              <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
+                              <span className={styles.levelTrack} />
+                              <span>半年目以降</span>
                             </div>
-                          </article>
+                          );
+                          const deltaLabel = level.delta === undefined ? '初回' : level.delta > 0 ? `▲${level.delta}` : level.delta < 0 ? `▼${Math.abs(level.delta)}` : '±0';
+                          return (
+                            <div className={styles.levelRow} key={exercise.key}>
+                              <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
+                              <span className={styles.levelTrack}><i style={{ width: `${(Math.max(0, level.lv) / level.maxLv) * 100}%` }} /></span>
+                              <span><strong>{level.measured ? `Lv${level.lv}` : level.band}</strong><small>{level.measured ? deltaLabel : ''}</small></span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.mapEmpty}>
+                      <span aria-hidden="true">🧭</span>
+                      <p>初回アセスメントを取ると、5つの土台のマップが表示されます。</p>
+                      {draft ? <Link to={`/assessments/${draft.id}`}>入力中のアセスメントを続ける</Link> : null}
+                    </div>
+                  )}
+                  {canSuggestUnlock ? (
+                    <div className={styles.unlockNote}>
+                      <strong>🔓 4・5種目目を開放できる時期です</strong>
+                      <span>
+                        入会から{monthsSinceJoined}か月目です。土台が安定していれば、次のアセスメントで「あしあとものまね」「信号ゲーム」を追加できます（コーチ判断）。
+                      </span>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className={styles.panel} aria-labelledby="history-title">
+                  <div className={styles.sectionHeader}>
+                    <div><h2 id="history-title">これまでの歩み</h2><p className={styles.muted}>3か月ごとに同じ課題で測り直します</p></div>
+                  </div>
+                  {child.assessments.length ? (
+                    <ol className={styles.assessmentTimeline}>
+                      {[...child.assessments].reverse().map((assessment, index) => {
+                        const isLatest = index === 0;
+                        return (
+                          <li key={assessment.id}>
+                            <div><strong>第{assessment.seqNo}回</strong><span>{formatJapaneseDate(assessment.assessedOn)}</span></div>
+                            <span className={assessment.status === 'done' ? styles.badgeDone : styles.badgeDraft}>{assessment.status === 'done' ? '完了' : '入力中'}</span>
+                            <div className={styles.historyActions}>
+                              {assessment.status === 'draft' ? <Link to={`/assessments/${assessment.id}`}>入力を続ける</Link> : (
+                                <>
+                                  {assessment.reportAvailable ? <Link to={`/reports/${assessment.id}`}>レポート</Link> : null}
+                                  {isLatest && !readOnly ? <Link to={`/assessments/${assessment.id}`}>入力内容を編集</Link> : null}
+                                </>
+                              )}
+                            </div>
+                          </li>
                         );
                       })}
-                    </div>
-                    {report.coach.memo ? <div className={styles.coachMemo}><strong>コーチ所見（内部用）</strong><p>{report.coach.memo}</p></div> : null}
-                  </>
-                ) : <p className={styles.muted}>初回アセスメント後に、優先テーマ・次に狙うLv・観察ポイントが表示されます。</p>}
-              </section>
+                    </ol>
+                  ) : <p className={styles.muted}>まだアセスメントはありません。</p>}
+                </section>
+              </div>
+              <div>
+                {report ? <NextLessonCard report={report} onOpenPlan={() => selectTab('plan')} /> : null}
 
-              <section className={styles.panel} aria-labelledby="profile-title">
-                <div className={styles.sectionHeader}>
-                  <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・性別・学年・入会月の修正</p></div>
-                  {!readOnly && !editingProfile ? <button className={styles.compactButton} type="button" onClick={() => setEditingProfile(true)}>編集</button> : null}
-                </div>
-                {editingProfile && childForm ? (
-                  <form className={styles.childProfileForm} onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
-                    <div className={styles.nameFields}>
-                      <div className={styles.formField}>
-                        <label htmlFor="profile-child-name">お名前（下の名前）</label>
-                        <input id="profile-child-name" value={childForm.name} maxLength={30} required onChange={(event) => setChildForm((current) => current ? { ...current, name: event.target.value } : current)} />
-                      </div>
-                      <div className={styles.formField}>
-                        <label htmlFor="profile-child-honorific">敬称</label>
-                        <select id="profile-child-honorific" value={childForm.honorific} onChange={(event) => setChildForm((current) => current ? { ...current, honorific: event.target.value as Honorific } : current)}>
-                          <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option>
-                        </select>
-                      </div>
+                <section className={styles.panel} aria-labelledby="goals-title">
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <h2 id="goals-title">今期の目標</h2>
+                      <p className={styles.muted}>{latestCompleted ? `第${latestCompleted.seqNo}回アセスメントで設定` : '初回アセスメントで設定'}</p>
                     </div>
-                    <div className={styles.formField}>
-                      <label htmlFor="profile-child-gender">性別</label>
-                      <select id="profile-child-gender" value={childForm.gender} onChange={(event) => setChildForm((current) => current ? { ...current, gender: event.target.value as Gender } : current)}>
-                        <option value="boy">男の子</option><option value="girl">女の子</option><option value="unspecified">選ばない</option>
-                      </select>
-                      <small>敬称とは連動しません。呼び方は敬称で選んでください。</small>
-                    </div>
-                    <div className={styles.formField}>
-                      <label htmlFor="profile-child-grade">現在の学年</label>
-                      <select id="profile-child-grade" value={childForm.gradeCode} onChange={(event) => setChildForm((current) => current ? { ...current, gradeCode: event.target.value as GradeCode } : current)}>
-                        {GRADES.map((grade) => <option key={grade.code} value={grade.code}>{grade.name}（{grade.ageHint}）</option>)}
-                      </select>
-                      <small>修正した学年を現在年度の基準として、次の4月から自動で進級します。</small>
-                    </div>
-                    <div className={styles.formField}>
-                      <label htmlFor="profile-child-joined">入会月</label>
-                      <MonthSelect id="profile-child-joined" label="入会月" value={childForm.joinedMonth} onChange={(joinedMonth) => setChildForm((current) => current ? { ...current, joinedMonth } : current)} />
-                    </div>
-                    <div className={styles.inlineActions}>
-                      <button className={styles.primaryButton} type="submit" disabled={busy}>保存</button>
-                      <button className={styles.secondaryButton} type="button" onClick={cancelProfileEdit}>キャンセル</button>
-                    </div>
-                  </form>
-                ) : (
-                  <dl className={styles.profileSummary}>
-                    <div><dt>お名前</dt><dd>{childName}</dd></div>
-                    <div><dt>性別</dt><dd>{genderLabel(child.gender)}</dd></div>
-                    <div><dt>現在の学年</dt><dd>{child.grade.name}（{child.grade.ageHint}）</dd></div>
-                    <div><dt>入会月</dt><dd>{formatJapaneseMonth(child.joinedMonth)}</dd></div>
-                  </dl>
-                )}
-              </section>
-
-              <section className={styles.panel} aria-labelledby="share-title">
-                <div className={styles.sectionHeader}><div><h2 id="share-title">ほかのコーチと共有</h2><p className={styles.muted}>コードを知っているコーチだけが取り込めます</p></div></div>
-                <div className={styles.codeList}>
-                  <CopyCode code={child.shareCode} label="担当に追加するコード" description="取り込んだコーチも記録とレポートを編集できます。" />
-                  {child.role === 'owner' && child.ownerShareCode ? <CopyCode code={child.ownerShareCode} label="オーナーを移すコード" description="使った相手が新しいオーナーになります。引き継ぎ時以外は共有しないでください。" sensitive /> : null}
-                </div>
-              </section>
-
-              <section className={`${styles.panel} ${styles.managementPanel}`} aria-labelledby="management-title">
-                <details>
-                  <summary id="management-title">退会・担当解除などの管理</summary>
-                  <div className={styles.managementActions}>
-                    {!readOnly && child.role === 'owner' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('archive')} disabled={busy}>退会としてアーカイブ</button> : null}
-                    {!readOnly && child.role === 'member' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('remove')} disabled={busy}>自分の担当一覧から外す</button> : null}
-                    {!readOnly && child.role === 'owner' && !child.assessments.some((assessment) => assessment.reportAvailable) ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('delete')} disabled={busy}>登録を完全に削除</button> : null}
-                    {readOnly ? <p className={styles.muted}>アーカイブ中は記録を編集できません。</p> : null}
-                    {child.role === 'owner' ? (
-                      <p className={styles.managementHint}>
-                        オーナーは担当から外れられません。引き継ぐときは「オーナーを移すコード」を次のコーチに渡し、取り込んでもらってください。
-                      </p>
-                    ) : null}
                   </div>
-                </details>
-              </section>
+                  {latestCompleted?.goals.length ? <div className={styles.goalChips}>{latestCompleted.goals.map((goal) => <span key={goal}>{goal}</span>)}</div> : <p className={styles.muted}>目標はまだ登録されていません。初回アセスメントで設定してください。</p>}
+                </section>
+
+                {report ? <TroubleSummaryPanel report={report} source={reportSource} /> : null}
+              </div>
             </div>
-          </div>
+          ) : null}
+
+          {tab === 'plan' ? (
+            <div {...tabPanelProps('plan')}>
+              {report ? (
+                <div className={styles.planColumns}>
+                  <div>
+                    <p className={styles.planStep}><span>1</span>前回の様子<small>{reportSource}</small></p>
+                    <ExerciseNotesPanel report={report} source={reportSource} />
+                    <EngagementPanel report={report} source={reportSource} />
+                    <TroubleMatchPanel report={report} source={reportSource} />
+                  </div>
+                  <div>
+                    <p className={styles.planStep}><span>2</span>これからの計画<small>次のアセスメントまで</small></p>
+                    <CoachCautionsPanel report={report} source={reportSource} />
+                    <StrategyPanel report={report} />
+                    <LessonMenuPanel report={report} source={reportSource} />
+                    <GoalFocusPanel report={report} source={reportSource} />
+                  </div>
+                </div>
+              ) : <TabEmpty />}
+            </div>
+          ) : null}
+
+          {tab === 'settings' ? (
+            <div className={styles.hubColumns} {...tabPanelProps('settings')}>
+              <div>
+                <section className={styles.panel} aria-labelledby="profile-title">
+                  <div className={styles.sectionHeader}>
+                    <div><h2 id="profile-title">登録情報</h2><p className={styles.muted}>お名前・性別・学年・入会月の修正</p></div>
+                    {!readOnly && !editingProfile ? <button className={styles.compactButton} type="button" onClick={() => setEditingProfile(true)}>編集</button> : null}
+                  </div>
+                  {editingProfile && childForm ? (
+                    <form className={styles.childProfileForm} onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
+                      <div className={styles.nameFields}>
+                        <div className={styles.formField}>
+                          <label htmlFor="profile-child-name">お名前（下の名前）</label>
+                          <input id="profile-child-name" value={childForm.name} maxLength={30} required onChange={(event) => setChildForm((current) => current ? { ...current, name: event.target.value } : current)} />
+                        </div>
+                        <div className={styles.formField}>
+                          <label htmlFor="profile-child-honorific">敬称</label>
+                          <select id="profile-child-honorific" value={childForm.honorific} onChange={(event) => setChildForm((current) => current ? { ...current, honorific: event.target.value as Honorific } : current)}>
+                            <option value="kun">くん</option><option value="chan">ちゃん</option><option value="san">さん</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="profile-child-gender">性別</label>
+                        <select id="profile-child-gender" value={childForm.gender} onChange={(event) => setChildForm((current) => current ? { ...current, gender: event.target.value as Gender } : current)}>
+                          <option value="boy">男の子</option><option value="girl">女の子</option><option value="unspecified">選ばない</option>
+                        </select>
+                        <small>敬称とは連動しません。呼び方は敬称で選んでください。</small>
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="profile-child-grade">現在の学年</label>
+                        <select id="profile-child-grade" value={childForm.gradeCode} onChange={(event) => setChildForm((current) => current ? { ...current, gradeCode: event.target.value as GradeCode } : current)}>
+                          {GRADES.map((grade) => <option key={grade.code} value={grade.code}>{grade.name}（{grade.ageHint}）</option>)}
+                        </select>
+                        <small>修正した学年を現在年度の基準として、次の4月から自動で進級します。</small>
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="profile-child-joined">入会月</label>
+                        <MonthSelect id="profile-child-joined" label="入会月" value={childForm.joinedMonth} onChange={(joinedMonth) => setChildForm((current) => current ? { ...current, joinedMonth } : current)} />
+                      </div>
+                      <div className={styles.inlineActions}>
+                        <button className={styles.primaryButton} type="submit" disabled={busy}>保存</button>
+                        <button className={styles.secondaryButton} type="button" onClick={cancelProfileEdit}>キャンセル</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <dl className={styles.profileSummary}>
+                      <div><dt>お名前</dt><dd>{childName}</dd></div>
+                      <div><dt>性別</dt><dd>{genderLabel(child.gender)}</dd></div>
+                      <div><dt>現在の学年</dt><dd>{child.grade.name}（{child.grade.ageHint}）</dd></div>
+                      <div><dt>入会月</dt><dd>{formatJapaneseMonth(child.joinedMonth)}</dd></div>
+                    </dl>
+                  )}
+                </section>
+              </div>
+              <div>
+                <section className={styles.panel} aria-labelledby="share-title">
+                  <div className={styles.sectionHeader}><div><h2 id="share-title">ほかのコーチと共有</h2><p className={styles.muted}>コードを知っているコーチだけが取り込めます</p></div></div>
+                  <div className={styles.codeList}>
+                    <CopyCode code={child.shareCode} label="担当に追加するコード" description="取り込んだコーチも記録とレポートを編集できます。" />
+                    {child.role === 'owner' && child.ownerShareCode ? <CopyCode code={child.ownerShareCode} label="オーナーを移すコード" description="使った相手が新しいオーナーになります。引き継ぎ時以外は共有しないでください。" sensitive /> : null}
+                  </div>
+                </section>
+
+                <section className={`${styles.panel} ${styles.managementPanel}`} aria-labelledby="management-title">
+                  <details>
+                    <summary id="management-title">退会・担当解除などの管理</summary>
+                    <div className={styles.managementActions}>
+                      {!readOnly && child.role === 'owner' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('archive')} disabled={busy}>退会としてアーカイブ</button> : null}
+                      {!readOnly && child.role === 'member' ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('remove')} disabled={busy}>自分の担当一覧から外す</button> : null}
+                      {!readOnly && child.role === 'owner' && !child.assessments.some((assessment) => assessment.reportAvailable) ? <button className={styles.dangerButton} type="button" onClick={() => setConfirmAction('delete')} disabled={busy}>登録を完全に削除</button> : null}
+                      {readOnly ? <p className={styles.muted}>アーカイブ中は記録を編集できません。</p> : null}
+                      {child.role === 'owner' ? (
+                        <p className={styles.managementHint}>
+                          オーナーは担当から外れられません。引き継ぐときは「オーナーを移すコード」を次のコーチに渡し、取り込んでもらってください。
+                        </p>
+                      ) : null}
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </div>
+          ) : null}
 
           <ConfirmDialog
             open={confirmAction !== null}

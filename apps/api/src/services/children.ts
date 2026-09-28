@@ -16,12 +16,14 @@ import {
   type Gender,
   type GradeCode,
   type Honorific,
+  type ReportContent,
 } from '@papamo/shared';
 import type { ChildCreateRequest, ChildPatchRequest } from '@papamo/shared';
 
 import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, reports } from '../db/schema';
 import { isForeignKeyConstraintError, isUniqueConstraintError } from '../db/errors';
+import { regenerateStoredReport } from './assessments';
 import { gradeOf } from './child-row';
 import type { Env } from '../env';
 
@@ -241,6 +243,27 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
   throw new Error('共有コードの生成に失敗しました。');
 }
 
+function parseStoredReport(content: string): ReportContent | undefined {
+  try {
+    const parsed = reportContentSchema.safeParse(JSON.parse(content));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function latestReportContent(
+  env: Env,
+  assessmentId: string,
+  reportByAssessmentId: Map<string, ReportContent | undefined>,
+): Promise<ReportContent> {
+  const stored = reportByAssessmentId.get(assessmentId);
+  if (stored) return stored;
+  const assessment = await dbFor(env).select().from(assessments).where(eq(assessments.id, assessmentId)).get();
+  if (!assessment) throw new Error(`アセスメントが見つかりません: ${assessmentId}`);
+  return regenerateStoredReport(env, assessment);
+}
+
 export async function getChildForCoach(env: Env, childId: string, coachId: string) {
   const db = dbFor(env);
   const membership = await requireMembership(env, childId, coachId);
@@ -277,18 +300,12 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     .innerJoin(reports, eq(reports.assessmentId, assessments.id))
     .where(eq(assessments.childId, childId))
     .all();
-  const reportByAssessmentId = new Map(
-    reportRows.map(({ assessmentId, assessmentRevision, reportRevision, content }) => {
-      if (assessmentRevision !== reportRevision) {
-        return [assessmentId, null] as const;
-      }
-      try {
-        const parsed = reportContentSchema.safeParse(JSON.parse(content));
-        return [assessmentId, parsed.success ? parsed.data : null] as const;
-      } catch {
-        return [assessmentId, null] as const;
-      }
-    }),
+  // 版が一致するレポートだけを有効とする。旧版の形で保存された本文は undefined にしておき、
+  // 表示に使う最新回だけ作り直す。
+  const reportByAssessmentId = new Map<string, ReportContent | undefined>(
+    reportRows
+      .filter(({ assessmentRevision, reportRevision }) => assessmentRevision === reportRevision)
+      .map(({ assessmentId, content }) => [assessmentId, parseStoredReport(content)]),
   );
   const assessmentProgresses = childAssessments.map(assessmentProgressFrom);
   const serialized = serializeChild(
@@ -307,15 +324,15 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     goals: assessmentProgressById.get(assessment.id)?.goals ?? [],
     updatedAt: assessment.updatedAt,
     completedAt: assessment.completedAt,
-    reportAvailable: Boolean(reportByAssessmentId.get(assessment.id)),
+    reportAvailable: reportByAssessmentId.has(assessment.id),
   }));
   const latestCompleted = [...childAssessments]
     .reverse()
-    .find((assessment) => assessment.status === 'done' && reportByAssessmentId.get(assessment.id));
+    .find((assessment) => assessment.status === 'done' && reportByAssessmentId.has(assessment.id));
   return {
     ...serialized,
     assessments: assessmentSummaries,
-    latestReport: latestCompleted ? reportByAssessmentId.get(latestCompleted.id) ?? null : null,
+    latestReport: latestCompleted ? await latestReportContent(env, latestCompleted.id, reportByAssessmentId) : null,
   } satisfies ChildDetail;
 }
 

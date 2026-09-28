@@ -84,6 +84,15 @@ describe('保護者向けレポート', () => {
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
     expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('今のお困りごとと、その理由');
     expect(screen.queryByText(/3か月でできるようになったこと/)).not.toBeInTheDocument();
+    // 総合点の分母は実施した種目（基本3種目 × 30）だけで数える。
+    expect(screen.getByRole('region', { name: '育ちマップ' })).toHaveTextContent(/今の到達\s*15\s*\/90（実施した3種目の合計）/);
+    // 線が1本だけの初回は凡例を出さず、軸には運動名ではなく力の名前を出す。
+    expect(screen.queryByText('今回')).not.toBeInTheDocument();
+    // 1枚目の見出しが1つだけなら番号を振らない。未開放種目の案内は注記とレーダーだけで伝える。
+    const firstSheet = screen.getByRole('region', { name: 'レポート1ページ目' });
+    expect(within(firstSheet).getByRole('heading', { level: 2 }).textContent).toMatch(/^取り組みの様子/);
+    expect(firstSheet).not.toHaveTextContent('これから加わる種目');
+    expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('姿勢制御/動的バランス');
     // ルールが未確定の箇所には目印を出す。
     expect(screen.getAllByText(/アルゴリズム調整中/).length).toBeGreaterThan(0);
   });
@@ -93,6 +102,8 @@ describe('保護者向けレポート', () => {
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
+    // 比較では見出しが2つあるので連番を振る。
+    expect(within(screen.getByRole('region', { name: 'レポート1ページ目' })).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.slice(0, 2))).toEqual(['13', '2取']);
     const troubleSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
     expect(troubleSheet).toHaveTextContent('育ちのピラミッド');
     // ピラミッドは5段。上の段ほど狭くするための段クラスが付いている。
@@ -100,7 +111,9 @@ describe('保護者向けレポート', () => {
     expect(pyramidRows).toHaveLength(5);
     expect(pyramidRows[0]?.className).toMatch(/pyramidTier5/);
     expect(pyramidRows[4]?.className).toMatch(/pyramidTier1/);
-    const roadmapSheet = screen.getByRole('region', { name: 'レポート3ページ目' });
+    expect(screen.getByRole('region', { name: 'レポート3ページ目' })).toHaveTextContent('時間の負担');
+    // ロードマップは次回レビューのタイムラインと並べるため、最後の4枚目に置く。
+    const roadmapSheet = screen.getByRole('region', { name: 'レポート4ページ目' });
     expect(roadmapSheet).toHaveTextContent('6か月成長ロードマップ');
     // 現在地 → 3か月後 → 6か月後 → 目指す未来 の4本立て。
     expect(within(roadmapSheet).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
@@ -109,9 +122,10 @@ describe('保護者向けレポート', () => {
       '6か月後の目安（目標へつなげる）',
       '目指す未来（生活・学習の中で）',
     ]);
-    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('時間の負担');
-    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('4・5種目目を追加');
+    expect(roadmapSheet).toHaveTextContent('4・5種目目を追加');
     expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
+    // 環境調整はコーチ向けの引き継ぎ情報なので、保護者向けには出さない。
+    expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();
   });
 
   it('印刷ボタンからブラウザ印刷を呼び出す', async () => {
