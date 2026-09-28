@@ -111,7 +111,9 @@ describe('保護者向けレポート', () => {
     expect(pyramidRows).toHaveLength(5);
     expect(pyramidRows[0]?.className).toMatch(/pyramidTier5/);
     expect(pyramidRows[4]?.className).toMatch(/pyramidTier1/);
-    const roadmapSheet = screen.getByRole('region', { name: 'レポート3ページ目' });
+    expect(screen.getByRole('region', { name: 'レポート3ページ目' })).toHaveTextContent('時間の負担');
+    // ロードマップは次回レビューのタイムラインと並べるため、最後の4枚目に置く。
+    const roadmapSheet = screen.getByRole('region', { name: 'レポート4ページ目' });
     expect(roadmapSheet).toHaveTextContent('6か月成長ロードマップ');
     // 現在地 → 3か月後 → 6か月後 → 目指す未来 の4本立て。
     expect(within(roadmapSheet).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
@@ -120,8 +122,7 @@ describe('保護者向けレポート', () => {
       '6か月後の目安（目標へつなげる）',
       '目指す未来（生活・学習の中で）',
     ]);
-    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('時間の負担');
-    expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('4・5種目目を追加');
+    expect(roadmapSheet).toHaveTextContent('4・5種目目を追加');
     expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
     // 環境調整はコーチ向けの引き継ぎ情報なので、保護者向けには出さない。
     expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();

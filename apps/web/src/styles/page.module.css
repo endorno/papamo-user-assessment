@@ -1891,6 +1891,12 @@
   font-size: 0.82rem;
 }
 
+.riskDisclaimer {
+  display: block;
+  color: var(--mute);
+  font-size: 0.7rem;
+}
+
 .reportBoxGreen {
   border-color: #b9d8cf;
   background: var(--green-soft);
@@ -2896,11 +2902,6 @@
 
 .troubleLine {
   display: block;
-}
-
-.verdictTag {
-  display: block;
-  color: var(--mute);
 }
 
 /* --- レポート：育ちのピラミッド --- */
