@@ -13,7 +13,7 @@ describe('アセスメント入力スキーマ', () => {
       name: 'ひなた',
       honorific: 'san',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     })).toMatchObject({ gender: 'unspecified' });
   });
 
@@ -22,7 +22,7 @@ describe('アセスメント入力スキーマ', () => {
       name: 'ひなた',
       honorific: 'none',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     }).success).toBe(false);
 
     expect(childCreateRequestSchema.parse({
@@ -30,16 +30,23 @@ describe('アセスメント入力スキーマ', () => {
       honorific: 'kun',
       gender: 'girl',
       gradeCode: 'e1',
-      joinedOn: '2026-09-01',
+      joinedMonth: '2026-09',
     })).toMatchObject({ honorific: 'kun', gender: 'girl' });
   });
 
-  it('暦に存在しない日付を拒否する', () => {
+  it('暦に存在しない年月・日付を拒否する', () => {
     expect(childCreateRequestSchema.safeParse({
       name: 'ゆい',
       honorific: 'chan',
       gradeCode: 'e1',
-      joinedOn: '2026-02-30',
+      joinedMonth: '2026-13',
+    }).success).toBe(false);
+
+    expect(childCreateRequestSchema.safeParse({
+      name: 'ゆい',
+      honorific: 'chan',
+      gradeCode: 'e1',
+      joinedMonth: '2026-09-01',
     }).success).toBe(false);
 
     expect(assessmentPatchRequestSchema.safeParse({

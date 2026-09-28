@@ -8,6 +8,7 @@ import {
   assessmentDataDraftSchema,
   CORE_EXERCISE_KEYS,
   EXERCISES,
+  firstDayOfMonth,
   generateShareCode,
   gradeAt,
   MASTER_VERSION,
@@ -16,6 +17,7 @@ import {
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_ITEMS,
   maxLevelOf,
+  monthOfDate,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
   reportContentSchema,
@@ -270,14 +272,14 @@ export async function createSampleChild(
     const firstAssessedOn = doneCount > 0
       ? addMonthsClamped(today, latestOffset - ((doneCount - 1) * 3))
       : today;
-    const joinedOn = addMonthsClamped(firstAssessedOn, -randomInt(random, 0, 4));
+    const joinedMonth = monthOfDate(addMonthsClamped(firstAssessedOn, -randomInt(random, 0, 4)));
     const unlockExtended = profile === 'long'
       ? random() < 0.5
       : doneCount >= 3 && random() < 0.25;
     const memberCount = randomInt(random, 0, 3);
     const members = selectDistinct(random, backgroundCoaches, memberCount);
     const availableCoaches = [owner, ...members];
-    const childTimestamp = timestampFor(joinedOn);
+    const childTimestamp = timestampFor(firstDayOfMonth(joinedMonth));
     const childRow: typeof children.$inferInsert = {
       id: childId,
       shareCode: shareCode(),
@@ -288,7 +290,7 @@ export async function createSampleChild(
       gender: pick(random, GENDERS),
       gradeCode,
       gradeBaseYear,
-      joinedOn,
+      joinedMonth,
       extUnlocked: unlockExtended,
       archivedAt: null,
       createdAt: childTimestamp,

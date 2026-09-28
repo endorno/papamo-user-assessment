@@ -26,7 +26,7 @@ function reportInput(id: string): ReportInput {
       grade: child.grade,
       ageHint: child.ageHint,
       ageGroup: child.ageGroup,
-      joinedOn: child.joinedOn,
+      joinedMonth: child.joinedMonth,
     },
     coach: { displayName: 'さとう みき' },
     assessment: {

@@ -21,7 +21,7 @@ import {
   WANT_MAX,
 } from '../master/goals';
 import { ALL_TROUBLE_ITEMS } from '../master/troubles';
-import { isValidDateString } from '../domain/date';
+import { isValidDateString, isValidMonthString } from '../domain/date';
 
 export const exerciseKeySchema = z.enum(
   EXERCISES.map((exercise) => exercise.key) as [ExerciseKey, ...ExerciseKey[]],
@@ -54,6 +54,9 @@ export const storedLevelSchema = z.number().int().min(LEVEL_NOT_POSSIBLE).max(MA
 const dateSchema = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, '日付は YYYY-MM-DD 形式で入力してください。')
   .refine(isValidDateString, '存在する日付を入力してください。');
+const monthSchema = z.string()
+  .regex(/^\d{4}-\d{2}$/, '年月は YYYY-MM 形式で入力してください。')
+  .refine(isValidMonthString, '存在する年月を入力してください。');
 // -1 実施不可 / 0 未実施 / 1〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
 const levelSchemaFor = (maxLevel: number) => z.number().int().min(LEVEL_NOT_POSSIBLE).max(maxLevel);
 export const ppiScoreSchema = z.number().int().min(0).max(PPI_SCORE_MAX);
@@ -149,7 +152,7 @@ export const childCreateRequestSchema = z.object({
   honorific: honorificSchema,
   gender: genderSchema.default('unspecified'),
   gradeCode: gradeCodeSchema,
-  joinedOn: dateSchema,
+  joinedMonth: monthSchema,
 });
 
 export const childPatchRequestSchema = z.object({
@@ -157,7 +160,7 @@ export const childPatchRequestSchema = z.object({
   honorific: honorificSchema.optional(),
   gender: genderSchema.optional(),
   gradeCode: gradeCodeSchema.optional(),
-  joinedOn: dateSchema.optional(),
+  joinedMonth: monthSchema.optional(),
 });
 
 export const childImportRequestSchema = z.object({

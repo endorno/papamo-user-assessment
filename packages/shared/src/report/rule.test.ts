@@ -31,6 +31,7 @@ function inputFor(
       grade: '小学1年生',
       ageHint: '6〜7歳',
       ageGroup: options.ageGroup ?? 'sch',
+      joinedMonth: '2026-03',
     },
     coach: { displayName: 'さとうコーチ' },
     assessment: {

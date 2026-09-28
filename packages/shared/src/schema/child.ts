@@ -47,7 +47,7 @@ export const childViewSchema = z.object({
   gradeCode: gradeCodeSchema,
   gradeBaseYear: z.number().int(),
   grade: z.object({ code: z.string(), name: z.string(), ageHint: z.string(), ageGroup: z.enum(['pre', 'sch']), graduated: z.boolean() }),
-  joinedOn: z.string(),
+  joinedMonth: z.string(),
   extUnlocked: z.boolean(),
   archivedAt: z.string().nullable(),
   shareCode: z.string(),

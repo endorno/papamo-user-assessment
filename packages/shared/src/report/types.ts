@@ -7,7 +7,7 @@ export interface ChildSnapshot {
   grade: string;
   ageHint: string;
   ageGroup: AgeGroup;
-  joinedOn?: string;
+  joinedMonth: string;
 }
 
 export interface CompletedAssessment {
@@ -79,7 +79,7 @@ export interface ReportContent {
     honorific: Honorific;
     grade: string;
     ageHint: string;
-    joinedOn?: string;
+    joinedMonth: string;
     seqNo: number;
     assessedOn: string;
     prevAssessedOn?: string;

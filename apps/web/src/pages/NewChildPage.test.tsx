@@ -22,7 +22,7 @@ const created = {
   gradeCode: 'e1' as const,
   gradeBaseYear: 2026,
   grade: { code: 'e1', name: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, graduated: false },
-  joinedOn: '2026-09-12',
+  joinedMonth: '2026-09',
   extUnlocked: false,
   archivedAt: null,
   shareCode: 'ABCD-EFGH',
@@ -83,7 +83,7 @@ describe('お子さま登録', () => {
         honorific: 'chan',
         gender: 'unspecified',
         gradeCode: 'e1',
-        joinedOn: expect.any(String),
+        joinedMonth: expect.stringMatching(/^\d{4}-\d{2}$/),
       });
     });
   });

@@ -47,7 +47,7 @@ childrenRoutes.post('/', async (context) => {
   }
   const parsed = childCreateRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return jsonError(context, 'validation', '名前・学年・入会日を確認してください。', 400);
+    return jsonError(context, 'validation', '名前・学年・入会月を確認してください。', 400);
   }
 
   try {

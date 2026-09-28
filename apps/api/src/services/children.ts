@@ -78,7 +78,7 @@ function serializeChild(
     gradeCode,
     gradeBaseYear: row.gradeBaseYear,
     grade: gradeOf(row, today),
-    joinedOn: row.joinedOn,
+    joinedMonth: row.joinedMonth,
     extUnlocked: row.extUnlocked,
     archivedAt: row.archivedAt,
     shareCode: formatShareCode(row.shareCode),
@@ -212,7 +212,7 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
       gender: input.gender,
       gradeCode: input.gradeCode,
       gradeBaseYear,
-      joinedOn: input.joinedOn,
+      joinedMonth: input.joinedMonth,
       extUnlocked: false,
       archivedAt: null,
       createdAt: now,
@@ -325,7 +325,7 @@ export async function patchChild(env: Env, childId: string, input: ChildPatchReq
     ...(input.name === undefined ? {} : { name: input.name }),
     ...(input.honorific === undefined ? {} : { honorific: input.honorific }),
     ...(input.gender === undefined ? {} : { gender: input.gender }),
-    ...(input.joinedOn === undefined ? {} : { joinedOn: input.joinedOn }),
+    ...(input.joinedMonth === undefined ? {} : { joinedMonth: input.joinedMonth }),
     ...(input.gradeCode === undefined
       ? {}
       : { gradeCode: input.gradeCode, gradeBaseYear: schoolYear(todayInJst()) }),

@@ -42,7 +42,7 @@ const createFixture = async (): Promise<{ coachId: string }> => {
     honorific: 'san',
     gender: 'unspecified',
     gradeCode: 'e1',
-    joinedOn: '2026-04-01',
+    joinedMonth: '2026-04',
   });
   const now = new Date().toISOString();
   const first = crypto.randomUUID();

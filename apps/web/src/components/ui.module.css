@@ -244,3 +244,11 @@
   border-color: var(--green);
   background: var(--green-soft);
 }
+
+/* --- 年月セレクト（入会月） --- */
+
+.monthSelect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
