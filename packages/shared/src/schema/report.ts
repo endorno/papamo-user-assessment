@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
 import {
+  COACH_CAUTIONS,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
   TUNING_NOTES,
+  type CoachCautionKey,
   type EngagementKey,
   type TuningKey,
 } from '../master';
@@ -192,6 +194,49 @@ export const reportContentSchema = z.object({
       note: z.string(),
     })),
     memo: z.string(),
+    plan: z.object({
+      focus: z.array(z.object({
+        key: exerciseKeySchema,
+        role: z.enum(['main', 'next', 'keep']),
+        lv: storedLevelSchema,
+        maxLv: z.number().int().positive(),
+        month3: z.array(z.string()),
+        month6: z.array(z.string()),
+      })),
+      domainMenus: z.array(z.object({
+        id: z.number().int(),
+        title: z.string(),
+        region: z.string(),
+        menus: z.array(z.string()),
+      })),
+    }),
+    exerciseNotes: z.array(z.object({
+      key: exerciseKeySchema,
+      lv: storedLevelSchema,
+      observations: z.array(z.string()),
+      conditions: z.array(z.string()),
+      note: z.string(),
+    })),
+    cautions: z.array(z.object({
+      key: z.enum(Object.keys(COACH_CAUTIONS) as [CoachCautionKey, ...CoachCautionKey[]]),
+      title: z.string(),
+      text: z.string(),
+      exercises: z.array(exerciseKeySchema),
+    })),
+    wantPackages: z.array(z.object({
+      id: z.string(),
+      icon: z.string(),
+      short: z.string(),
+      menu: z.string(),
+      axisKey: exerciseKeySchema,
+      axisLv: storedLevelSchema,
+      axisMaxLv: z.number().int().positive(),
+      status: z.enum(['ready', 'foundationFirst', 'unmeasured']),
+    })),
+    copmFocus: z.object({
+      mostImportant: z.object({ text: z.string(), importance: copmScoreSchema }).nullable(),
+      lowSatisfaction: z.array(z.string()),
+    }),
   }),
 });
 

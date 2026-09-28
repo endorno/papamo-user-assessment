@@ -117,6 +117,50 @@ describe('RuleBasedReportGenerator', () => {
     });
   });
 
+  it('子どもページ用に、当てるメニュー・注意点・目標の見立てを出す', async () => {
+    const coachData: CompletedAssessmentData = {
+      ...data,
+      // hand が最小、post が最大。eyeh は実施不可なので主軸・次点・維持から外れる。
+      lv: { post: 16, eyeh: -1, hand: 3 },
+      observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
+      observationNotes: { hand: '左右の切り替えで止まる。' },
+      troubles: ['姿勢がすぐ崩れる／机に伏せる'],
+      // w1 は post（Lv16）が支える／w12 は hand（Lv3）が支える／w9 は eyeh（実施不可）が支える。
+      wants: ['w1', 'w12', 'w9'],
+      copm: [
+        { text: '縄跳びが跳べる', memo: '', performance: 7, satisfaction: 3, importance: 6 },
+        { text: '字をきれいに書ける', memo: '', performance: 3, satisfaction: 3, importance: 9 },
+      ],
+    };
+    const report = await new RuleBasedReportGenerator().generate(inputFor(coachData));
+    const { coach } = report;
+
+    expect(coach.plan.focus.map(({ key, role }) => ({ key, role }))).toEqual([
+      { key: 'hand', role: 'main' },
+      { key: 'post', role: 'next' },
+    ]);
+    expect(coach.plan.focus[0]?.month3).toHaveLength(5);
+    expect(coach.plan.focus[1]?.month3).toHaveLength(2);
+    expect(coach.exerciseNotes.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
+    expect(coach.exerciseNotes[1]).toMatchObject({ key: 'eyeh', conditions: ['指示理解の難しさ'] });
+    expect(coach.cautions.map(({ key, exercises }) => ({ key, exercises }))).toEqual([
+      { key: 'notPossible', exercises: ['eyeh'] },
+      { key: 'condition', exercises: ['eyeh'] },
+      { key: 'postVor', exercises: ['post'] },
+      { key: 'parentBelief', exercises: [] },
+    ]);
+    expect(coach.wantPackages.map(({ id, status }) => ({ id, status }))).toEqual([
+      { id: 'w1', status: 'ready' },
+      { id: 'w12', status: 'foundationFirst' },
+      { id: 'w9', status: 'unmeasured' },
+    ]);
+    expect(coach.copmFocus).toEqual({
+      mostImportant: { text: '字をきれいに書ける', importance: 9 },
+      lowSatisfaction: ['縄跳びが跳べる'],
+    });
+    expect(reportContentSchema.parse(report)).toEqual(report);
+  });
+
   it('困りごとを神経ドメインへ照合し、一致の強さで並べる', async () => {
     const hitData: CompletedAssessmentData = {
       ...data,

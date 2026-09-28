@@ -11,6 +11,8 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
+import { MASTER_VERSION, RuleBasedReportGenerator } from '@papamo/shared';
+
 import { ChildPage } from './ChildPage';
 import { renderWithProviders } from '../test-utils';
 
@@ -40,8 +42,8 @@ function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function renderChildPage() {
-  return renderWithProviders(<ChildPage />, { route: '/children/child-1', path: '/children/:id' });
+function renderChildPage(tab?: string) {
+  return renderWithProviders(<ChildPage />, { route: `/children/child-1${tab ? `?tab=${tab}` : ''}`, path: '/children/:id' });
 }
 
 afterEach(() => {
@@ -52,7 +54,7 @@ afterEach(() => {
 describe('子どもページ', () => {
   it('現在表示中の学年を基準に登録情報を修正できる', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
-    renderChildPage();
+    renderChildPage('settings');
 
     const profile = await screen.findByRole('region', { name: '登録情報' });
     expect(profile).toHaveTextContent('2025年6月');
@@ -83,6 +85,7 @@ describe('子どもページ', () => {
     const resumeLinks = await screen.findAllByRole('link', { name: '入力を続ける' });
     expect(resumeLinks[0]).toHaveAttribute('href', '/assessments/assessment-1');
     expect(screen.queryByRole('button', { name: 'アセスメントを始める' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '登録・共有' }));
     const management = screen.getByRole('region', { name: '退会・担当解除などの管理' });
     expect(within(management).getByRole('button', { name: '登録を完全に削除' })).toBeInTheDocument();
   });
@@ -126,7 +129,7 @@ describe('子どもページ', () => {
       assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
-    renderChildPage();
+    renderChildPage('settings');
 
     const management = await screen.findByRole('region', { name: '退会・担当解除などの管理' });
     expect(within(management).queryByRole('button', { name: '登録を完全に削除' })).not.toBeInTheDocument();
@@ -134,7 +137,7 @@ describe('子どもページ', () => {
 
   it('オーナーには担当を外れる手順を示す', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
-    renderChildPage();
+    renderChildPage('settings');
 
     const management = await screen.findByRole('region', { name: '退会・担当解除などの管理' });
     expect(management).toHaveTextContent('オーナーを移すコード');
@@ -153,6 +156,58 @@ describe('子どもページ', () => {
     expect(goals).toHaveTextContent('転びにくくなってほしい');
     expect(within(goals).queryByRole('button', { name: '編集' })).not.toBeInTheDocument();
     expect(within(goals).queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('前回の取り組みの様子・効いた条件など、コーチ向けの見立てを表示する', async () => {
+    const latestReport = await new RuleBasedReportGenerator().generate({
+      child: { name: 'ゆい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2025-06' },
+      coach: { displayName: 'さとうコーチ' },
+      assessment: {
+        seqNo: 1,
+        assessedOn: '2026-06-01',
+        unlockExt: false,
+        data: {
+          lv: { post: 8, eyeh: -1, hand: 4 },
+          observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
+          observationNotes: { hand: '左右の切り替えで止まる。' },
+          engagement: { dur: 2, sup: 1 },
+          envSupports: ['e-vis', 'e-tim'],
+          troubles: ['姿勢がすぐ崩れる／机に伏せる'],
+          wants: ['w12'],
+          copm: [],
+          ppi: { time: 2, emo: 2, soc: 1, fut: 3, nav: 2 },
+          ppiNote: '',
+          memo: '',
+        },
+      },
+      master: { version: MASTER_VERSION },
+      generatedAt: '2026-06-01T00:00:00.000Z',
+    });
+    const completedChild = {
+      ...child,
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      latestReport,
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
+    renderChildPage();
+
+    // 概要タブには要点だけを出し、計画の詳細はタブの先に置く。
+    const nextLesson = await screen.findByRole('region', { name: '次のレッスンに向けて' });
+    expect(nextLesson).toHaveTextContent('注意点');
+    expect(screen.queryByRole('region', { name: '取り組みの様子と効いた条件' })).not.toBeInTheDocument();
+    fireEvent.click(within(nextLesson).getByRole('button', { name: '振り返りと計画を見る' }));
+    expect(screen.getByRole('tab', { name: '振り返りと計画' })).toHaveAttribute('aria-selected', 'true');
+
+    const engagement = screen.getByRole('region', { name: '取り組みの様子と効いた条件' });
+    expect(engagement).toHaveTextContent('参加の持続');
+    expect(engagement).toHaveTextContent('情報の入り方');
+    expect(engagement).toHaveTextContent('視覚');
+    expect(engagement).toHaveTextContent('タイマー');
+    expect(screen.getByRole('region', { name: 'レッスン前の注意点' })).toHaveTextContent('実施不可：お手玉キャッチ');
+    expect(screen.getByRole('region', { name: '3か月・6か月に当てるメニュー' })).toHaveTextContent('主軸');
+    expect(screen.getByRole('region', { name: '目標への当て方' })).toHaveTextContent('先に土台');
+    expect(screen.getByRole('region', { name: '見えた動作・つまずき方' })).toHaveTextContent('左右の切り替えで止まる。');
+    expect(screen.getByRole('region', { name: 'お困りごと × アセスメント照合' })).toHaveTextContent('身体図式');
   });
 
   it('共有先で削除済みの子どもを開いた場合は担当一覧へ戻す', async () => {

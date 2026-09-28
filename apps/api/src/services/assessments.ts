@@ -536,7 +536,8 @@ export async function getReport(env: Env, assessmentId: string, coachId: string)
   };
 }
 
-async function regenerateStoredReport(env: Env, assessment: typeof assessments.$inferSelect) {
+/** 旧版の形で保存されたレポートを、同じ記録から作り直す（生成は決定的なので内容は変わらない）。 */
+export async function regenerateStoredReport(env: Env, assessment: typeof assessments.$inferSelect) {
   const child = await childOrThrow(env, assessment.childId);
   const coach = await coachOrThrow(env, assessment.coachId);
   const previous = await previousForReport(env, assessment);

@@ -1,4 +1,4 @@
-import type { AgeGroup, EngagementKey, ExerciseKey, PpiKey, TuningKey } from '../master';
+import type { AgeGroup, CoachCautionKey, EngagementKey, ExerciseKey, PpiKey, TuningKey } from '../master';
 import type { CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
 
 export interface ChildSnapshot {
@@ -156,8 +156,48 @@ export interface ReportContent {
       note: string;
     }[];
     memo: string;
+    /** 3か月・6か月に当てるメニュー。主軸＝最小Lv／次点＝2番目／維持＝最大Lv。 */
+    plan: {
+      focus: {
+        key: ExerciseKey;
+        role: CoachFocusRole;
+        lv: number;
+        maxLv: number;
+        month3: string[];
+        month6: string[];
+      }[];
+      domainMenus: { id: number; title: string; region: string; menus: string[] }[];
+    };
+    /** 全種目の見えた動作・自由記入・測定条件（優先テーマ以外も含む）。 */
+    exerciseNotes: {
+      key: ExerciseKey;
+      lv: number;
+      observations: string[];
+      conditions: string[];
+      note: string;
+    }[];
+    cautions: { key: CoachCautionKey; title: string; text: string; exercises: ExerciseKey[] }[];
+    wantPackages: {
+      id: string;
+      icon: string;
+      short: string;
+      menu: string;
+      axisKey: ExerciseKey;
+      axisLv: number;
+      axisMaxLv: number;
+      status: WantPackageStatus;
+    }[];
+    copmFocus: {
+      mostImportant: { text: string; importance: number } | null;
+      lowSatisfaction: string[];
+    };
   };
 }
+
+export type CoachFocusRole = 'main' | 'next' | 'keep';
+
+/** ready＝着手可／foundationFirst＝土台が届いていない／unmeasured＝支える種目が未実施。 */
+export type WantPackageStatus = 'ready' | 'foundationFirst' | 'unmeasured';
 
 export interface ReportGenerator {
   readonly id: string;

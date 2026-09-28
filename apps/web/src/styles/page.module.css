@@ -1518,12 +1518,14 @@
 }
 
 /* 既存の共通カード定義より後で、ハブと入力画面の固有レイアウトを確定する。 */
-.hubColumns .strategyList {
+.hubColumns .strategyList,
+.planColumns .strategyList {
   grid-template-columns: 1fr;
   gap: 0;
 }
 
-.hubColumns .strategyCard {
+.hubColumns .strategyCard,
+.planColumns .strategyCard {
   display: flex;
   gap: 11px;
   padding: 12px 0;
@@ -1535,6 +1537,7 @@
 
 @media (max-width: 860px) {
   .hubColumns,
+  .planColumns,
   .mapLayout {
     grid-template-columns: 1fr;
   }
@@ -2187,6 +2190,496 @@
   color: var(--ink2);
   font-size: 0.84rem;
   text-wrap: pretty;
+}
+
+/* --- 子どもページ：タブ（概要／レッスン計画／観察の記録／登録・共有） --- */
+
+.childTabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 20px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+
+.childTabs button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.childTabs button:hover {
+  color: var(--green-ink);
+}
+
+.childTabs button[aria-selected='true'] {
+  border-bottom-color: var(--green);
+  color: var(--green-ink);
+}
+
+.childTabs button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+/* 振り返りと計画：左＝前回の様子、右＝これからの計画。左右を同じ幅にして見比べやすくする。 */
+.planColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.planColumns > div {
+  min-width: 0;
+}
+
+.planStep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 -4px;
+  color: var(--green-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.planStep span {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.planStep small {
+  color: var(--mute);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+/* 列が半分の幅なので、3か月／6か月のメニューは縦に積む。 */
+.planColumns .menuPlan {
+  grid-template-columns: 1fr;
+}
+
+.nextLessonCard {
+  display: grid;
+  gap: 8px;
+  border-color: #9bc4b6;
+  background: #eaf3ef;
+}
+
+.nextLessonCard p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.nextLessonCard b {
+  color: var(--green-ink);
+}
+
+.nextLessonCard .nextLessonCautions {
+  color: #6f5a10;
+  font-size: 0.8rem;
+}
+
+.nextLessonCard button {
+  justify-self: start;
+}
+
+/* --- 子どもページ：コーチ向けの見立て（design-mock-v2 のコーチ用レポート） --- */
+
+.coachPanel h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.coachSubheading {
+  margin: 16px 0 0;
+  color: var(--ink2);
+}
+
+.coachNote {
+  margin: 8px 0 0;
+  color: var(--mute);
+  font-size: 0.76rem;
+  text-wrap: pretty;
+}
+
+.cautionList {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cautionList li,
+.cautionBox {
+  padding: 9px 12px;
+  border-left: 4px solid #c9a227;
+  border-radius: 8px;
+  background: #f3eedd;
+  font-size: 0.8rem;
+}
+
+.cautionList strong,
+.cautionBox strong {
+  color: #6f5a10;
+}
+
+.cautionList p,
+.cautionBox p {
+  margin: 3px 0 0;
+  color: var(--ink2);
+  text-wrap: pretty;
+}
+
+.cautionList .cautionInfo {
+  border-left-color: var(--violet);
+  background: var(--violet-soft);
+}
+
+.cautionList .cautionInfo strong {
+  color: var(--violet-ink);
+}
+
+.cautionBox {
+  margin-top: 12px;
+}
+
+.hubEngagement {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.hubEngagement > div {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(70px, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.hubEngagement strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.hubEngagement strong small {
+  margin-left: 4px;
+  color: var(--green-ink);
+  font-size: 0.72rem;
+}
+
+.hubEngagement em {
+  grid-column: 1 / -1;
+  color: var(--ink2);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
+.hubEngagementTitle {
+  font-weight: 700;
+}
+
+.supportGroups {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.supportGroups > div {
+  display: grid;
+  grid-template-columns: 7.5em 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.supportGroups dt {
+  color: var(--ink2);
+  font-weight: 700;
+}
+
+.supportGroups dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+}
+
+.supportGroups dd span,
+.observationTags span {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.76rem;
+}
+
+.focusSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+}
+
+.focusSummary b {
+  margin-right: 5px;
+  color: var(--green-ink);
+}
+
+.menuPlan {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.menuPlan3,
+.menuPlan6 {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+.menuPlan3 {
+  border: 1px solid #9bc4b6;
+  background: #eaf3ef;
+}
+
+.menuPlan6 {
+  border: 1px solid #9bb8ce;
+  background: #eaf0f5;
+}
+
+.menuGroup,
+.menuGroupDomain {
+  margin-top: 10px;
+}
+
+.menuGroupDomain {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.menuGroup ul,
+.menuGroupDomain ul,
+.domainMatches ul {
+  margin: 3px 0 0;
+  padding-left: 1.1em;
+}
+
+.menuGroupDomain small {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink2);
+  font-weight: 700;
+}
+
+.roleBadge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.roleBadge[data-role='next'] {
+  background: var(--orange);
+}
+
+.roleBadge[data-role='keep'] {
+  background: var(--mute);
+}
+
+.exerciseNotes,
+.domainMatches {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exerciseNotes article,
+.domainMatches article {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+  font-size: 0.8rem;
+}
+
+.exerciseNotes header,
+.domainMatches header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.exerciseNotes header small {
+  color: var(--mute);
+}
+
+.exerciseNotes header span {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.exerciseNotes article p {
+  margin: 6px 0 0;
+  color: var(--ink2);
+  white-space: pre-wrap;
+}
+
+.observationTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.observationTags .conditionTag {
+  border-color: #e0cf93;
+  background: #f3eedd;
+  color: #6f5a10;
+}
+
+.domainMatches small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mute);
+}
+
+.verdictBadge {
+  margin-left: auto;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--line2);
+  color: var(--ink2);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.verdictBadge[data-verdict='強く一致'] {
+  background: var(--red-soft);
+  color: #8d2f27;
+}
+
+.verdictBadge[data-verdict='一致'] {
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+}
+
+.rootCandidate {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border: 1px dashed #9bc4b6;
+  border-radius: 10px;
+  background: #eaf3ef;
+  font-size: 0.82rem;
+}
+
+.rootCandidate strong {
+  color: var(--green-ink);
+}
+
+.rootCandidate p {
+  margin: 3px 0 0;
+}
+
+.rootCandidate small {
+  color: var(--mute);
+}
+
+.goalFocus {
+  margin-top: 12px;
+  font-size: 0.82rem;
+}
+
+.goalFocus > p:first-child {
+  margin: 0;
+}
+
+.wantPackages {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wantPackages li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.wantPackages li > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wantPackages small {
+  color: var(--mute);
+  font-size: 0.75rem;
+}
+
+.wantPackages .wantWarning {
+  color: #6f5a10;
+}
+
+.wantStatus {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--green-soft);
+  color: var(--green-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.wantStatus[data-status='foundationFirst'] {
+  background: #f3eedd;
+  color: #6f5a10;
+}
+
+.wantStatus[data-status='unmeasured'] {
+  background: var(--line2);
+  color: var(--ink2);
+}
+
+@media (max-width: 640px) {
+  .menuPlan {
+    grid-template-columns: 1fr;
+  }
+
+  .supportGroups > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
 }
 
 /* いま見ているセクションをジャンプナビで示す。 */
