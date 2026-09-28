@@ -2204,7 +2204,9 @@
   display: grid;
   gap: 14px;
   margin-top: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* 3列以上は見づらいため2列までにし、1列が300pxを切る幅では1列に落とす。 */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(300px, calc((100% - 20px) / 2))), 1fr));
+  column-gap: 20px;
 }
 
 .envGroup > strong {
@@ -2546,4 +2548,252 @@
 
 .inputArea > .panel:first-of-type {
   margin-top: 10px;
+}
+
+/* =========================================================
+   アセスメント入力の密度
+   縦に長いと「大変そう」に見えるため、design-mock-v2 の密度に寄せる。
+   幅はモックのカード幅（約870px）に合わせて広げ、余白と部品の高さを詰める。
+   ========================================================= */
+
+.assessmentPage .pageInner {
+  width: min(1080px, 100%);
+}
+
+.assessmentPage .panel {
+  margin-top: 12px;
+}
+
+.assessmentPage .assessmentSection {
+  padding: 16px 18px;
+}
+
+/* 見出しと補足を1行に並べる（モックの h2 .sub と同じ見せ方）。 */
+.assessmentPage .sectionHeader > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+.assessmentPage .sectionHeader h2,
+.assessmentPage .exerciseHeader h2 {
+  font-size: 1rem;
+}
+
+.assessmentPage .sectionHeader p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.assessmentPage .assessmentHeader {
+  margin-bottom: 12px;
+}
+
+.assessmentPage .formField {
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.assessmentPage .formField label {
+  font-size: 0.84rem;
+}
+
+.assessmentPage .formField input,
+.assessmentPage .formField select,
+.assessmentPage .formField textarea,
+.assessmentPage .panel select,
+.assessmentPage .panel textarea {
+  min-height: 40px;
+  padding: 7px 10px;
+}
+
+.assessmentPage .panel textarea {
+  margin-top: 0;
+}
+
+.assessmentPage .infoNote,
+.assessmentPage .unlockInfo {
+  margin-top: 10px;
+  padding: 8px 12px;
+}
+
+.assessmentPage .inputArea {
+  margin-top: 14px;
+  padding: 2px 10px 10px;
+}
+
+.assessmentPage .inputAreaHead {
+  padding: 10px 8px 0;
+}
+
+.assessmentPage .inputArea > .panel:first-of-type {
+  margin-top: 8px;
+}
+
+/* --- 種目 --- */
+
+.assessmentPage .exerciseHeader {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+
+.assessmentPage .exerciseIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+}
+
+.assessmentPage .levelStates {
+  margin-top: 10px;
+}
+
+.assessmentPage .levelState,
+.assessmentPage .levelStateSelected {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 14px;
+}
+
+.assessmentPage .selectedLevel {
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+}
+
+.assessmentPage .selectedLevel > strong {
+  font-size: 1.3rem;
+}
+
+.assessmentPage .ladderList {
+  --ladder-row: 40px;
+  margin-top: 8px;
+}
+
+.assessmentPage .ladderBand ol {
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.assessmentPage .ladderList button {
+  min-height: 38px;
+  padding: 5px 9px;
+}
+
+.assessmentPage .errorChips {
+  margin-top: 10px;
+}
+
+.assessmentPage .errorChips > div {
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.assessmentPage .errorChip,
+.assessmentPage .errorChipSelected {
+  min-height: 34px;
+  padding: 5px 12px;
+}
+
+/* --- 取り組みの発達・環境調整 --- */
+
+.assessmentPage .engagementRow {
+  gap: 12px;
+  padding: 7px 0;
+}
+
+.assessmentPage .engagementRow label small {
+  font-size: 0.74rem;
+}
+
+.assessmentPage .envSupports,
+.assessmentPage .wantBox {
+  margin-top: 12px;
+  padding: 10px 14px 6px;
+}
+
+.assessmentPage .envGroups {
+  row-gap: 8px;
+  margin-top: 6px;
+}
+
+.assessmentPage .troubleOption {
+  gap: 7px;
+  min-height: 32px;
+  padding: 4px 0;
+  font-size: 0.88rem;
+}
+
+.assessmentPage .troubleOption input {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+}
+
+/* --- お困りごと --- */
+
+.assessmentPage .troubleCategories {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(300px, calc((100% - 10px) / 2))), 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.assessmentPage .troubleCategory {
+  padding: 6px 12px 6px;
+}
+
+/* --- 目標（COPM） --- */
+
+.assessmentPage .copmRow {
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.assessmentPage .copmRow .formField {
+  margin-top: 0;
+}
+
+.assessmentPage .copmScores {
+  gap: 8px;
+}
+
+/* --- ご家庭のお困り度 --- */
+
+.assessmentPage .ppiQuestion {
+  padding: 9px 0;
+}
+
+.assessmentPage .ppiScaleLabels {
+  margin-top: 3px;
+}
+
+.assessmentPage .ppiButtons .lvButton,
+.assessmentPage .ppiButtons .lvButtonSelected {
+  min-height: 36px;
+}
+
+/* タッチ端末では指で押しやすい高さ（44px）に戻す。 */
+@media (pointer: coarse) {
+  .assessmentPage .ladderList {
+    --ladder-row: 48px;
+  }
+
+  .assessmentPage .ladderList button,
+  .assessmentPage .errorChip,
+  .assessmentPage .errorChipSelected,
+  .assessmentPage .troubleOption,
+  .assessmentPage .levelState,
+  .assessmentPage .levelStateSelected,
+  .assessmentPage .ppiButtons .lvButton,
+  .assessmentPage .ppiButtons .lvButtonSelected {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .assessmentPage .assessmentSection {
+    padding: 14px 12px;
+  }
 }
