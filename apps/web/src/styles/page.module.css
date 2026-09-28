@@ -2360,23 +2360,6 @@
   text-wrap: pretty;
 }
 
-/* --- レポート：これから加わる種目（1行の注記） --- */
-
-.upcomingNote {
-  margin: 12px 0 0;
-  padding: 9px 12px;
-  border: 1px dashed #c4b7e6;
-  border-radius: 10px;
-  background: var(--violet-soft);
-  color: var(--violet-ink);
-  font-size: 0.78rem;
-  line-height: 1.75;
-}
-
-.upcomingNote b {
-  margin-right: 6px;
-}
-
 /* --- レポート：取り組みの発達 --- */
 
 .engagementBars {

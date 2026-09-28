@@ -51,8 +51,14 @@ function ReportSheetHeader({ report, title }: { report: ParsedReport; title: str
   );
 }
 
-function NumberedHeading({ number, children }: { number: number; children: ReactNode }) {
-  return <h2 className={styles.numberedHeading}><span>{number}</span>{children}</h2>;
+/** 見出しが1つしかないページで「1」だけ振ると続きがあるように見えるため、番号は省けるようにする。 */
+function NumberedHeading({ number, children }: { number?: number | undefined; children: ReactNode }) {
+  return <h2 className={styles.numberedHeading}>{number === undefined ? null : <span>{number}</span>}{children}</h2>;
+}
+
+/** 番号つき見出しが2つ以上あるときだけ連番を振る。 */
+function headingNumber(position: number, count: number) {
+  return count >= 2 ? position : undefined;
 }
 
 function ReportFooter({ page }: { page: number }) {
@@ -103,6 +109,9 @@ export function ReportPage() {
   const measuredLevels = report.levels.filter((level) => level.measured);
   const measuredTotal = measuredLevels.reduce((sum, level) => sum + level.lv, 0);
   const measuredMax = measuredLevels.reduce((sum, level) => sum + level.maxLv, 0);
+  const page1HeadingCount = [report.kind === 'comparison', report.engagement.length > 0].filter(Boolean).length;
+  // 4枚目は「ご家庭のお困り度」が必ず入り、目標系は入力があったときだけ加わる。
+  const page4HeadingCount = [report.wants.length > 0, report.copm.length > 0].filter(Boolean).length + 1;
 
   return (
     <div className={styles.pageFrame}>
@@ -148,7 +157,7 @@ export function ReportPage() {
             ) : null}
             {report.kind === 'comparison' ? (
               <>
-                <NumberedHeading number={1}>3か月でできるようになったこと<TuningTag report={report} section="comparison" /></NumberedHeading>
+                <NumberedHeading number={headingNumber(1, page1HeadingCount)}>3か月でできるようになったこと<TuningTag report={report} section="comparison" /></NumberedHeading>
                 <div className={`${styles.reportBox} ${styles.reportBoxGreen}`}>
                   <ul>{(report.changes3m?.length ? report.changes3m : ['今回は大きなレベル変化はありません。同じ段で安定して取り組めています。']).map((change) => <li key={change}>{change}</li>)}</ul>
                 </div>
@@ -166,7 +175,7 @@ export function ReportPage() {
             </div>
             {report.engagement.length ? (
               <>
-                <NumberedHeading number={report.kind === 'comparison' ? 2 : 1}>取り組みの様子<TuningTag report={report} section="engagementDelta" /></NumberedHeading>
+                <NumberedHeading number={headingNumber(report.kind === 'comparison' ? 2 : 1, page1HeadingCount)}>取り組みの様子<TuningTag report={report} section="engagementDelta" /></NumberedHeading>
                 <p className={styles.reportNote}>運動そのものの段階とは別に、どう取り組めたかの記録です。ここは運動より先に変わることが多く、3か月後に同じ見方で並べます。</p>
                 <div className={styles.engagementBars}>
                   {report.engagement.map((axis) => (
@@ -192,14 +201,6 @@ export function ReportPage() {
                   </div>
                 ) : null}
               </>
-            ) : null}
-            {report.upcomingExercises.length ? (
-              <p className={styles.upcomingNote}>
-                <b>これから加わる種目（半年目以降）</b>
-                からだの土台が安定してきたら、
-                {report.upcomingExercises.map((exercise) => `${exercise.name}（${exercise.parentName}）`).join('・')}
-                を加えて「5つの土台」で見ていきます。
-              </p>
             ) : null}
             <ReportFooter page={1} />
           </section>
@@ -358,7 +359,7 @@ export function ReportPage() {
 
             {report.wants.length ? (
               <>
-                <NumberedHeading number={1}>できるようになりたいこと</NumberedHeading>
+                <NumberedHeading number={headingNumber(1, page4HeadingCount)}>できるようになりたいこと</NumberedHeading>
                 <div className={styles.troublePills}>{report.wants.map((want) => <span key={want.id}>{want.icon} {want.short}</span>)}</div>
                 <p className={styles.reportNote}>これらはいま直接練習するものではありません。土台が育つと、そのうえに乗ってできるようになっていくものです。3か月・6か月の予定は、この土台づくりから組んでいます。</p>
               </>
@@ -366,7 +367,7 @@ export function ReportPage() {
 
             {report.copm.length ? (
               <>
-                <NumberedHeading number={report.wants.length ? 2 : 1}>ご家族・本人の目標{report.copm.some((goal) => goal.previous) ? <TuningTag report={report} section="copmDelta" /> : null}</NumberedHeading>
+                <NumberedHeading number={headingNumber(report.wants.length ? 2 : 1, page4HeadingCount)}>ご家族・本人の目標{report.copm.some((goal) => goal.previous) ? <TuningTag report={report} section="copmDelta" /> : null}</NumberedHeading>
                 <p className={styles.reportNote}>「できるか」（遂行度）と「その状態に納得しているか」（満足度）を分けて記録しています。3か月後に同じ質問をして並べます。</p>
                 <div className={styles.levelTableWrap}>
                   <table className={styles.levelTable}>
@@ -388,7 +389,7 @@ export function ReportPage() {
               </>
             ) : null}
 
-            <NumberedHeading number={[report.wants.length, report.copm.length].filter(Boolean).length + 1}>ご家庭のお困り度{previousPpiTotal === null ? null : <small>{previousPpiTotal} → {ppiTotal}（{PPI_QUESTIONS.length * PPI_SCORE_MAX}点満点）</small>}</NumberedHeading>
+            <NumberedHeading number={headingNumber(page4HeadingCount, page4HeadingCount)}>ご家庭のお困り度{previousPpiTotal === null ? null : <small>{previousPpiTotal} → {ppiTotal}（{PPI_QUESTIONS.length * PPI_SCORE_MAX}点満点）</small>}</NumberedHeading>
             <div className={styles.reportPpi}>
               {PPI_QUESTIONS.map((question) => {
                 const value = report.ppi.current[question.key];

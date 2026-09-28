@@ -88,6 +88,10 @@ describe('保護者向けレポート', () => {
     expect(screen.getByRole('region', { name: '育ちマップ' })).toHaveTextContent(/今の到達\s*15\s*\/90（実施した3種目の合計）/);
     // 線が1本だけの初回は凡例を出さず、軸には運動名ではなく力の名前を出す。
     expect(screen.queryByText('今回')).not.toBeInTheDocument();
+    // 1枚目の見出しが1つだけなら番号を振らない。未開放種目の案内は注記とレーダーだけで伝える。
+    const firstSheet = screen.getByRole('region', { name: 'レポート1ページ目' });
+    expect(within(firstSheet).getByRole('heading', { level: 2 }).textContent).toMatch(/^取り組みの様子/);
+    expect(firstSheet).not.toHaveTextContent('これから加わる種目');
     expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('姿勢制御/動的バランス');
     // ルールが未確定の箇所には目印を出す。
     expect(screen.getAllByText(/アルゴリズム調整中/).length).toBeGreaterThan(0);
@@ -98,6 +102,8 @@ describe('保護者向けレポート', () => {
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
+    // 比較では見出しが2つあるので連番を振る。
+    expect(within(screen.getByRole('region', { name: 'レポート1ページ目' })).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.slice(0, 2))).toEqual(['13', '2取']);
     const troubleSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
     expect(troubleSheet).toHaveTextContent('育ちのピラミッド');
     // ピラミッドは5段。上の段ほど狭くするための段クラスが付いている。
