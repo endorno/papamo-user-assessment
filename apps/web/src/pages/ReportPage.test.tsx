@@ -123,6 +123,8 @@ describe('保護者向けレポート', () => {
     expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('時間の負担');
     expect(screen.getByRole('region', { name: 'レポート4ページ目' })).toHaveTextContent('4・5種目目を追加');
     expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
+    // 環境調整はコーチ向けの引き継ぎ情報なので、保護者向けには出さない。
+    expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();
   });
 
   it('印刷ボタンからブラウザ印刷を呼び出す', async () => {

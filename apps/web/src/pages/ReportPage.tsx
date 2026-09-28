@@ -191,15 +191,6 @@ export function ReportPage() {
                     </div>
                   ))}
                 </div>
-                {report.envSupports.length ? (
-                  <div className={styles.reportBox}>
-                    <strong>今回、取り組みやすくなった条件</strong>
-                    {report.envSupports.map((group) => (
-                      <p key={group.group}><b>{group.group}</b>{'\u3000'}{group.items.map((item) => item.split('（')[0]).join('・')}</p>
-                    ))}
-                    <small>どれが良い・悪いではなく、このお子さまが取り組みやすくなる条件です。ご家庭でも同じ形が効くことがあります。</small>
-                  </div>
-                ) : null}
               </>
             ) : null}
             <ReportFooter page={1} />
