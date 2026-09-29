@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import nonProductionSql from '../../seeds/non-production.sql?raw';
-import resetSql from '../../seeds/reset.sql?raw';
+import dropAllSql from '../../seeds/drop-all.sql?raw';
 import type { Env } from '../env';
 import { createChild } from '../services/children';
 import { upsertCoach } from '../services/coaches';
@@ -14,7 +14,8 @@ beforeAll(async () => {
   await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 });
 
-// wrangler d1 execute --file と同じく、コメントを除いた1文ずつを順に流す。
+// wrangler d1 execute --file と同じく、コメントを除いた文を1トランザクションで流す。
+// defer_foreign_keys はトランザクション内でしか効かないため、1文ずつ自動コミットしない。
 const runSqlFile = async (sql: string): Promise<void> => {
   const statements = sql
     .split('\n')
@@ -23,9 +24,7 @@ const runSqlFile = async (sql: string): Promise<void> => {
     .split(';')
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
-  for (const statement of statements) {
-    await testEnv.DB.prepare(statement).run();
-  }
+  await testEnv.DB.batch(statements.map((statement) => testEnv.DB.prepare(statement)));
 };
 
 const countOf = async (sql: string): Promise<number> => {
@@ -65,16 +64,23 @@ const createFixture = async (): Promise<{ coachId: string }> => {
 };
 
 describe('非本番用SQL', () => {
-  it('リセットはマイグレーション直後の状態に戻す', async () => {
+  it('全削除はマイグレーション履歴ごとテーブルを消し、適用し直せる', async () => {
     await createFixture();
 
-    await runSqlFile(resetSql);
+    await runSqlFile(dropAllSql);
 
-    expect(await countOf('SELECT count(*) AS count FROM reports')).toBe(0);
-    expect(await countOf('SELECT count(*) AS count FROM assessments')).toBe(0);
-    expect(await countOf('SELECT count(*) AS count FROM child_coaches')).toBe(0);
-    expect(await countOf('SELECT count(*) AS count FROM children')).toBe(0);
+    // テーブルを追加したのに drop-all.sql へ足し忘れると、ここに残る。
+    const { results } = await testEnv.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type IN ('table', 'view', 'trigger') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
+    ).all<{ name: string }>();
+    expect(results.map((row) => row.name)).toEqual([]);
+
+    // テーブルが無い状態で再実行しても失敗しない。
+    await runSqlFile(dropAllSql);
+
+    await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
     expect(await countOf('SELECT count(*) AS count FROM coaches')).toBe(0);
+    expect(await countOf('SELECT count(*) AS count FROM children')).toBe(0);
   });
 
   it('シードは実コーチを残して背景コーチを作り直す', async () => {

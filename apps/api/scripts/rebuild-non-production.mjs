@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline/promises';
 
 import {
+  applyMigrations,
   describeDatabase,
   executeSqlFile,
   isNonProductionTarget,
@@ -11,12 +12,12 @@ import {
 const target = process.argv[2];
 
 if (!isNonProductionTarget(target)) {
-  console.error('対象は local または staging を指定してください。本番D1のリセットは用意していません。');
+  console.error('対象は local または staging を指定してください。本番D1の作り直しは用意していません。');
   process.exit(1);
 }
 
 if (target === 'staging' && readConfirmation(process.argv) !== STAGING_NAME) {
-  console.error(`ステージングをリセットするには --confirm ${STAGING_NAME} を指定してください。`);
+  console.error(`ステージングを作り直すには --confirm ${STAGING_NAME} を指定してください。`);
   process.exit(1);
 }
 
@@ -31,8 +32,8 @@ if (target === 'staging' && database.name !== STAGING_NAME) {
 const location = target === 'local' ? 'ローカルD1（.wrangler/state）' : 'ステージングD1（リモート）';
 console.log(`対象: ${location}`);
 console.log(`データベース: ${database.name ?? '不明'}（${database.id ?? '不明'}）`);
-console.log('コーチ・子ども・担当紐づき・アセスメント・レポートをすべて削除し、マイグレーション直後の状態に戻します。');
-console.log('スキーマとマイグレーション履歴は残るため、実行後の再マイグレーションは不要です。');
+console.log('全テーブルをマイグレーション履歴ごと削除し、マイグレーションを最初から適用し直します。');
+console.log('コーチ・子ども・担当紐づき・アセスメント・レポートはすべて消えます。');
 
 if (!process.stdin.isTTY) {
   console.error('確認入力が必要です。対話できる端末で実行してください。');
@@ -48,11 +49,15 @@ if (answer !== 'y' && answer !== 'yes') {
   process.exit(0);
 }
 
-const result = executeSqlFile(target, 'seeds/reset.sql');
-
-if (result.error) {
-  console.error('Wrangler を起動できませんでした。', result.error);
-  process.exit(1);
+for (const step of [() => executeSqlFile(target, 'seeds/drop-all.sql'), () => applyMigrations(target)]) {
+  const result = step();
+  if (result.error) {
+    console.error('Wrangler を起動できませんでした。', result.error);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 }
 
-process.exit(result.status ?? 1);
+console.log('作り直しました。次のログインは表示名の登録から始まります。');

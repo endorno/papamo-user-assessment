@@ -9,6 +9,8 @@ export default [
       '**/node_modules/**',
       '**/dist/**',
       '**/.wrangler/**',
+      // wrangler types の生成物。先頭の eslint-disable が未使用警告になるため対象外にする
+      '**/worker-configuration.d.ts',
       'reference/**',
       'pnpm-lock.yaml',
     ],

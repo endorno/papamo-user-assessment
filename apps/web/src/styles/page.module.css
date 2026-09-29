@@ -798,82 +798,7 @@
   color: var(--orange-ink);
 }
 
-/* 前回（初回は先頭）を中心に上下3段ぶんだけ見せ、残りはリスト内でスクロールする。 */
-.ladderList {
-  --ladder-row: 48px;
-  position: relative;
-  max-height: calc(var(--ladder-row) * 7 + 32px);
-  overflow: auto;
-  margin-top: 10px;
-  padding: 0 8px 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overscroll-behavior: contain;
-}
 
-.ladderBandTitle {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0 -8px;
-  padding: 7px 17px 5px;
-  border-bottom: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink2);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.ladderBandTitle small {
-  color: var(--mute);
-  font-size: 0.72rem;
-  font-weight: 400;
-}
-
-.ladderBand ol {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 6px 0;
-  list-style: none;
-}
-
-.ladderList button {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
-  width: 100%;
-  min-height: 44px;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border: 1px solid transparent;
-  border-radius: var(--r);
-  background: #fff;
-  color: var(--ink2);
-  font: inherit;
-  text-align: left;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
-}
-
-.ladderList button:hover:not(:disabled) {
-  background: var(--green-soft);
-}
-
-.ladderList button strong {
-  color: var(--green-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.ladderList button span {
-  font-size: 0.82rem;
-}
-
-.ladderList button em,
 .previousTag {
   padding: 2px 7px;
   border-radius: 999px;
@@ -881,17 +806,6 @@
   color: var(--orange-ink);
   font-size: 0.68rem;
   font-style: normal;
-}
-
-.ladderList .ladderSelected,
-.ladderList .ladderSelected:hover:not(:disabled) {
-  border-color: var(--green);
-  background: var(--green);
-  color: #fff;
-}
-
-.ladderList .ladderSelected strong {
-  color: #fff;
 }
 
 .errorChips {
@@ -1013,7 +927,6 @@
 
 .textDangerButton:focus-visible,
 .compactButton:focus-visible,
-.ladderList button:focus-visible,
 .errorChip:focus-visible,
 .errorChipSelected:focus-visible,
 .unlockChoice input:focus-visible {
@@ -2699,45 +2612,26 @@
    design-mock-v2 で追加された項目のスタイル
    ========================================================= */
 
-/* --- 到達レベル：未実施・実施不可 --- */
+/* --- 到達レベル（ドロップダウン。design-mock-v2 の .selrow に合わせる） --- */
 
-.levelStates {
+.levelSelectRow {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   margin-top: 12px;
 }
 
-.levelState,
-.levelStateSelected {
-  display: grid;
-  gap: 2px;
-  min-height: 44px;
-  padding: 6px 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
+.levelSelectRow label {
+  flex: 0 0 auto;
   color: var(--ink2);
-  font: inherit;
-  text-align: left;
-}
-
-.levelState small,
-.levelStateSelected small {
-  font-size: 0.72rem;
-}
-
-.levelStateSelected {
-  border-color: var(--violet);
-  background: var(--violet-soft);
-  color: var(--violet-ink);
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
-.levelState:focus-visible,
-.levelStateSelected:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+.panel .levelSelect {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
 }
 
 /* --- 取り組みの発達（入力） --- */
@@ -3225,18 +3119,6 @@
   font-size: 1.1rem;
 }
 
-.assessmentPage .levelStates {
-  margin-top: 10px;
-}
-
-.assessmentPage .levelState,
-.assessmentPage .levelStateSelected {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px 14px;
-}
-
 .assessmentPage .selectedLevel {
   gap: 10px;
   margin-top: 10px;
@@ -3245,21 +3127,6 @@
 
 .assessmentPage .selectedLevel > strong {
   font-size: 1.3rem;
-}
-
-.assessmentPage .ladderList {
-  --ladder-row: 40px;
-  margin-top: 8px;
-}
-
-.assessmentPage .ladderBand ol {
-  gap: 2px;
-  padding: 4px 0;
-}
-
-.assessmentPage .ladderList button {
-  min-height: 38px;
-  padding: 5px 9px;
 }
 
 .assessmentPage .errorChips {
@@ -3357,16 +3224,10 @@
 
 /* タッチ端末では指で押しやすい高さ（44px）に戻す。 */
 @media (pointer: coarse) {
-  .assessmentPage .ladderList {
-    --ladder-row: 48px;
-  }
-
-  .assessmentPage .ladderList button,
+  .assessmentPage .panel .levelSelect,
   .assessmentPage .errorChip,
   .assessmentPage .errorChipSelected,
   .assessmentPage .troubleOption,
-  .assessmentPage .levelState,
-  .assessmentPage .levelStateSelected,
   .assessmentPage .ppiButtons .lvButton,
   .assessmentPage .ppiButtons .lvButtonSelected {
     min-height: 44px;
