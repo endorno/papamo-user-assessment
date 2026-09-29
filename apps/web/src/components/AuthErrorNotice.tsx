@@ -16,22 +16,33 @@ export function AuthErrorNotice({
   onLoginAgain,
 }: AuthErrorNoticeProps) {
   const Heading = fullPage ? 'h1' : 'h2';
+  // ローカル Supabase やポート番号の案内は開発者向け。ステージング・本番のコーチには出さない。
+  const developerHelp = import.meta.env.DEV;
   const content = (
     <div className={styles.card}>
-      <p className={styles.eyebrow}>認証エラー（401）</p>
+      <p className={styles.eyebrow}>{developerHelp ? '認証エラー（401）' : 'ログインの確認'}</p>
       <Heading className={styles.title}>ログイン状態を確認できませんでした</Heading>
-      <p className={styles.lead}>
-        Google のログインは完了していますが、アプリの API がログイン情報を受け付けませんでした。
-        画面を閉じずに、まず再試行してください。
-      </p>
-      <div className={styles.help}>
-        <h2>解決しないときの確認</h2>
-        <ol>
-          <li>API と Web をいったん停止します。</li>
-          <li>ローカル Supabase を起動したあと、API と Web を再起動します。</li>
-          <li>開発中は、Web と API が同じ Supabase（ポート 15421）を参照しているか確認します。</li>
-        </ol>
-      </div>
+      {developerHelp ? (
+        <p className={styles.lead}>
+          Google のログインは完了していますが、アプリの API がログイン情報を受け付けませんでした。
+          画面を閉じずに、まず再試行してください。
+        </p>
+      ) : (
+        <p className={styles.lead}>
+          しばらく操作しなかったため、ログインの有効期限が切れた可能性があります。
+          まず「もう一度確認する」を押し、解決しないときは「ログイン画面からやり直す」を押してください。
+        </p>
+      )}
+      {developerHelp ? (
+        <div className={styles.help}>
+          <h2>解決しないときの確認</h2>
+          <ol>
+            <li>API と Web をいったん停止します。</li>
+            <li>ローカル Supabase を起動したあと、API と Web を再起動します。</li>
+            <li>開発中は、Web と API が同じ Supabase（ポート 15421）を参照しているか確認します。</li>
+          </ol>
+        </div>
+      ) : null}
       <div className={styles.actions}>
         <button className={styles.primaryButton} type="button" onClick={onRetry}>
           もう一度確認する
