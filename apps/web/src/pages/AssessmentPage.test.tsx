@@ -23,7 +23,7 @@ const assessment = {
   coachId: 'coach-1',
   unlockExt: false,
   prevAssessmentId: null,
-  masterVersion: '2026-09.2',
+  masterVersion: '2026-09.3',
   data: {
     lv: {},
     observations: {},

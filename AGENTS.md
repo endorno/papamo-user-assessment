@@ -3,7 +3,7 @@
 ## 0. まず読むもの（優先順）
 
 1. このファイル全体
-2. `reference/design-mock-v2.html` — PdM が作った**最新の項目定義**。到達ラダー・見えた動作・取り組みの発達・ご家族/本人の目標（COPM）・ご家庭のお困り度・レポートの構成はこちらが正。1ページ運用前提のため、画面の作りまでは真似しない。
+2. `reference/design-mock-v2.html` — PdM が作った**最新の項目定義**。到達ラダー・見えた動作・取り組みの発達・ご家族/本人の目標（COPM）・ご家庭のお困り度・レポートの構成はこちらが正（ラインウォーク・グーパータッチの到達ラダーと帯のみ、差し替え済みのマスタが正。§6）。1ページ運用前提のため、画面の作りまでは真似しない。
 3. `reference/design-mock.html` — PdM**承認済みのUI/UX**。画面構成・配色・挙動の参考にする。項目そのものが v2 と食い違う場合は v2 を採る。実際に実装する機能は実装のしやすさ、仕様のシンプルさを優先し、最初から複雑にしない。
 4. `reference/papamo-lesson-admin/` — **既存の「メニュー構築サイト」**。レッスン内容の管理・構築を行う。本ツールの認証はメニュー構築サイトの認証と共通化する。コーチのID管理はメニュー構築サイト側で行い、このツールでログイン・ログアウトのみ行う。
 
@@ -286,7 +286,7 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 すべて `reference/design-mock.html` の `<script>` 冒頭にある定数を **そのまま** 移植する（文言を変えない）。
 
 - `exercises.ts` — 5種目の定義。`design-mock-v2.html` の `AX` が正。1種目のフィールドは `key / core / icon / name（種目名）/ parentName（保護者向けの力の名前）/ clinicalName / summary / about / grow / maxLevel / pyramidRoot / pyramidRelated / build[] / changes3m[] / links[] / changes6m[] / observations[]（見えた動作）/ bands[] / errorPatterns[] / ladder[]`。到達の特別値は `LEVEL_NOT_MEASURED`（0＝未実施）と `LEVEL_NOT_POSSIBLE`（-1＝実施不可）。
-- `ladders.ts` — 到達ラダー。v2 の `LT` をそのまま移植（全種目30段。`sacc`/`inhi` の Lv21〜30 は仮置き）。
+- `ladders.ts` — 到達ラダー。v2 の `LT` を移植（全種目30段。`sacc`/`inhi` の Lv21〜30 は仮置き）。`post`（ラインウォーク）と `hand`（グーパータッチ）は、2026-09-20版の修正資料（ラインウォーク：Lv2〜7 のタンデム削除・「頭の上にタオル」表記／グーパータッチ：30段と帯を組み替え）で v2 から差し替え済み（2026-09-29）。以後この2種目のラダーと帯は `ladders.ts`・`exercises.ts` が正。
 - `troubles.ts` — `sch` / `pre` × カテゴリ5 × 3項目。各項目は `text` と `domain`（DN の id）を持つ。**チェックされた困りごとは文言そのものを保存する**（§5）ため、文言変更＝過去データとの突き合わせ不能。変更時は PdM 承認に加えて移行方針が必要。就学／未就学の統合は検討中で、統合までは文言を据え置く。
 - `domains.ts` — 神経ドメイン（DN 1〜7）と育ちのピラミッド（5段）。各ドメインは `priorityKey`（主に支える種目）・`pyramid`・`parentLabel` / `parentText`（保護者向けの平易な言い換え）を持つ。
 - `engagement.ts` — 取り組みの発達（4軸×5段階）と環境調整（4グループ×5項目）。
