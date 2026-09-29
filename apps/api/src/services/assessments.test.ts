@@ -2,7 +2,7 @@ import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createChild, getChildForCoach, setArchiveState } from './children';
+import { createChild, getChildForCoach, importChild, setArchiveState } from './children';
 import { upsertCoach } from './coaches';
 import {
   AssessmentServiceError,
@@ -12,6 +12,7 @@ import {
   getAssessment,
   getReport,
   patchAssessment,
+  revertAssessment,
 } from './assessments';
 import type { Env } from '../env';
 
@@ -229,29 +230,102 @@ describe('アセスメントサービス', () => {
     });
   });
 
-  it('次回作成前なら完了済みの自動保存と同時にレポートを再生成する', async () => {
+  it('完了後の自動保存は入力だけを記録し、レポートは更新ボタンまで変えない', async () => {
     const { coach, child } = await createFixture('りお');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const saved = await saveCompletedInput(coach, assessment);
     await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
     const completed = await getAssessment(testEnv, assessment.id, coach.id);
+    expect(completed.reported?.data.lv.post).toBe(3);
+
     const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
       data: { ...completed.data, lv: { ...completed.data.lv, post: 10 } },
       updatedAt: completed.updatedAt,
     });
 
-    const { report, childId } = await getReport(testEnv, assessment.id, coach.id);
-    expect(report.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
+    expect(edited).toMatchObject({ status: 'done', data: { lv: { post: 10 } }, reported: { data: { lv: { post: 3 } } } });
+    const { report, childId, hasUnreportedChanges } = await getReport(testEnv, assessment.id, coach.id);
+    expect(report.levels.find(({ key }) => key === 'post')?.lv).toBe(3);
     expect(childId).toBe(child.id);
-    const revisions = await testEnv.DB.prepare(`
-      SELECT assessments.revision AS assessment_revision,
-             reports.assessment_revision AS report_revision
-      FROM assessments
-      INNER JOIN reports ON reports.assessment_id = assessments.id
-      WHERE assessments.id = ?
-    `).bind(assessment.id).first<{ assessment_revision: number; report_revision: number }>();
-    expect(revisions?.report_revision).toBe(revisions?.assessment_revision);
-    expect(edited.status).toBe('done');
+    expect(hasUnreportedChanges).toBe(true);
+    const detail = await getChildForCoach(testEnv, child.id, coach.id);
+    expect(detail?.assessments[0]).toMatchObject({ hasUnreportedChanges: true, reportAvailable: true });
+    // 子どもページはレポートに反映した内容で見せる。
+    expect(detail?.latestAssessment?.lv.post).toBe(3);
+  });
+
+  it('レポートを更新すると、押したコーチが担当になり、そのときの入力で作り直す', async () => {
+    const { coach, child } = await createFixture('いつき');
+    const colleague = await upsertCoach(testEnv, {
+      id: crypto.randomUUID(),
+      email: `${crypto.randomUUID()}@example.com`,
+    });
+    await testEnv.DB.prepare('UPDATE coaches SET display_name = ? WHERE id = ?').bind('となりのコーチ', colleague.id).run();
+    const detailForShare = await getChildForCoach(testEnv, child.id, coach.id);
+    await importChild(testEnv, colleague.id, detailForShare!.shareCode);
+
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await saveCompletedInput(coach, assessment);
+    await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
+    const completed = await getAssessment(testEnv, assessment.id, colleague.id);
+    const edited = await patchAssessment(testEnv, assessment.id, colleague.id, {
+      data: { ...completed.data, lv: { ...completed.data.lv, post: 10 } },
+      updatedAt: completed.updatedAt,
+    });
+    // 自動保存だけでは担当は変わらない。
+    expect(edited.coachId).toBe(coach.id);
+
+    const updated = await completeAssessment(testEnv, assessment.id, { ...colleague, displayName: 'となりのコーチ' }, edited.updatedAt);
+    expect(updated.report.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
+    expect(updated.report.header.coachName).toBe('となりのコーチ');
+    expect(updated.hasUnreportedChanges).toBe(false);
+    const after = await getAssessment(testEnv, assessment.id, coach.id);
+    expect(after).toMatchObject({ coachId: colleague.id, reported: { data: { lv: { post: 10 } } } });
+    expect((await getReport(testEnv, assessment.id, coach.id)).hasUnreportedChanges).toBe(false);
+  });
+
+  it('レポート作成時の内容に戻すと、未反映の変更がなくなる', async () => {
+    const { coach, child } = await createFixture('うた');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await saveCompletedInput(coach, assessment);
+    await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
+    const completed = await getAssessment(testEnv, assessment.id, coach.id);
+    const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
+      assessedOn: '2026-08-01',
+      data: { ...completed.data, memo: 'あとから書き足した所見', troubles: [] },
+      updatedAt: completed.updatedAt,
+    });
+
+    await expect(revertAssessment(testEnv, assessment.id, coach.id, completed.updatedAt))
+      .rejects.toMatchObject({ code: 'conflict' });
+    const reverted = await revertAssessment(testEnv, assessment.id, coach.id, edited.updatedAt);
+
+    expect(reverted).toMatchObject({
+      assessedOn: completed.assessedOn,
+      data: { memo: '', troubles: ['転びやすい・つまずきやすい'] },
+    });
+    expect((await getReport(testEnv, assessment.id, coach.id)).hasUnreportedChanges).toBe(false);
+  });
+
+  it('前の回に未反映の変更が残っている間は、次の回を始められない', async () => {
+    const { coach, child } = await createFixture('こはる');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await saveCompletedInput(coach, assessment);
+    await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
+    const completed = await getAssessment(testEnv, assessment.id, coach.id);
+    const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
+      data: { ...completed.data, memo: '未反映の所見' },
+      updatedAt: completed.updatedAt,
+    });
+
+    await expect(createAssessment(testEnv, child.id, coach.id, false)).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('第1回の入力に、レポートへ反映していない変更があります'),
+    });
+
+    await completeAssessment(testEnv, assessment.id, coach, edited.updatedAt);
+    const next = await createAssessment(testEnv, child.id, coach.id, false);
+    expect(next.seqNo).toBe(2);
   });
 
   it('文言が空の目標は下書きに残せるが、レポートを作るときは止める', async () => {

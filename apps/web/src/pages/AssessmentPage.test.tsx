@@ -47,6 +47,7 @@ const assessment = {
   updatedAt: '2026-09-12T00:00:00.000Z',
   completedAt: null,
   readOnly: false,
+  reported: null,
   previous: null,
   child: {
     id: 'child-1',
@@ -331,6 +332,20 @@ describe('アセスメント入力', () => {
   });
 });
 
+const completedData = {
+  ...assessment.data,
+  lv: { post: 3, eyeh: 4, hand: 5 },
+  troubles: ['転びやすい・つまずきやすい'],
+  ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
+};
+const completedAssessment = {
+  ...assessment,
+  status: 'done' as const,
+  completedAt: '2026-09-12T00:00:00.000Z',
+  data: completedData,
+  reported: { assessedOn: '2026-09-12', unlockExt: false, data: completedData },
+};
+
 describe('アセスメント入力：保存が止まらないこと', () => {
   beforeEach(() => {
     auth.session = { access_token: 'test-token' };
@@ -401,6 +416,71 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     fireEvent.change(date, { target: { value: '' } });
 
     expect(date).toHaveValue('2026-09-12');
+  });
+});
+
+describe('アセスメント入力：完了済みの回とレポート', () => {
+  beforeEach(() => {
+    auth.session = { access_token: 'test-token' };
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  function stubCompleted(current: typeof completedAssessment) {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/revert')) {
+        return jsonResponse({ assessment: { ...completedAssessment, updatedAt: '2026-09-12T00:02:00.000Z' } });
+      }
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body));
+        return jsonResponse({ assessment: { ...current, data: body.data, updatedAt: '2026-09-12T00:01:00.000Z' } });
+      }
+      return jsonResponse({ assessment: current });
+    }));
+  }
+
+  it('レポートに反映済みなら「レポートを見る」だけを出す', async () => {
+    stubCompleted(completedAssessment);
+    renderAssessmentPage();
+
+    expect(await screen.findByText('レポートは最新の入力内容で作成済みです')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'レポートを見る' })).toHaveAttribute('href', '/reports/assessment-1');
+    expect(screen.queryByRole('button', { name: 'レポートを更新' })).not.toBeInTheDocument();
+  });
+
+  it('編集するとレポートへ未反映の項目を示し、更新ボタンを出す', async () => {
+    stubCompleted(completedAssessment);
+    renderAssessmentPage();
+    const memo = await screen.findByLabelText('コーチ所見メモ（内部用）');
+    fireEvent.change(memo, { target: { value: 'あとから書き足した所見' } });
+
+    const notice = await screen.findByText('レポート作成後に変更した項目があります');
+    expect(notice.closest('[role="status"]')).toHaveTextContent('コーチ所見メモ');
+    expect(within(screen.getByRole('navigation', { name: '入力項目' })).getByRole('link', { name: /コーチ所見メモ/ })).toHaveTextContent('未反映');
+    expect(screen.getByRole('button', { name: 'レポートを更新' })).toBeInTheDocument();
+    // 自動保存は入力だけを送る（レポートの作り直しは complete を押したときだけ）。
+    await waitFor(() => {
+      expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true);
+    }, { timeout: 3000 });
+    expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).endsWith('/complete'))).toBe(false);
+  });
+
+  it('レポート作成時の内容に戻せる', async () => {
+    stubCompleted({ ...completedAssessment, data: { ...completedData, memo: '未反映の所見' } });
+    renderAssessmentPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'レポート作成時の内容に戻す' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '作成時の内容に戻す' }));
+
+    await waitFor(() => expect(screen.getByLabelText('コーチ所見メモ（内部用）')).toHaveValue(''));
+    const revertCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/revert'));
+    expect(JSON.parse(String(revertCall?.[1]?.body))).toEqual({ updatedAt: completedAssessment.updatedAt });
+    expect(screen.queryByText('レポート作成後に変更した項目があります')).not.toBeInTheDocument();
   });
 });
 

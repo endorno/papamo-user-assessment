@@ -245,5 +245,7 @@ export const reportResponseSchema = z.object({
   childId: z.string(),
   assessmentId: z.string(),
   report: reportContentSchema,
+  /** レポート作成後に入力を編集し、まだ反映していないか。 */
+  hasUnreportedChanges: z.boolean(),
 });
 

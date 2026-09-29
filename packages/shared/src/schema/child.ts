@@ -83,6 +83,8 @@ export const childAssessmentSummarySchema = z.object({
   updatedAt: z.string(),
   completedAt: z.string().nullable(),
   reportAvailable: z.boolean(),
+  /** 完了後に編集し、まだレポートへ反映していない変更があるか。 */
+  hasUnreportedChanges: z.boolean(),
 });
 
 export const childDetailSchema = childViewSchema.extend({

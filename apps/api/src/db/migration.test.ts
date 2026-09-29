@@ -11,6 +11,7 @@ describe('D1初期マイグレーション', () => {
     expect(testEnv.TEST_MIGRATIONS.map(({ name }) => name)).toEqual([
       '0000_initial_schema.sql',
       '0001_report_consistency_triggers.sql',
+      '0002_report_assessment_input.sql',
     ]);
 
     await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
@@ -20,6 +21,9 @@ describe('D1初期マイグレーション', () => {
     expect(childColumns.results.map(({ name }) => name)).not.toContain('goals');
     expect(childColumns.results.map(({ name }) => name)).toContain('joined_month');
     expect(childColumns.results.map(({ name }) => name)).not.toContain('joined_on');
+
+    const reportColumns = await testEnv.DB.prepare('PRAGMA table_info(reports)').all<{ name: string }>();
+    expect(reportColumns.results.map(({ name }) => name)).toContain('assessment_input');
 
     const triggers = await testEnv.DB.prepare(`
       SELECT name FROM sqlite_master

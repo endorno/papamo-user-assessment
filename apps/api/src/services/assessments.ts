@@ -4,18 +4,22 @@ import {
   activeExerciseKeys,
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
+  changedAssessmentSections,
   parseStoredAssessmentData,
   parseStoredCompletedData,
   withoutExtExerciseInput,
   MASTER_VERSION,
   PPI_QUESTIONS,
   reportContentSchema,
+  reportedInputSchema,
   troubleItemsOf,
   todayInJst,
   type AssessmentData,
+  type AssessmentInput,
   type AssessmentPatchRequest,
   type CompletedAssessmentData,
   type Honorific,
+  type ReportedInput,
 } from '@papamo/shared';
 
 import { dbFor, type Db } from '../db/client';
@@ -56,6 +60,70 @@ function parseData(value: string): AssessmentData {
 
 function parseCompletedData(value: string): CompletedAssessmentData {
   return parseStoredCompletedData(JSON.parse(value));
+}
+
+type AssessmentRow = typeof assessments.$inferSelect;
+
+/** レポートを作ったときの入力（reports.assessment_input）。無い・読めないときは null。 */
+export function parseReportedInput(value: string | null | undefined): ReportedInput | null {
+  if (!value) return null;
+  try {
+    const parsed = reportedInputSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** いま保存されている入力（完了後の未反映の編集を含む）。 */
+export function currentInputOf(row: Pick<AssessmentRow, 'assessedOn' | 'unlockExt' | 'data'>): AssessmentInput {
+  return { assessedOn: row.assessedOn, unlockExt: row.unlockExt, data: parseData(row.data) };
+}
+
+/**
+ * 完了済みの回として前回比較やレポートに使う入力。
+ * レポートへ反映した内容を正にし、完了後に編集してまだ反映していない内容は含めない。
+ * レポートの入力が残っていない古い行だけ、いまの入力で代用する。
+ */
+function confirmedInputOf(row: AssessmentRow, reportInput: string | null | undefined): ReportedInput {
+  return parseReportedInput(reportInput) ?? {
+    assessedOn: row.assessedOn,
+    unlockExt: row.unlockExt,
+    data: parseCompletedData(row.data),
+  };
+}
+
+/** 完了後に編集し、まだレポートへ反映していない変更があるか。 */
+export function hasUnreportedChanges(
+  row: Pick<AssessmentRow, 'status' | 'assessedOn' | 'unlockExt' | 'data'>,
+  reportInput: string | null | undefined,
+): boolean {
+  if (row.status !== 'done') return false;
+  const reported = parseReportedInput(reportInput);
+  return reported ? changedAssessmentSections(reported, currentInputOf(row)).length > 0 : false;
+}
+
+async function reportInputOf(env: Env, assessmentId: string) {
+  const report = await dbFor(env).select({ assessmentInput: reports.assessmentInput })
+    .from(reports).where(eq(reports.assessmentId, assessmentId)).get();
+  return report?.assessmentInput ?? null;
+}
+
+/** 直前の完了回（前回比較の相手）。レポートに反映した入力で返す。 */
+async function previousCompleted(env: Env, childId: string, beforeSeqNo?: number) {
+  const row = await dbFor(env)
+    .select({ assessment: assessments, reportInput: reports.assessmentInput })
+    .from(assessments)
+    .leftJoin(reports, eq(reports.assessmentId, assessments.id))
+    .where(and(
+      eq(assessments.childId, childId),
+      eq(assessments.status, 'done'),
+      ...(beforeSeqNo === undefined ? [] : [lt(assessments.seqNo, beforeSeqNo)]),
+    ))
+    .orderBy(desc(assessments.seqNo))
+    .limit(1)
+    .get();
+  return row ?? null;
 }
 
 async function membership(env: Env, childId: string, coachId: string) {
@@ -168,9 +236,14 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
     and(eq(assessments.childId, childId), eq(assessments.status, 'draft')),
   ).get();
   if (draft) throw new AssessmentServiceError('conflict', '入力中のアセスメントがすでにあります。');
-  const previous = await db.select().from(assessments).where(
-    and(eq(assessments.childId, childId), eq(assessments.status, 'done')),
-  ).orderBy(desc(assessments.seqNo)).limit(1).get();
+  const previous = await previousCompleted(env, childId);
+  // 次の回を作ると前の回は編集できなくなる。未反映の変更が宙に浮かないよう、先に片付けてもらう。
+  if (previous && hasUnreportedChanges(previous.assessment, previous.reportInput)) {
+    throw new AssessmentServiceError(
+      'conflict',
+      `第${previous.assessment.seqNo}回の入力に、レポートへ反映していない変更があります。レポートを更新するか、レポート作成時の内容に戻してから始めてください。`,
+    );
+  }
   const max = await db.select({ seqNo: assessments.seqNo }).from(assessments).where(eq(assessments.childId, childId)).orderBy(desc(assessments.seqNo)).limit(1).get();
   const today = todayInJst();
   const now = new Date().toISOString();
@@ -183,10 +256,10 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
     assessedOn: today,
     coachId,
     unlockExt: child.extUnlocked || unlockExt,
-    prevAssessmentId: previous?.id ?? null,
+    prevAssessmentId: previous?.assessment.id ?? null,
     masterVersion: MASTER_VERSION,
     data: JSON.stringify(initialData(
-      previous ? parseCompletedData(previous.data) : null,
+      previous ? confirmedInputOf(previous.assessment, previous.reportInput).data : null,
       gradeOf(child, today).ageGroup,
     )),
     revision: 1,
@@ -215,7 +288,15 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
     and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
   ).limit(1).get();
   const previous = assessment.prevAssessmentId
-    ? await dbFor(env).select({ id: assessments.id, seqNo: assessments.seqNo, assessedOn: assessments.assessedOn, status: assessments.status, data: assessments.data }).from(assessments).where(eq(assessments.id, assessment.prevAssessmentId)).get()
+    ? await dbFor(env)
+        .select({ assessment: assessments, reportInput: reports.assessmentInput })
+        .from(assessments)
+        .leftJoin(reports, eq(reports.assessmentId, assessments.id))
+        .where(eq(assessments.id, assessment.prevAssessmentId))
+        .get()
+    : null;
+  const reported = assessment.status === 'done'
+    ? parseReportedInput(await reportInputOf(env, assessment.id))
     : null;
   return {
     id: assessment.id,
@@ -232,19 +313,20 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
     updatedAt: assessment.updatedAt,
     completedAt: assessment.completedAt,
     readOnly: Boolean(child.archivedAt || later),
+    reported,
     previous: previous
       ? (() => {
-          const previousData = parseCompletedData(previous.data);
+          const previousInput = confirmedInputOf(previous.assessment, previous.reportInput);
           return {
-            id: previous.id,
-            seqNo: previous.seqNo,
-            assessedOn: previous.assessedOn,
+            id: previous.assessment.id,
+            seqNo: previous.assessment.seqNo,
+            assessedOn: previousInput.assessedOn,
             status: 'done' as const,
-            lv: previousData.lv,
-            troubles: previousData.troubles,
-            ppi: previousData.ppi,
-            engagement: previousData.engagement,
-            copm: previousData.copm,
+            lv: previousInput.data.lv,
+            troubles: previousInput.data.troubles,
+            ppi: previousInput.data.ppi,
+            engagement: previousInput.data.engagement,
+            copm: previousInput.data.copm,
           };
         })()
       : null,
@@ -262,7 +344,7 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
 // 子ども単位で開放済みなら常に5種目。下書きの間だけコーチが開放を取り消せる。
 function nextUnlockExt(
   child: typeof children.$inferSelect,
-  assessment: typeof assessments.$inferSelect,
+  assessment: AssessmentRow,
   requested: boolean | undefined,
 ): boolean {
   if (child.extUnlocked) return true;
@@ -270,6 +352,10 @@ function nextUnlockExt(
   return assessment.unlockExt || Boolean(requested);
 }
 
+/**
+ * 自動保存。下書きも完了済みの回も、入力をそのまま記録する。
+ * 完了済みの回でもレポートは作り直さない（反映は「レポートを更新」を押したときだけ）。
+ */
 export async function patchAssessment(
   env: Env,
   assessmentId: string,
@@ -280,63 +366,59 @@ export async function patchAssessment(
   const child = await ensureWritable(env, assessment, coachId);
   if (assessment.updatedAt !== input.updatedAt) throw concurrentUpdateError();
   const nextUnlock = nextUnlockExt(child, assessment, input.unlockExt);
-  const draftData = withoutExtExerciseInput(
+  const data = withoutExtExerciseInput(
     assessmentDataDraftSchema.parse(input.data),
     nextUnlock,
   );
-  const updatedAt = nextUpdatedAt(assessment.updatedAt);
-  const mutationId = ulid();
-  const db = dbFor(env);
-
-  if (assessment.status === 'done') {
-    const completedDataResult = assessmentDataCompletedSchema.safeParse(draftData);
-    if (!completedDataResult.success) {
-      throw new AssessmentServiceError('validation', '完了済みの記録に必要な入力をすべて残してください。');
-    }
-    const ageGroup = gradeOf(child, input.assessedOn ?? assessment.assessedOn).ageGroup;
-    assertCompletable(completedDataResult.data, nextUnlock, ageGroup);
-    const reportCoach = await coachOrThrow(env, assessment.coachId);
-    const previous = await previousForReport(env, assessment);
-    const report = await generateReport({
-      env,
-      child,
-      coach: reportCoach,
-      assessment: {
-        seqNo: assessment.seqNo,
-        assessedOn: input.assessedOn ?? assessment.assessedOn,
-        unlockExt: nextUnlock,
-        data: completedDataResult.data,
-      },
-      previous,
-      generatedAt: updatedAt,
-    });
-    await persistCompletedAssessment({
-      env,
-      assessment,
-      child,
-      actingCoachId: coachId,
-      reportCoachId: assessment.coachId,
-      assessedOn: input.assessedOn ?? assessment.assessedOn,
-      unlockExt: nextUnlock,
-      data: completedDataResult.data,
-      report,
-      mutationId,
-      updatedAt,
-      completedAt: assessment.completedAt ?? updatedAt,
-    });
-    return getAssessment(env, assessmentId, coachId);
-  }
-
-  const result = await db.update(assessments).set({
+  await writeAssessmentInput(env, assessment, coachId, {
     assessedOn: input.assessedOn ?? assessment.assessedOn,
     unlockExt: nextUnlock,
-    data: JSON.stringify(draftData),
+    data,
+  });
+  return getAssessment(env, assessmentId, coachId);
+}
+
+/** 完了済みの回の入力を、レポートを作ったときの内容に戻す。 */
+export async function revertAssessment(
+  env: Env,
+  assessmentId: string,
+  coachId: string,
+  expectedUpdatedAt: string,
+) {
+  const assessment = await assessmentOrThrow(env, assessmentId);
+  const child = await ensureWritable(env, assessment, coachId);
+  if (assessment.status !== 'done') {
+    throw new AssessmentServiceError('conflict', 'レポートを作る前の回には、戻す先がありません。');
+  }
+  if (assessment.updatedAt !== expectedUpdatedAt) throw concurrentUpdateError();
+  const reported = parseReportedInput(await reportInputOf(env, assessment.id));
+  if (!reported) {
+    throw new AssessmentServiceError('conflict', 'レポート作成時の入力が残っていないため、戻せません。');
+  }
+  await writeAssessmentInput(env, assessment, coachId, {
+    assessedOn: reported.assessedOn,
+    unlockExt: child.extUnlocked || reported.unlockExt,
+    data: reported.data,
+  });
+  return getAssessment(env, assessmentId, coachId);
+}
+
+async function writeAssessmentInput(
+  env: Env,
+  assessment: AssessmentRow,
+  coachId: string,
+  input: AssessmentInput,
+) {
+  const db = dbFor(env);
+  const result = await db.update(assessments).set({
+    assessedOn: input.assessedOn,
+    unlockExt: input.unlockExt,
+    data: JSON.stringify(input.data),
     revision: assessment.revision + 1,
-    mutationId,
-    updatedAt,
+    mutationId: ulid(),
+    updatedAt: nextUpdatedAt(assessment.updatedAt),
   }).where(writableMutationCondition(db, assessment, coachId)).run();
   if (affectedRows(result) !== 1) throw concurrentUpdateError();
-  return getAssessment(env, assessmentId, coachId);
 }
 
 export async function deleteAssessment(env: Env, assessmentId: string, coachId: string) {
@@ -371,23 +453,11 @@ async function coachOrThrow(env: Env, coachId: string): Promise<CoachRecord> {
   };
 }
 
-async function previousForReport(
-  env: Env,
-  assessment: typeof assessments.$inferSelect,
-) {
-  const previousRow = await dbFor(env).select().from(assessments).where(and(
-    eq(assessments.childId, assessment.childId),
-    eq(assessments.status, 'done'),
-    lt(assessments.seqNo, assessment.seqNo),
-  )).orderBy(desc(assessments.seqNo)).limit(1).get();
-  return previousRow
-    ? {
-        seqNo: previousRow.seqNo,
-        assessedOn: previousRow.assessedOn,
-        unlockExt: previousRow.unlockExt,
-        data: parseCompletedData(previousRow.data),
-      }
-    : undefined;
+/** レポートの比較相手。前の回はレポートに反映した入力で比べる。 */
+async function previousForReport(env: Env, assessment: AssessmentRow) {
+  const previous = await previousCompleted(env, assessment.childId, assessment.seqNo);
+  if (!previous) return undefined;
+  return { seqNo: previous.assessment.seqNo, ...confirmedInputOf(previous.assessment, previous.reportInput) };
 }
 
 function guardedReportUpsert(
@@ -398,6 +468,7 @@ function guardedReportUpsert(
     mutationId: string;
     generator: string;
     content: string;
+    assessmentInput: string;
     updatedAt: string;
   },
 ) {
@@ -408,6 +479,7 @@ function guardedReportUpsert(
     assessmentRevision: sql<number>`${input.assessmentRevision}`.as('assessment_revision'),
     generator: sql<string>`${input.generator}`.as('generator'),
     content: sql<string>`${input.content}`.as('content'),
+    assessmentInput: sql<string>`${input.assessmentInput}`.as('assessment_input'),
     createdAt: sql<string>`${input.updatedAt}`.as('created_at'),
     updatedAt: sql<string>`${input.updatedAt}`.as('updated_at'),
   }).from(assessments).where(and(
@@ -421,71 +493,16 @@ function guardedReportUpsert(
       assessmentRevision: input.assessmentRevision,
       generator: input.generator,
       content: input.content,
+      assessmentInput: input.assessmentInput,
       updatedAt: input.updatedAt,
     },
   });
 }
 
-async function persistCompletedAssessment(input: {
-  env: Env;
-  assessment: typeof assessments.$inferSelect;
-  child: typeof children.$inferSelect;
-  actingCoachId: string;
-  reportCoachId: string;
-  assessedOn: string;
-  unlockExt: boolean;
-  data: CompletedAssessmentData;
-  report: Awaited<ReturnType<typeof generateReport>>;
-  mutationId: string;
-  updatedAt: string;
-  completedAt: string;
-}) {
-  const db = dbFor(input.env);
-  const nextRevision = input.assessment.revision + 1;
-  const assessmentUpdate = db.update(assessments).set({
-    status: 'done',
-    assessedOn: input.assessedOn,
-    coachId: input.reportCoachId,
-    unlockExt: input.unlockExt,
-    masterVersion: MASTER_VERSION,
-    data: JSON.stringify(input.data),
-    revision: nextRevision,
-    mutationId: input.mutationId,
-    updatedAt: input.updatedAt,
-    completedAt: input.completedAt,
-  }).where(writableMutationCondition(db, input.assessment, input.actingCoachId));
-  const reportUpsert = guardedReportUpsert(db, {
-    assessmentId: input.assessment.id,
-    assessmentRevision: nextRevision,
-    mutationId: input.mutationId,
-    generator: input.report.generator,
-    content: JSON.stringify(input.report),
-    updatedAt: input.updatedAt,
-  });
-  // 4・5種目目の開放だけを子どもへ反映する。
-  const childChanges = {
-    ...(input.unlockExt && !input.child.extUnlocked ? { extUnlocked: true } : {}),
-  };
-  const childUpdate = db.update(children).set({
-    ...childChanges,
-    updatedAt: input.updatedAt,
-  }).where(and(
-    eq(children.id, input.child.id),
-    exists(
-      db.select({ value: sql`1` }).from(assessments).where(and(
-        eq(assessments.id, input.assessment.id),
-        eq(assessments.mutationId, input.mutationId),
-      )),
-    ),
-  ));
-  const results = await db.batch([
-    assessmentUpdate,
-    reportUpsert,
-    ...(Object.keys(childChanges).length ? [childUpdate] : []),
-  ]);
-  if (affectedRows(results[0]) !== 1) throw concurrentUpdateError();
-}
-
+/**
+ * レポートを作る・更新する（「レポートを作る」「レポートを更新」ボタン）。
+ * 押したコーチがレポートの担当になり、そのときの入力をレポートの入力として残す。
+ */
 export async function completeAssessment(env: Env, assessmentId: string, coach: CoachRecord, expectedUpdatedAt?: string) {
   const assessment = await assessmentOrThrow(env, assessmentId);
   const child = await ensureWritable(env, assessment, coach.id);
@@ -499,22 +516,54 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
 
   const previous = await previousForReport(env, assessment);
   const generatedAt = nextUpdatedAt(assessment.updatedAt);
-  const report = await generateReport({ env, child, coach, assessment: { seqNo: assessment.seqNo, assessedOn: assessment.assessedOn, unlockExt, data: data.data }, previous, generatedAt });
-  await persistCompletedAssessment({
-    env,
-    assessment,
-    child,
-    actingCoachId: coach.id,
-    reportCoachId: coach.id,
-    assessedOn: assessment.assessedOn,
+  const reportedInput: ReportedInput = { assessedOn: assessment.assessedOn, unlockExt, data: data.data };
+  const report = await generateReport({ env, child, coach, assessment: { seqNo: assessment.seqNo, ...reportedInput }, previous, generatedAt });
+
+  const db = dbFor(env);
+  const nextRevision = assessment.revision + 1;
+  const mutationId = ulid();
+  const assessmentUpdate = db.update(assessments).set({
+    status: 'done',
+    coachId: coach.id,
     unlockExt,
-    data: data.data,
-    report,
-    mutationId: ulid(),
+    masterVersion: MASTER_VERSION,
+    // 完了用スキーマで整えた内容（目標の前後の空白を落とした形）を、いまの入力としても残す。
+    data: JSON.stringify(data.data),
+    revision: nextRevision,
+    mutationId,
     updatedAt: generatedAt,
     completedAt: assessment.completedAt ?? generatedAt,
+  }).where(writableMutationCondition(db, assessment, coach.id));
+  const reportUpsert = guardedReportUpsert(db, {
+    assessmentId: assessment.id,
+    assessmentRevision: nextRevision,
+    mutationId,
+    generator: report.generator,
+    content: JSON.stringify(report),
+    assessmentInput: JSON.stringify(reportedInput),
+    updatedAt: generatedAt,
   });
-  return { report, childId: assessment.childId, assessmentId: assessment.id };
+  // 4・5種目目の開放だけを子どもへ反映する。
+  const childUpdate = db.update(children).set({
+    extUnlocked: true,
+    updatedAt: generatedAt,
+  }).where(and(
+    eq(children.id, child.id),
+    exists(
+      db.select({ value: sql`1` }).from(assessments).where(and(
+        eq(assessments.id, assessment.id),
+        eq(assessments.mutationId, mutationId),
+      )),
+    ),
+  ));
+  // D1 batch は1トランザクション。アセスメントの更新が競合で0件なら、レポートと子どもも書き換わらない。
+  const results = await db.batch([
+    assessmentUpdate,
+    reportUpsert,
+    ...(unlockExt && !child.extUnlocked ? [childUpdate] : []),
+  ]);
+  if (affectedRows(results[0]) !== 1) throw concurrentUpdateError();
+  return { report, childId: assessment.childId, assessmentId: assessment.id, hasUnreportedChanges: false };
 }
 
 export async function getReport(env: Env, assessmentId: string, coachId: string) {
@@ -522,24 +571,29 @@ export async function getReport(env: Env, assessmentId: string, coachId: string)
   if (!(await membership(env, assessment.childId, coachId))) throw new AssessmentServiceError('forbidden', 'このレポートを閲覧する権限がありません。');
   const report = await dbFor(env).select({
     content: reports.content,
-    assessmentRevision: reports.assessmentRevision,
+    assessmentInput: reports.assessmentInput,
+    updatedAt: reports.updatedAt,
   }).from(reports).where(eq(reports.assessmentId, assessmentId)).get();
   if (!report) throw new AssessmentServiceError('not_found', 'レポートが見つかりません。');
-  if (report.assessmentRevision !== assessment.revision) {
-    throw new Error(`レポートとアセスメントの版が一致しません: ${assessmentId}`);
-  }
   const stored = reportContentSchema.safeParse(JSON.parse(report.content));
   return {
-    // 旧版の形で保存されたレポートは、同じ記録から読むたびに作り直して返す
-    // （生成は決定的なので内容は変わらない）。保存し直すのは次の編集・完了のとき。
-    report: stored.success ? stored.data : await regenerateStoredReport(env, assessment),
+    // 旧版の形で保存されたレポートは、読むたびにレポート作成時の入力から作り直して返す。保存し直すのは次にレポートを更新したとき。
+    report: stored.success ? stored.data : await regenerateStoredReport(env, assessment, report),
     childId: assessment.childId,
     assessmentId: assessment.id,
+    hasUnreportedChanges: hasUnreportedChanges(assessment, report.assessmentInput),
   };
 }
 
-/** 旧版の形で保存されたレポートを、同じ記録から作り直す（生成は決定的なので内容は変わらない）。 */
-export async function regenerateStoredReport(env: Env, assessment: typeof assessments.$inferSelect) {
+/**
+ * 旧版の形で保存されたレポートを、レポート作成時の入力から作り直す。
+ * 名前・学年・担当の表示名とマスタはいまの値を使うため、保存時の本文と同じになるとは限らない。
+ */
+export async function regenerateStoredReport(
+  env: Env,
+  assessment: AssessmentRow,
+  report: { assessmentInput: string | null; updatedAt: string },
+) {
   const child = await childOrThrow(env, assessment.childId);
   const coach = await coachOrThrow(env, assessment.coachId);
   const previous = await previousForReport(env, assessment);
@@ -547,13 +601,8 @@ export async function regenerateStoredReport(env: Env, assessment: typeof assess
     env,
     child,
     coach,
-    assessment: {
-      seqNo: assessment.seqNo,
-      assessedOn: assessment.assessedOn,
-      unlockExt: assessment.unlockExt,
-      data: parseCompletedData(assessment.data),
-    },
+    assessment: { seqNo: assessment.seqNo, ...confirmedInputOf(assessment, report.assessmentInput) },
     previous,
-    generatedAt: assessment.updatedAt,
+    generatedAt: report.updatedAt,
   });
 }

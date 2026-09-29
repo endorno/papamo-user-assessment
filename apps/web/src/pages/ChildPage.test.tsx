@@ -77,7 +77,7 @@ describe('子どもページ', () => {
       ...child,
       state: { key: 'draft' as const, label: 'アセスメント入力中（2/6）', filled: 2, total: 6, order: 0 as const },
       latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, lv: { post: 3, eyeh: 4 } },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, goals: [], updatedAt: '2026-09-01T00:00:00.000Z', completedAt: null, reportAvailable: false }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'draft' as const, assessedOn: '2026-09-01', unlockExt: false, goals: [], updatedAt: '2026-09-01T00:00:00.000Z', completedAt: null, reportAvailable: false, hasUnreportedChanges: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: draftChild })));
     renderChildPage();
@@ -95,7 +95,7 @@ describe('子どもページ', () => {
       ...child,
       state: { key: 'due' as const, label: '次回まであと3日', daysLeft: 3, order: 0.5 as const },
       latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, lv: { post: 3, eyeh: 4, hand: 5 } },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage();
@@ -108,12 +108,41 @@ describe('子どもページ', () => {
     expect(within(dialog).getByRole('button', { name: '前回の入力を修正する' })).toBeInTheDocument();
   });
 
+  it('前回にレポート未反映の変更があれば、次の回を始める前に前回の入力へ案内する', async () => {
+    const pendingChild = {
+      ...child,
+      state: { key: 'due' as const, label: '次回まであと3日', daysLeft: 3, order: 0.5 as const },
+      latestAssessment: { id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, lv: { post: 3, eyeh: 4, hand: 5 } },
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-02T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: true }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: pendingChild })));
+    renderWithProviders(
+      <Routes>
+        <Route path="/children/:id" element={<ChildPage />} />
+        <Route path="/assessments/:id" element={<p>前回の入力画面です</p>} />
+      </Routes>,
+      { route: '/children/child-1' },
+    );
+
+    expect(await screen.findByText('第1回の入力に、レポートへ反映していない変更があります')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'これまでの歩み' })).toHaveTextContent('レポート未反映');
+
+    fireEvent.click(screen.getByRole('button', { name: 'アセスメントを始める' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('前回の変更がレポートに反映されていません');
+    expect(within(dialog).queryByRole('button', { name: '新しい回を始める' })).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: '前回の入力を開く' }));
+
+    expect(await screen.findByText('前回の入力画面です')).toBeInTheDocument();
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  });
+
   it('入会から半年を過ぎて未開放なら、4・5種目目の目安を伝える', async () => {
     const longTermChild = {
       ...child,
       joinedMonth: '2025-01',
       state: { key: 'ok' as const, label: '次回 2026-12-01 予定', dueDate: '2026-12-01', order: 2 as const },
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: longTermChild })));
     renderChildPage();
@@ -126,7 +155,7 @@ describe('子どもページ', () => {
   it('最初のレポート作成後は完全削除を表示しない', async () => {
     const completedChild = {
       ...child,
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage('settings');
@@ -147,7 +176,7 @@ describe('子どもページ', () => {
   it('目標は子ども詳細から編集できず、最新の完了回を表示する', async () => {
     const completedChild = {
       ...child,
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: ['転びにくくなってほしい'], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: ['転びにくくなってほしい'], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: false }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
     renderChildPage();
@@ -185,7 +214,7 @@ describe('子どもページ', () => {
     });
     const completedChild = {
       ...child,
-      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true }],
+      assessments: [{ id: 'assessment-1', seqNo: 1, status: 'done' as const, assessedOn: '2026-06-01', unlockExt: false, goals: [], updatedAt: '2026-06-01T00:00:00.000Z', completedAt: '2026-06-01T00:00:00.000Z', reportAvailable: true, hasUnreportedChanges: false }],
       latestReport,
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));

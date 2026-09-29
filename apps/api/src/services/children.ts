@@ -2,7 +2,6 @@ import { and, asc, count, eq, inArray, isNotNull, isNull, notExists, or, sql } f
 import { ulid } from 'ulid';
 
 import {
-  parseStoredAssessmentData,
   formatShareCode,
   generateShareCode,
   MAX_ACTIVE_CHILDREN_PER_COACH,
@@ -24,13 +23,23 @@ import type { ChildCreateRequest, ChildPatchRequest } from '@papamo/shared';
 import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, reports } from '../db/schema';
 import { isForeignKeyConstraintError, isUniqueConstraintError } from '../db/errors';
-import { regenerateStoredReport } from './assessments';
+import {
+  currentInputOf,
+  hasUnreportedChanges,
+  parseReportedInput,
+  regenerateStoredReport,
+} from './assessments';
 import { gradeOf } from './child-row';
 import type { Env } from '../env';
 
 export type ChildRole = 'owner' | 'member';
 
-type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number; goals: string[] };
+type ChildAssessmentProgress = AssessmentProgress & {
+  id: string;
+  seqNo: number;
+  goals: string[];
+  hasUnreportedChanges: boolean;
+};
 
 export class ChildLimitError extends Error {
   constructor() {
@@ -39,6 +48,11 @@ export class ChildLimitError extends Error {
   }
 }
 
+/**
+ * 一覧・子どもページに出す1回分の状況。
+ * 完了済みの回はレポートに反映した入力で見せ、完了後の未反映の編集は「レポートを更新」まで出さない
+ * （下書きの目標を完了まで出さないのと同じ考え方）。
+ */
 function assessmentProgressFrom(row: {
   id: string;
   seqNo: number;
@@ -46,19 +60,20 @@ function assessmentProgressFrom(row: {
   assessedOn: string;
   unlockExt: boolean;
   data: string;
-}): ChildAssessmentProgress {
-  const data = parseStoredAssessmentData(JSON.parse(row.data));
+}, reportInput: string | null): ChildAssessmentProgress {
+  const done = row.status === 'done';
+  const input = (done ? parseReportedInput(reportInput) : null) ?? currentInputOf(row);
   return {
     id: row.id,
     seqNo: row.seqNo,
     status: row.status as 'draft' | 'done',
-    assessedOn: row.assessedOn,
-    unlockExt: row.unlockExt,
-    lv: data.lv,
-    troubles: data.troubles,
-    ppi: data.ppi,
-    // 子どもページに反映する目標は完了回だけ。下書きの変更は完了まで公開しない。
-    goals: row.status === 'done' ? data.copm.map((goal) => goal.text) : [],
+    assessedOn: input.assessedOn,
+    unlockExt: input.unlockExt,
+    lv: input.data.lv,
+    troubles: input.data.troubles,
+    ppi: input.data.ppi,
+    goals: done ? input.data.copm.map((goal) => goal.text) : [],
+    hasUnreportedChanges: hasUnreportedChanges(row, reportInput),
   };
 }
 
@@ -170,8 +185,10 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
       assessedOn: assessments.assessedOn,
       unlockExt: assessments.unlockExt,
       data: assessments.data,
+      reportInput: reports.assessmentInput,
     })
     .from(assessments)
+    .leftJoin(reports, eq(reports.assessmentId, assessments.id))
     .where(and(
       inArray(assessments.childId, visibleChildIds),
       or(
@@ -187,7 +204,7 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
   const assessmentsByChild = new Map<string, ChildAssessmentProgress[]>();
   for (const assessment of assessmentRows) {
     const grouped = assessmentsByChild.get(assessment.childId) ?? [];
-    grouped.push(assessmentProgressFrom(assessment));
+    grouped.push(assessmentProgressFrom(assessment, assessment.reportInput));
     assessmentsByChild.set(assessment.childId, grouped);
   }
 
@@ -289,16 +306,19 @@ function parseStoredReport(content: string): ReportContent | undefined {
   }
 }
 
+type StoredReport = { content: string; assessmentInput: string | null; updatedAt: string };
+
 async function latestReportContent(
   env: Env,
   assessmentId: string,
-  reportByAssessmentId: Map<string, ReportContent | undefined>,
+  report: StoredReport,
 ): Promise<ReportContent> {
-  const stored = reportByAssessmentId.get(assessmentId);
+  const stored = parseStoredReport(report.content);
   if (stored) return stored;
+  // 旧版の形で保存された本文は、表示に使う最新回だけレポート作成時の入力から作り直す。
   const assessment = await dbFor(env).select().from(assessments).where(eq(assessments.id, assessmentId)).get();
   if (!assessment) throw new Error(`アセスメントが見つかりません: ${assessmentId}`);
-  return regenerateStoredReport(env, assessment);
+  return regenerateStoredReport(env, assessment, report);
 }
 
 export async function getChildForCoach(env: Env, childId: string, coachId: string) {
@@ -328,23 +348,22 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     .all();
   const reportRows = await db
     .select({
-      assessmentId: assessments.id,
-      assessmentRevision: assessments.revision,
-      reportRevision: reports.assessmentRevision,
+      assessmentId: reports.assessmentId,
       content: reports.content,
+      assessmentInput: reports.assessmentInput,
+      updatedAt: reports.updatedAt,
     })
     .from(assessments)
     .innerJoin(reports, eq(reports.assessmentId, assessments.id))
     .where(eq(assessments.childId, childId))
     .all();
-  // 版が一致するレポートだけを有効とする。旧版の形で保存された本文は undefined にしておき、
-  // 表示に使う最新回だけ作り直す。
-  const reportByAssessmentId = new Map<string, ReportContent | undefined>(
-    reportRows
-      .filter(({ assessmentRevision, reportRevision }) => assessmentRevision === reportRevision)
-      .map(({ assessmentId, content }) => [assessmentId, parseStoredReport(content)]),
+  const reportByAssessmentId = new Map<string, StoredReport>(
+    reportRows.map(({ assessmentId, ...report }) => [assessmentId, report]),
   );
-  const assessmentProgresses = childAssessments.map(assessmentProgressFrom);
+  const assessmentProgresses = childAssessments.map((assessment) => assessmentProgressFrom(
+    assessment,
+    reportByAssessmentId.get(assessment.id)?.assessmentInput ?? null,
+  ));
   const serialized = serializeChild(
     child,
     membership,
@@ -352,24 +371,29 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     assessmentProgresses,
   );
   const assessmentProgressById = new Map(assessmentProgresses.map((progress) => [progress.id, progress]));
-  const assessmentSummaries = childAssessments.map((assessment) => ({
-    id: assessment.id,
-    seqNo: assessment.seqNo,
-    status: assessment.status as 'draft' | 'done',
-    assessedOn: assessment.assessedOn,
-    unlockExt: assessment.unlockExt,
-    goals: assessmentProgressById.get(assessment.id)?.goals ?? [],
-    updatedAt: assessment.updatedAt,
-    completedAt: assessment.completedAt,
-    reportAvailable: reportByAssessmentId.has(assessment.id),
-  }));
+  const assessmentSummaries = childAssessments.map((assessment) => {
+    const progress = assessmentProgressById.get(assessment.id);
+    return {
+      id: assessment.id,
+      seqNo: assessment.seqNo,
+      status: assessment.status as 'draft' | 'done',
+      assessedOn: progress?.assessedOn ?? assessment.assessedOn,
+      unlockExt: progress?.unlockExt ?? assessment.unlockExt,
+      goals: progress?.goals ?? [],
+      updatedAt: assessment.updatedAt,
+      completedAt: assessment.completedAt,
+      reportAvailable: reportByAssessmentId.has(assessment.id),
+      hasUnreportedChanges: progress?.hasUnreportedChanges ?? false,
+    };
+  });
   const latestCompleted = [...childAssessments]
     .reverse()
     .find((assessment) => assessment.status === 'done' && reportByAssessmentId.has(assessment.id));
+  const latestReport = latestCompleted ? reportByAssessmentId.get(latestCompleted.id) : undefined;
   return {
     ...serialized,
     assessments: assessmentSummaries,
-    latestReport: latestCompleted ? await latestReportContent(env, latestCompleted.id, reportByAssessmentId) : null,
+    latestReport: latestCompleted && latestReport ? await latestReportContent(env, latestCompleted.id, latestReport) : null,
   } satisfies ChildDetail;
 }
 

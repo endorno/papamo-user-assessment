@@ -168,9 +168,40 @@ describe('API ルート結合', () => {
       }),
     });
     expect(completedPatchResponse.status).toBe(200);
-    const regeneratedReportResponse = await request(client, `/assessments/${created.id}/report`);
-    const regeneratedReport = reportResponseSchema.parse(await regeneratedReportResponse.json()).report;
-    expect(regeneratedReport.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
+    const editedDetail = assessmentResponseSchema.parse(await completedPatchResponse.json()).assessment;
+    // 自動保存ではレポートを作り直さず、未反映の変更として知らせる。
+    const unchangedReportResponse = await request(client, `/assessments/${created.id}/report`);
+    const unchangedReport = reportResponseSchema.parse(await unchangedReportResponse.json());
+    expect(unchangedReport.report.levels.find(({ key }) => key === 'post')?.lv).toBe(3);
+    expect(unchangedReport.hasUnreportedChanges).toBe(true);
+
+    const nextWhilePending = await request(client, `/children/${child.id}/assessments`, {
+      method: 'POST',
+      body: JSON.stringify({ unlockExt: false }),
+    });
+    expect(nextWhilePending.status).toBe(409);
+
+    const updateResponse = await request(client, `/assessments/${created.id}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ updatedAt: editedDetail.updatedAt }),
+    });
+    expect(updateResponse.status).toBe(200);
+    const updatedReport = reportResponseSchema.parse(await updateResponse.json());
+    expect(updatedReport.report.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
+    expect(updatedReport.hasUnreportedChanges).toBe(false);
+
+    const revertDetail = assessmentResponseSchema.parse(await (await request(client, `/assessments/${created.id}`)).json()).assessment;
+    const secondEdit = await request(client, `/assessments/${created.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ data: { ...revertDetail.data, memo: '戻す前の所見' }, updatedAt: revertDetail.updatedAt }),
+    });
+    const secondEdited = assessmentResponseSchema.parse(await secondEdit.json()).assessment;
+    const revertResponse = await request(client, `/assessments/${created.id}/revert`, {
+      method: 'POST',
+      body: JSON.stringify({ updatedAt: secondEdited.updatedAt }),
+    });
+    expect(revertResponse.status).toBe(200);
+    expect(assessmentResponseSchema.parse(await revertResponse.json()).assessment.data.memo).toBe('');
 
     const doneDeletion = await request(client, `/assessments/${created.id}`, { method: 'DELETE' });
     expect(doneDeletion.status).toBe(409);

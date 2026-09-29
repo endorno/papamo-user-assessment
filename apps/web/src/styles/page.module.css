@@ -598,7 +598,7 @@
 
 .jumpNav a {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   min-height: 44px;
   align-items: center;
   gap: 7px;
@@ -1390,7 +1390,8 @@
 }
 
 .badgeDone,
-.badgeDraft {
+.badgeDraft,
+.badgeChanged {
   padding: 3px 8px;
   border-radius: 999px;
   font-size: 0.78rem;
@@ -1405,6 +1406,13 @@
 .badgeDraft {
   background: #fff1e4;
   color: #a65b23;
+}
+
+/* 完了後に編集し、まだレポートへ反映していない回。入力中と見分けられるよう枠線を付ける。 */
+.badgeChanged {
+  border: 1px solid #efcfae;
+  background: var(--orange-soft);
+  color: var(--orange-ink);
 }
 
 .error {
@@ -2080,6 +2088,62 @@
 }
 
 .dockIssues a:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- アセスメント：レポートへ未反映の変更（完了済みの回を編集したとき） --- */
+
+.jumpChanged {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.unreportedNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #efcfae;
+  border-radius: var(--r);
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+}
+
+.unreportedNotice > div {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 320px;
+  gap: 4px;
+}
+
+.unreportedNotice p {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.unreportedSections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.unreportedSections a {
+  color: var(--orange-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.unreportedSections a:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }

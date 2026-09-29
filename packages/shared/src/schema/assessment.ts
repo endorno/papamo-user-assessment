@@ -200,6 +200,25 @@ export const assessmentCompleteRequestSchema = z.object({
   updatedAt: z.string().datetime().optional(),
 });
 
+export const assessmentRevertRequestSchema = z.object({
+  updatedAt: z.string().datetime(),
+});
+
+/** 1回分の入力（実施日・4・5種目目の開放・入力内容）。 */
+export const assessmentInputSchema = z.object({
+  assessedOn: dateSchema,
+  unlockExt: z.boolean(),
+  data: assessmentDataDraftSchema,
+});
+
+/**
+ * レポートを作ったときの入力（reports.assessment_input）。
+ * 完了後の編集はレポートを更新するまで反映しないため、前回との比較や子どもページの表示はこちらを正にする。
+ */
+export const reportedInputSchema = assessmentInputSchema.extend({
+  data: assessmentDataCompletedSchema,
+});
+
 export const assessmentDetailSchema = z.object({
   id: z.string(),
   childId: z.string(),
@@ -215,6 +234,8 @@ export const assessmentDetailSchema = z.object({
   updatedAt: z.string().datetime(),
   completedAt: z.string().datetime().nullable(),
   readOnly: z.boolean(),
+  /** 完了済みの回だけ。レポートを作ったときの入力で、いまの入力との差分表示と「作成時に戻す」に使う。 */
+  reported: assessmentInputSchema.nullable(),
   previous: z.object({
     id: z.string(),
     seqNo: z.number().int().positive(),
@@ -288,3 +309,5 @@ export type ChildCreateRequest = z.infer<typeof childCreateRequestSchema>;
 export type ChildPatchRequest = z.infer<typeof childPatchRequestSchema>;
 export type AssessmentPatchRequest = z.infer<typeof assessmentPatchRequestSchema>;
 export type AssessmentDetail = z.infer<typeof assessmentDetailSchema>;
+export type AssessmentInput = z.infer<typeof assessmentInputSchema>;
+export type ReportedInput = z.infer<typeof reportedInputSchema>;

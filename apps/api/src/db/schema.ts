@@ -115,6 +115,9 @@ export const reports = sqliteTable(
     assessmentRevision: integer('assessment_revision').notNull(),
     generator: text('generator').notNull(),
     content: text('content').notNull(),
+    // レポートを作ったときの入力（JSON: { assessedOn, unlockExt, data }）。未反映の変更の判定と「作成時に戻す」に使う。
+    // 追加前に作られた行だけ NULL になりうる（マイグレーションで埋める）。
+    assessmentInput: text('assessment_input'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

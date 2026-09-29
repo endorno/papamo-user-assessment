@@ -38,7 +38,7 @@ import { useToast } from '../components/Toast';
 import { formatJapaneseDate, formatJapaneseMonth, genderLabel, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
-type ConfirmAction = 'start' | 'archive' | 'remove' | 'delete' | null;
+type ConfirmAction = 'start' | 'resolvePending' | 'archive' | 'remove' | 'delete' | null;
 
 interface ChildFormState {
   name: string;
@@ -66,6 +66,12 @@ function readChild(value: unknown): ChildDetail {
 }
 
 function confirmationFor(action: Exclude<ConfirmAction, null>) {
+  if (action === 'resolvePending') return {
+    title: '前回の変更がレポートに反映されていません',
+    message: '次の回を作ると、前の回は編集できなくなります。先に前回の入力画面で「レポートを更新」するか、レポート作成時の内容に戻してください。',
+    label: '前回の入力を開く',
+    tone: 'primary' as const,
+  };
   if (action === 'start') return {
     title: '新しいアセスメントを始めますか？',
     message: '新しい回を作成すると、前の回の入力内容は編集できなくなります。レポートの閲覧と印刷は引き続きできます。',
@@ -271,6 +277,10 @@ export function ChildPage() {
   function confirmPendingAction() {
     const action = confirmAction;
     setConfirmAction(null);
+    if (action === 'resolvePending') {
+      const latestCompleted = child?.assessments.filter((assessment) => assessment.status === 'done').at(-1);
+      if (latestCompleted) navigate(`/assessments/${latestCompleted.id}`);
+    }
     if (action === 'start') void startAssessment();
     if (action === 'archive') void archive();
     if (action === 'remove') void removeMembership();
@@ -342,7 +352,10 @@ export function ChildPage() {
                   <button
                     className={`${styles.primaryButton} ${styles.bigButton}`}
                     type="button"
-                    onClick={() => latestCompleted ? setConfirmAction('start') : void startAssessment()}
+                    onClick={() => {
+                      if (!latestCompleted) void startAssessment();
+                      else setConfirmAction(latestCompleted.hasUnreportedChanges ? 'resolvePending' : 'start');
+                    }}
                     disabled={busy}
                   >
                     アセスメントを始める
@@ -356,6 +369,15 @@ export function ChildPage() {
           </header>
 
           {actionError ? <div className={styles.inlineError} role="alert">{actionError}</div> : null}
+          {latestCompleted?.hasUnreportedChanges && !readOnly ? (
+            <div className={styles.unreportedNotice} role="status">
+              <div>
+                <strong>第{latestCompleted.seqNo}回の入力に、レポートへ反映していない変更があります</strong>
+                <p>保護者向けレポートとこのページは、変更前の内容のままです。入力画面で「レポートを更新」するか、作成時の内容に戻してください。</p>
+              </div>
+              <Link className={styles.secondaryButton} to={`/assessments/${latestCompleted.id}`}>入力画面で確認する</Link>
+            </div>
+          ) : null}
 
           <ChildTabs current={tab} onSelect={selectTab} />
 
@@ -421,12 +443,14 @@ export function ChildPage() {
                         return (
                           <li key={assessment.id}>
                             <div><strong>第{assessment.seqNo}回</strong><span>{formatJapaneseDate(assessment.assessedOn)}</span></div>
-                            <span className={assessment.status === 'done' ? styles.badgeDone : styles.badgeDraft}>{assessment.status === 'done' ? '完了' : '入力中'}</span>
+                            <span className={assessment.status === 'draft' ? styles.badgeDraft : assessment.hasUnreportedChanges ? styles.badgeChanged : styles.badgeDone}>
+                              {assessment.status === 'draft' ? '入力中' : assessment.hasUnreportedChanges ? 'レポート未反映' : '完了'}
+                            </span>
                             <div className={styles.historyActions}>
                               {assessment.status === 'draft' ? <Link to={`/assessments/${assessment.id}`}>入力を続ける</Link> : (
                                 <>
                                   {assessment.reportAvailable ? <Link to={`/reports/${assessment.id}`}>レポート</Link> : null}
-                                  {isLatest && !readOnly ? <Link to={`/assessments/${assessment.id}`}>入力内容を編集</Link> : null}
+                                  {isLatest && !readOnly ? <Link to={`/assessments/${assessment.id}`}>{assessment.hasUnreportedChanges ? '変更を確認' : '入力内容を編集'}</Link> : null}
                                 </>
                               )}
                             </div>

@@ -78,7 +78,7 @@ afterEach(() => {
 
 describe('保護者向けレポート', () => {
   it('初回レポートの見出しと困りごとを初回向けに表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
@@ -98,7 +98,7 @@ describe('保護者向けレポート', () => {
   });
 
   it('比較レポートを4枚構成と日本語ラベルで表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
@@ -128,9 +128,19 @@ describe('保護者向けレポート', () => {
     expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();
   });
 
+  it('レポート作成後に入力が変更されていれば、印刷しない案内で知らせる', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const notice = await screen.findByText('このレポートを作ったあとに、入力が変更されています');
+    const container = notice.closest('[role="status"]');
+    expect(container).toHaveAttribute('data-print-hidden');
+    expect(within(container as HTMLElement).getByRole('link', { name: '入力画面を開く' })).toHaveAttribute('href', '/assessments/assessment-1');
+  });
+
   it('印刷ボタンからブラウザ印刷を呼び出す', async () => {
     const print = vi.fn();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     vi.stubGlobal('print', print);
     renderReportPage();
     fireEvent.click(await screen.findByRole('button', { name: '印刷 / PDF' }));

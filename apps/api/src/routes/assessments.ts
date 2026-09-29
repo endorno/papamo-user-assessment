@@ -2,6 +2,7 @@ import {
   assessmentCompleteRequestSchema,
   assessmentPatchRequestSchema,
   assessmentResponseSchema,
+  assessmentRevertRequestSchema,
   reportResponseSchema,
 } from '@papamo/shared';
 import { Hono } from 'hono';
@@ -15,6 +16,7 @@ import {
   getAssessment,
   getReport,
   patchAssessment,
+  revertAssessment,
 } from '../services/assessments';
 
 export const assessmentsRoutes = new Hono<{
@@ -87,6 +89,31 @@ assessmentsRoutes.post('/:id/complete', async (context) => {
       parsed.data.updatedAt,
     );
     return context.json(reportResponseSchema.parse(completed));
+  } catch (caught) {
+    return serviceError(context, caught);
+  }
+});
+
+// 完了済みの回の入力を、レポートを作ったときの内容に戻す。
+assessmentsRoutes.post('/:id/revert', async (context) => {
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return jsonError(context, 'validation', '入力内容を確認してください。', 400);
+  }
+  const parsed = assessmentRevertRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(context, 'validation', '入力内容を確認してください。', 400);
+  }
+  try {
+    const assessment = await revertAssessment(
+      context.env,
+      context.req.param('id'),
+      context.get('coach').id,
+      parsed.data.updatedAt,
+    );
+    return context.json(assessmentResponseSchema.parse({ assessment }));
   } catch (caught) {
     return serviceError(context, caught);
   }

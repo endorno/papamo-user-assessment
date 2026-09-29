@@ -5,6 +5,7 @@ import {
   assessmentDataDraftSchema,
   assessmentResponseSchema,
   bandName,
+  changedAssessmentSections,
   COPM_FIELDS,
   COPM_MAX,
   COPM_SCORE_DEFAULT,
@@ -30,13 +31,14 @@ import {
   withoutExtExerciseInput,
   type AssessmentData,
   type AssessmentDetail,
+  type AssessmentSectionKey,
   type CopmGoal,
   type EngagementKey,
   type ExerciseDefinition,
   type PpiKey,
 } from '@papamo/shared';
 import { apiRequest, ApiClientError } from '../api/client';
-import { useUnsavedChanges } from '../app/UnsavedChangesContext';
+import { GuardedLink, useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -105,10 +107,14 @@ function formatClock(value: string | null) {
   return parsed.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
-function savedMessageFor(assessment: AssessmentDetail) {
-  return assessment.status === 'done'
-    ? `保存済み・レポートも更新しました ${clockNow()}`
-    : `保存済み ${clockNow()}`;
+// 完了済みの回でも、保存で変わるのは入力だけ。レポートへの反映は「レポートを更新」を押したとき。
+function savedAtMessage() {
+  return `保存済み ${clockNow()}`;
+}
+
+/** 入力画面のセクションの要素 ID（ジャンプナビと、未反映の変更の案内で使う）。 */
+function sectionId(key: AssessmentSectionKey) {
+  return `assessment-${key}`;
 }
 
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
@@ -173,6 +179,8 @@ export function AssessmentPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showSurveyImport, setShowSurveyImport] = useState(false);
   const [wantLimitNotice, setWantLimitNotice] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   // 保存処理は非同期に連なるため、描画用の state とは別に最新値を ref で持つ。
   const assessmentRef = useRef<AssessmentDetail | null>(null);
@@ -265,7 +273,7 @@ export function AssessmentPage() {
         if (changeVersionRef.current === savedVersion) {
           applyForm(formFromAssessment(saved), false);
           window.localStorage.removeItem(localDraftKey(saved.id));
-          setSavedMessage(savedMessageFor(saved));
+          setSavedMessage(savedAtMessage());
         }
         return true;
       } catch (caught) {
@@ -494,6 +502,44 @@ export function AssessmentPage() {
     }
   }
 
+  // 完了済みの回の入力を、レポートを作ったときの内容に戻す。保存待ちの入力も取り消す対象なので送らない。
+  async function revertToReported() {
+    const currentSession = sessionRef.current;
+    if (!currentSession || !assessmentRef.current || assessmentRef.current.readOnly) return;
+    setReverting(true);
+    setPageError(null);
+    const wasDirty = dirtyRef.current;
+    dirtyRef.current = false;
+    if (inFlightRef.current) await inFlightRef.current;
+    // 送信中だった保存の結果で更新日時が進んでいるため、待ったあとの最新を使う。
+    const current = assessmentRef.current;
+    if (!current) {
+      setReverting(false);
+      return;
+    }
+    try {
+      const response = await apiRequest<unknown>(`/assessments/${current.id}/revert`, currentSession, {
+        method: 'POST',
+        body: JSON.stringify({ updatedAt: current.updatedAt }),
+      });
+      const reverted = readAssessment(response);
+      changeVersionRef.current += 1;
+      applyAssessment(reverted);
+      applyForm(formFromAssessment(reverted), false);
+      setSaveError(null);
+      window.localStorage.removeItem(localDraftKey(reverted.id));
+      setSavedMessage(`レポート作成時の内容に戻しました ${clockNow()}`);
+      showToast('レポート作成時の内容に戻しました。');
+    } catch (caught) {
+      dirtyRef.current = wasDirty;
+      if (!returnToListIfDeleted(caught)) {
+        setPageError(caught instanceof Error ? caught.message : 'レポート作成時の内容に戻せませんでした。');
+      }
+    } finally {
+      setReverting(false);
+    }
+  }
+
   async function closeAndReturn() {
     const current = assessmentRef.current;
     if (!current) return;
@@ -543,28 +589,38 @@ export function AssessmentPage() {
   const missingExercises = exercises.filter((exercise) => form.data.lv[exercise.key] === undefined);
   const missingPpi = PPI_QUESTIONS.filter(({ key }) => form.data.ppi[key] === undefined);
   const completionIssues = [
-    ...missingExercises.map((exercise) => ({ target: `assessment-${exercise.key}`, label: `${exercise.name}のLv` })),
+    ...missingExercises.map((exercise) => ({ target: sectionId(exercise.key), label: `${exercise.name}のLv` })),
     ...form.data.copm.flatMap((goal, index) => (
       goal.text.trim() ? [] : [{ target: `copm-text-${index}`, label: `目標${index + 1}の文言` }]
     )),
-    ...(missingPpi.length ? [{ target: 'assessment-ppi', label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
+    ...(missingPpi.length ? [{ target: sectionId('ppi'), label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
   ];
-  const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing;
+  const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing && !reverting;
+  // 完了済みの回は、レポートを作ったときの入力と比べて、まだ反映していない変更を示す。
+  const done = assessment.status === 'done';
+  const changedSections = done && assessment.reported ? changedAssessmentSections(assessment.reported, form) : [];
+  // レポート作成時の入力が残っていない古い回は差分を判定できないので、更新ボタンを出したままにする。
+  const reportUpToDate = done && assessment.reported !== null && changedSections.length === 0;
   const conflict = saveError instanceof ApiClientError && saveError.code === 'conflict';
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
   const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
   const answeredEngagement = ENGAGEMENT_AXES.filter(({ key }) => form.data.engagement[key as EngagementKey] !== undefined);
   const troubleCategories = TROUBLE_CATEGORIES[assessment.child.ageGroup];
   const troubleOptions = troubleCategories.flatMap((category) => category.items.map(({ text }) => text));
-  const navSections = [
-    { id: 'assessment-basic', label: '基本情報', complete: true },
-    ...exercises.map((exercise) => ({ id: `assessment-${exercise.key}`, label: `${exercise.icon} ${exercise.name}`, complete: form.data.lv[exercise.key] !== undefined })),
-    { id: 'assessment-engagement', label: '取り組みの発達', complete: answeredEngagement.length > 0 },
-    { id: 'assessment-troubles', label: 'お困りごと', complete: form.data.troubles.length > 0 },
-    { id: 'assessment-goals', label: 'ご家族・本人の目標', complete: form.data.copm.length > 0 },
-    { id: 'assessment-ppi', label: 'ご家庭のお困り度', complete: missingPpi.length === 0 },
-    { id: 'assessment-memo', label: 'コーチ所見メモ', complete: true },
+  const navSections: { key: AssessmentSectionKey; label: string; complete: boolean }[] = [
+    { key: 'basic', label: '基本情報', complete: true },
+    ...exercises.map((exercise) => ({ key: exercise.key, label: `${exercise.icon} ${exercise.name}`, complete: form.data.lv[exercise.key] !== undefined })),
+    { key: 'engagement', label: '取り組みの発達', complete: answeredEngagement.length > 0 },
+    { key: 'troubles', label: 'お困りごと', complete: form.data.troubles.length > 0 },
+    { key: 'goals', label: 'ご家族・本人の目標', complete: form.data.copm.length > 0 },
+    { key: 'ppi', label: 'ご家庭のお困り度', complete: missingPpi.length === 0 },
+    { key: 'memo', label: 'コーチ所見メモ', complete: true },
   ];
+  const sectionLabels = new Map(navSections.map((section) => [section.key, section.label]));
+  // ナビに無いセクション（4・5種目目を閉じた回の種目など）は種目名で補う。
+  const changedLabel = (key: AssessmentSectionKey) => sectionLabels.get(key)
+    ?? EXERCISES.find((exercise) => exercise.key === key)?.name
+    ?? key;
 
   return (
     <div className={styles.pageFrame}>
@@ -573,9 +629,10 @@ export function AssessmentPage() {
         <div className={`${styles.pageInner} ${styles.assessmentLayout}`}>
           <nav className={styles.jumpNav} aria-label="入力項目">
             {navSections.map((section) => (
-              <a href={`#${section.id}`} key={section.id} aria-current={activeSection === section.id ? 'true' : undefined}>
+              <a href={`#${sectionId(section.key)}`} key={section.key} aria-current={activeSection === sectionId(section.key) ? 'true' : undefined}>
                 <span className={section.complete ? styles.jumpComplete : styles.jumpIncomplete} aria-hidden="true">{section.complete ? '✓' : '・'}</span>
                 <span>{section.label}</span>
+                {changedSections.includes(section.key) ? <span className={styles.jumpChanged}>未反映</span> : null}
               </a>
             ))}
           </nav>
@@ -602,6 +659,20 @@ export function AssessmentPage() {
               </div>
             ) : null}
             {pageError ? <div className={styles.inlineError} role="alert">{pageError}</div> : null}
+            {changedSections.length && !assessment.readOnly ? (
+              <div className={styles.unreportedNotice} role="status">
+                <div>
+                  <strong>レポート作成後に変更した項目があります</strong>
+                  <p>保護者向けレポートにはまだ反映されていません。反映するには下の「レポートを更新」を押してください。</p>
+                  <span className={styles.unreportedSections}>
+                    {changedSections.map((key) => <a href={`#${sectionId(key)}`} key={key}>{changedLabel(key)}</a>)}
+                  </span>
+                </div>
+                <button className={styles.secondaryButton} type="button" disabled={reverting || completing} onClick={() => setConfirmRevert(true)}>
+                  {reverting ? '戻しています…' : 'レポート作成時の内容に戻す'}
+                </button>
+              </div>
+            ) : null}
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-basic" data-assessment-section aria-labelledby="basic-title">
               <div className={styles.sectionHeader}><div><h2 id="basic-title">基本情報</h2><p className={styles.muted}>今回の実施日を確認します</p></div></div>
@@ -836,7 +907,7 @@ export function AssessmentPage() {
                 <><strong>この回は閲覧のみです</strong><span>{readOnlyMessage}</span></>
               ) : completionIssues.length ? (
                 <>
-                  <strong>レポート作成まで、あと{completionIssues.length}項目です</strong>
+                  <strong>レポート{done ? '更新' : '作成'}まで、あと{completionIssues.length}項目です</strong>
                   <span className={styles.dockIssues}>
                     {completionIssues.map((issue) => (
                       <a href={`#${issue.target}`} key={issue.target}>{issue.label}</a>
@@ -844,7 +915,13 @@ export function AssessmentPage() {
                   </span>
                 </>
               ) : dirty || saving ? (
-                <><strong>入力内容を保存しています</strong><span>保存が終わるとレポートを作成できます。</span></>
+                <><strong>入力内容を保存しています</strong><span>保存が終わるとレポートを{done ? '更新' : '作成'}できます。</span></>
+              ) : reportUpToDate ? (
+                <><strong>レポートは最新の入力内容で作成済みです</strong><span>入力を変えると、ここから「レポートを更新」で反映できます。</span></>
+              ) : done && changedSections.length ? (
+                <><strong>レポートに反映していない変更があります</strong><span>「レポートを更新」を押すと今の入力で作り直し、あなたがレポートの担当になります。</span></>
+              ) : done ? (
+                <><strong>入力内容からレポートを作り直せます</strong><span>「レポートを更新」を押すと、あなたがレポートの担当になります。</span></>
               ) : (
                 <><strong>必要な入力がそろいました</strong><span>保存済みです。レポートを作成できます。</span></>
               )}
@@ -853,11 +930,24 @@ export function AssessmentPage() {
               <button className={styles.secondaryButton} type="button" disabled={closing} onClick={() => void closeAndReturn()}>
                 {closing ? '保存中…' : 'いったん閉じる'}
               </button>
-              <button className={styles.primaryButton} type="button" disabled={!canComplete} onClick={() => void complete()}>{completing ? '作成中…' : assessment.status === 'done' ? 'レポートを更新' : 'レポートを作る'}</button>
+              {reportUpToDate && !assessment.readOnly ? (
+                <GuardedLink className={styles.primaryButton} to={`/reports/${assessment.id}`}>レポートを見る</GuardedLink>
+              ) : (
+                <button className={styles.primaryButton} type="button" disabled={!canComplete} onClick={() => void complete()}>{completing ? '作成中…' : done ? 'レポートを更新' : 'レポートを作る'}</button>
+              )}
             </div>
           </div>
         </div>
 
+        <ConfirmDialog
+          open={confirmRevert}
+          title="レポート作成時の内容に戻しますか？"
+          message="レポートを作ったあとに変更した入力を取り消し、今のレポートと同じ内容に戻します。この操作は取り消せません。"
+          detail={changedSections.length ? <p>戻す項目：{changedSections.map(changedLabel).join('・')}</p> : null}
+          confirmLabel="作成時の内容に戻す"
+          onCancel={() => setConfirmRevert(false)}
+          onConfirm={() => { setConfirmRevert(false); void revertToReported(); }}
+        />
         <ConfirmDialog
           open={confirmDiscard}
           title="下書きを破棄しますか？"

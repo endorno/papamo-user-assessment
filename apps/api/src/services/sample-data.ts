@@ -380,6 +380,7 @@ export async function createSampleChild(
         assessmentRevision: 1,
         generator: content.generator,
         content: JSON.stringify(content),
+        assessmentInput: JSON.stringify({ assessedOn, unlockExt, data }),
         createdAt: completedAt,
         updatedAt: completedAt,
       }));

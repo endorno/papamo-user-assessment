@@ -69,6 +69,7 @@ export function ReportPage() {
   const { session } = useAuth();
   const [report, setReport] = useState<ParsedReport | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
+  const [hasUnreportedChanges, setHasUnreportedChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export function ReportPage() {
         if (!parsed.success) throw new Error('レポートを読み込めませんでした。');
         setReport(parsed.data.report);
         setChildId(parsed.data.childId);
+        setHasUnreportedChanges(parsed.data.hasUnreportedChanges);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
@@ -109,7 +111,7 @@ export function ReportPage() {
   const measuredTotal = measuredLevels.reduce((sum, level) => sum + level.lv, 0);
   const measuredMax = measuredLevels.reduce((sum, level) => sum + level.maxLv, 0);
   const page1HeadingCount = [report.kind === 'comparison', report.engagement.length > 0].filter(Boolean).length;
-  // 4枚目は「ご家庭のお困り度」が必ず入り、目標系は入力があったときだけ加わる。
+  // 3枚目は「ご家庭のお困り度」が必ず入り、目標は入力があったときだけ加わる。
   const page3HeadingCount = (report.copm.length > 0 ? 1 : 0) + 1;
 
   return (
@@ -125,6 +127,15 @@ export function ReportPage() {
               <button className={styles.primaryButton} type="button" onClick={() => window.print()}>印刷 / PDF</button>
             </div>
           </div>
+          {hasUnreportedChanges ? (
+            <div className={styles.unreportedNotice} role="status" data-print-hidden>
+              <div>
+                <strong>このレポートを作ったあとに、入力が変更されています</strong>
+                <p>変更はまだこのレポートに反映されていません。反映するには、入力画面で「レポートを更新」を押してください。</p>
+              </div>
+              <Link className={styles.secondaryButton} to={`/assessments/${id}`}>入力画面を開く</Link>
+            </div>
+          ) : null}
 
           {/* Page 1：現在地と強み */}
           <section className="sheet" aria-label="レポート1ページ目">
