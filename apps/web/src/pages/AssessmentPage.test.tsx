@@ -10,9 +10,15 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
+import { assessmentPatchRequestSchema } from '@papamo/shared';
+import { render } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+
 import { AssessmentPage } from './AssessmentPage';
-import { renderWithProviders } from '../test-utils';
-import { Route, Routes } from 'react-router';
+import { MeProvider } from '../app/MeContext';
+import { UnsavedChangesProvider } from '../app/UnsavedChangesContext';
+import { ToastProvider } from '../components/Toast';
+import { renderWithProviders, testCoach } from '../test-utils';
 
 const assessment = {
   id: 'assessment-1',
@@ -58,6 +64,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe('アセスメント入力', () => {
   beforeEach(() => {
+    auth.session = { access_token: 'test-token' };
     window.localStorage.clear();
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'PATCH') {
@@ -321,6 +328,57 @@ describe('アセスメント入力', () => {
 
     expect(await screen.findByText('担当一覧へ戻りました')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('削除されたため');
+  });
+});
+
+describe('アセスメント入力：保存が止まらないこと', () => {
+  beforeEach(() => {
+    auth.session = { access_token: 'test-token' };
+    window.localStorage.clear();
+    // API と同じスキーマで検証し、通らない保存は 400 を返す。
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body));
+        if (!assessmentPatchRequestSchema.safeParse(body).success) {
+          return jsonResponse({ error: { code: 'validation', message: 'アセスメントの入力内容を確認してください。' } }, 400);
+        }
+        return jsonResponse({ assessment: { ...assessment, data: body.data, updatedAt: '2026-09-12T00:01:00.000Z' } });
+      }
+      return jsonResponse({ assessment });
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('ログインの更新でセッションが差し替わっても、入力中の内容を読み直して消さない', async () => {
+    const tree = () => (
+      <MemoryRouter initialEntries={['/assessments/assessment-1']}>
+        <MeProvider me={testCoach} setMe={() => undefined}>
+          <ToastProvider>
+            <UnsavedChangesProvider>
+              <Routes><Route path="/assessments/:id" element={<AssessmentPage />} /></Routes>
+            </UnsavedChangesProvider>
+          </ToastProvider>
+        </MeProvider>
+      </MemoryRouter>
+    );
+    const view = render(tree());
+    const memo = await screen.findByLabelText('コーチ所見メモ（内部用）');
+    fireEvent.change(memo, { target: { value: '入力途中のメモ' } });
+
+    auth.session = { access_token: 'refreshed-token' };
+    view.rerender(tree());
+
+    expect(screen.getByLabelText('コーチ所見メモ（内部用）')).toHaveValue('入力途中のメモ');
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => !init?.method)).toHaveLength(1);
+    await waitFor(() => {
+      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(JSON.parse(String(patchCall?.[1]?.body)).data.memo).toBe('入力途中のメモ');
+    }, { timeout: 3000 });
   });
 });
 

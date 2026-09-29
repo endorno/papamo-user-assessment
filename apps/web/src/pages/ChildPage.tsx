@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 
 import {
@@ -124,15 +124,24 @@ export function ChildPage() {
     return true;
   }, [navigate, showToast]);
 
+  // トークンの更新で読み直すと、編集中の登録情報フォームが戻ってしまう。読み込みは開いたときと操作の後だけにする。
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+  const hasSession = Boolean(session);
+
   const reload = useCallback(async () => {
-    if (!session || !id) return;
-    const response = await apiRequest<unknown>(`/children/${id}`, session);
+    const currentSession = sessionRef.current;
+    if (!currentSession || !id) return;
+    const response = await apiRequest<unknown>(`/children/${id}`, currentSession);
     const loaded = readChild(response);
     setChild(loaded);
     setChildForm(formFromChild(loaded));
-  }, [id, session]);
+  }, [id]);
 
   useEffect(() => {
+    if (!hasSession) return;
     let active = true;
     void reload()
       .catch((caught) => {
@@ -143,7 +152,7 @@ export function ChildPage() {
     return () => {
       active = false;
     };
-  }, [reload, returnToListIfDeleted]);
+  }, [hasSession, reload, returnToListIfDeleted]);
 
   // タブは URL に残し、リロードや共有でも同じタブを開けるようにする。履歴は増やさない。
   function selectTab(next: ChildTabKey) {

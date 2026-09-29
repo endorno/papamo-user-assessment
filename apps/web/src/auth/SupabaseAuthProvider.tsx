@@ -52,10 +52,18 @@ export function SupabaseAuthProvider({ children }: PropsWithChildren) {
       }
     });
 
+    // supabase-js はタブが前面に戻るたびに、中身の同じセッションを新しいオブジェクトで通知する（SIGNED_IN）。
+    // 参照が変わるとセッションに依存する画面が読み込み直すため、トークンが変わったときだけ差し替える。
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
+      setSession((current) => (
+        current && nextSession
+        && current.access_token === nextSession.access_token
+        && current.user.id === nextSession.user.id
+          ? current
+          : nextSession
+      ));
       setLoading(false);
     });
 

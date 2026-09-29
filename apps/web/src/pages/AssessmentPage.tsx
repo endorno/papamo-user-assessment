@@ -229,13 +229,16 @@ export function AssessmentPage() {
     if (JSON.stringify(local.form) !== JSON.stringify(loadedForm)) setLocalRestore(local);
   }, [applyAssessment, applyForm, id]);
 
+  // 読み込むのは開いたとき（とログイン直後）だけ。トークンの更新で読み直すと、入力中の内容をサーバーの内容で上書きしてしまう。
+  const hasSession = Boolean(session);
   useEffect(() => {
+    if (!hasSession) return;
     void loadAssessment().catch((caught) => {
       if (!returnToListIfDeleted(caught)) {
         setPageError(caught instanceof Error ? caught.message : '読み込みに失敗しました。');
       }
     });
-  }, [loadAssessment, returnToListIfDeleted, session]);
+  }, [hasSession, loadAssessment, returnToListIfDeleted]);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
     if (inFlightRef.current) await inFlightRef.current;
