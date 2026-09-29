@@ -70,6 +70,7 @@
 - 共有コードの失効・再発行はしない。誰がいつ取り込んだかは記録に残るため、運用でカバーする。
 - 子どもの名前は **下の名前のみを想定**。敬称は「くん／ちゃん／さん」。姓・住所・写真などは扱わない。
 - 性別は「男の子／女の子／選ばない」。**敬称とは連動させない**（女の子でも「くん」で呼ぶなど、呼び方は家庭ごとに違うため）。既定は「選ばない」。
+- 1人のコーチが担当できる子ども（アーカイブ中を除く）は **100名まで**（`MAX_ACTIVE_CHILDREN_PER_COACH`）。登録・共有コードでの取り込み・アーカイブからの復元で上限を超える場合は 409 で止める。一覧はページングしないため、100名を超える運用になったらページングを入れる（2026-09-30）。すでに担当している子どものオーナー移譲は人数が増えないので止めない。同時操作などでわずかに超えることは許容する（一覧は超えても描ける）。
 
 ### 2.3 アセスメント
 
@@ -97,6 +98,11 @@
 
 - レポートは **保護者向けのみ**。コーチ向けの内容（優先テーマ・次に狙うLv・つまずき・所見）は子どもページで閲覧する。
 - アセスメントとレポートは何度でも編集・出力ができる。ただし、次のアセスメントを作った後は編集不可とする（アセスメントは過去のデータを参考にするので差分が生じ、混乱を生むため）
+- 完了後の編集は自動保存で **常に記録する** が、**レポートへの反映は「レポートを更新」を押したときだけ** 行う。押したコーチがそのレポートの担当になる（2026-09-30）。
+  - レポートに反映していない変更があるときは、入力画面（変更したセクションとジャンプナビ）・子どもページ・レポート画面で示す。レポート画面の案内は印刷しない。
+  - 入力画面から「レポート作成時の内容に戻す」ことができる（取り消し不可の確認を挟む）。
+  - 未反映の変更が残っている間は次のアセスメントを始められない（次の回を作ると前の回は編集できなくなり、変更が宙に浮くため）。子どもページでは前回の入力画面へ案内する。
+  - 前回との比較・子どもページ・一覧は、完了済みの回を **レポートに反映した入力** で扱う（下書きの目標を完了まで出さないのと同じ考え方）。
 - 「保護者に共有した」フラグはモックUIにはあるが、実装不要。コーチが自己責任で保護者に共有する。
 - PDF は **ブラウザ印刷**（`window.print()` + 印刷用CSS）。サーバー側PDF生成は初期はしない。
 - 引き継ぎシートもモックUIにはあるが実装不要。子どもの共有機能（共有コード）で代替する。
@@ -235,10 +241,11 @@ children          id PK, share_code UNIQUE, owner_share_code UNIQUE, created_by 
 child_coaches     child_id, coach_id, role ('owner'|'member'), created_at   PK(child_id, coach_id)
 assessments       id PK, child_id → children.id, seq_no (1,2,3...), status ('draft'|'done'), assessed_on,
                   coach_id → coaches.id, unlock_ext (bool), prev_assessment_id (null 可), master_version,
-                  data (JSON: AssessmentData), created_at, updated_at, completed_at (null 可)
+                  data (JSON: AssessmentData), revision (int), mutation_id, created_at, updated_at, completed_at (null 可)
                   UNIQUE(child_id, seq_no) / 部分 UNIQUE INDEX で「child_id ごとに draft は1件」
-reports           id PK, assessment_id UNIQUE → assessments.id, generator ('rule_v1'...),
-                  content (JSON: ReportContent), created_at, updated_at
+reports           id PK, assessment_id UNIQUE → assessments.id, assessment_revision (int), generator ('rule_v1'...),
+                  content (JSON: ReportContent), assessment_input (JSON: レポートを作ったときの { assessedOn, unlockExt, data }。0002 より前の行だけ null 可),
+                  created_at, updated_at
 
 ```
 
@@ -261,7 +268,7 @@ reports           id PK, assessment_id UNIQUE → assessments.id, generator ('ru
 
 ```
 
-zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。目標の唯一の保存元はその回の `copm` とし、`children` や `AssessmentData.goals` へ重複保存しない。次の下書きには直前の完了アセスメントの `copm` を初期値としてコピーし、初回は空欄から始める。
+zod スキーマは **下書き用（すべて optional）と完了用（全種目の `lv`・PPI 全5設問が必須）の2段構え** にする。`PATCH` は下書き用で検証し、`complete` は完了用で検証する。目標（COPM）は下書きでは文言が空の行も保存でき（「目標を追加」した直後の行で自動保存を止めないため）、完了用は前後の空白を落として1文字以上を求める。自由記入欄の文字数上限は `TEXT_LIMITS` に置き、API の検証と入力欄の `maxLength` で同じ値を使う。目標の唯一の保存元はその回の `copm` とし、`children` や `AssessmentData.goals` へ重複保存しない。次の下書きには直前の完了アセスメントの `copm` を初期値としてコピーし、初回は空欄から始める。
 
 設計上の注意
 
@@ -273,8 +280,8 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 - `age_group`（`sch` / `pre`）は列に持たず、**その時点の学年から算出**する（マスタ `grades.ts`）。困りごとセットの出し分けに使う。
 - `archived_at` が入っている子どもは一覧・催促・共有コードの取り込み対象から外れ、書き込み系 API は 409 を返す。復元は `archived_at` を null に戻すだけ。
 - `ext_unlocked` は子ども側の永続フラグ。4・5種目目の開放操作は未開放時のアセスメント画面だけに置く。アセスメント完了時に `unlock_ext=true` なら子どもへ伝播し、以後の新規アセスメントは `unlock_ext=true` 固定。
-- 完了後の `assessments.data` と `reports.content` も、**次のアセスメントが作られるまでは更新できる**（§2.5）。更新のたびにレポートを再生成して `reports` を上書きする。次のアセスメント（draft を含む）が存在する時点で、以降その回は読み取り専用。
-- `assessments.coach_id` は **その回を完了させたコーチ**（レポートの「担当」に出る名前）。下書きを別のコーチが引き継いで完了させた場合は完了時のコーチで上書きする。
+- 完了後の `assessments.data` も、**次のアセスメントが作られるまでは更新できる**（§2.5）。自動保存は `assessments` だけを書き換え、`reports` は「レポートを更新」（`complete`）を押したときだけ作り直す。未反映の変更の有無は `reports.assessment_input` といまの入力を `changedAssessmentSections` で比べて判定する（選んだ順番だけの違いは差分にしない）。次のアセスメント（draft を含む）が存在する時点で、以降その回は読み取り専用。
+- `assessments.coach_id` は **その回のレポートを最後に作成・更新したコーチ**（レポートの「担当」に出る名前）。自動保存では変わらない。
 - `master_version` にはマスタデータの版（例 `2026-09`）を記録し、後からマスタが変わっても過去データの解釈が追えるようにする。
 
 ---
@@ -391,9 +398,9 @@ export interface ReportGenerator {
 
 ### 7.3 組み込み
 
-- `apps/api/src/services/report.ts` に `getReportGenerator(env)` を置き、`env.REPORT_GENERATOR` で実装を選ぶ。未知の値は起動時エラー。
+- `apps/api/src/services/report.ts` に `getReportGenerator(env)` を置き、`env.REPORT_GENERATOR` で実装を選ぶ。未知の値はレポート生成時にエラー（500）。
 - 生成は `POST /api/assessments/:id/complete` の中で **同期的に** 行い、`reports` に保存してから返す。生成に失敗した場合はアセスメントを `done` にしない（トランザクション or 順序で保証）。
-- 完了済みアセスメントを編集して再度 `complete` した場合は、同じ `reports` 行を上書きする（版は残さない）。再生成には **そのアセスメントの `master_version` ではなく現在のマスタ** を使い、`master_version` を更新する。
+- 完了済みアセスメントを編集して再度 `complete` した場合は、同じ `reports` 行を上書きする（版は残さない）。再生成には **そのアセスメントの `master_version` ではなく現在のマスタ** を使い、`master_version` を更新する。`reports.assessment_input` にはそのときの入力を残す（未反映の変更の判定と「作成時に戻す」に使う）。
 - LLM 版を追加するときは `packages/shared/src/report/llm/` に実装し、API キー等は Workers の Secrets から注入する。フロントは変更不要であること。
 
 ---
@@ -419,20 +426,21 @@ export interface ReportGenerator {
 | GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）                                                                                                               |
 | PUT    | `/me`                       | `{ displayName }` を更新（1〜30文字）                                                                                                                             |
 | GET    | `/children`                 | 自分に紐づく子ども（作成した子ども＋取り込んだ子ども）の一覧 + 各子どもの状態（§8.3）。**アーカイブ済みは除外**、`?archived=1` でアーカイブ済みのみ。一覧の並び順はサーバーで決める                                                     |
-| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedMonth }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成                |
-| POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、未知のコードは 404 |
-| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` を含む）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
+| POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedMonth }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成。担当が上限（100名）なら 409                |
+| POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、担当が上限（100名）で新たに担当が増える場合も 409、未知のコードは 404 |
+| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` と、レポート未反映の変更の有無 `hasUnreportedChanges` を含む。完了回はレポートに反映した入力で返す）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
 | PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedMonth? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` と目標は変更不可 |
 | DELETE | `/children/:id/membership`  | 自分のリンク解除。role=owner なら 403                                                                                                                               |
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
 | POST   | `/children/:id/archive`     | アーカイブ（退会）。owner のみ。下書きが残っていても可（下書きごと隠れる）                                                                                                                 |
-| POST   | `/children/:id/unarchive`   | 復元。owner のみ                                                                                                                                              |
-| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`wants`・`copm` の初期値（直前の完了回からコピー。初回の `copm` は空）はサーバーが埋める。`ext_unlocked` の子どもは `unlockExt` を true に強制 |
-| GET    | `/assessments/:id`          | 単体取得（前回の summary を同梱）                                                                                                                                     |
-| PATCH  | `/assessments/:id`          | 自動保存。`{ assessedOn?, unlockExt?, data }` を **全体置換**（部分マージしない）。`ext_unlocked` の子どもは `unlockExt` を true に強制。後続のアセスメントが存在する回は 409                              |
+| POST   | `/children/:id/unarchive`   | 復元。owner のみ。担当が上限（100名）なら 409                                                                                                                                           |
+| POST   | `/children/:id/assessments` | 下書き作成 `{ unlockExt }`。draft 既存なら 409。`prev_assessment_id`/`seq_no`/`troubles`・`wants`・`copm` の初期値（直前の完了回からコピー。初回の `copm` は空）はサーバーが埋める（前の回はレポートに反映した入力から）。`ext_unlocked` の子どもは `unlockExt` を true に強制。直前の完了回にレポート未反映の変更があれば 409 |
+| GET    | `/assessments/:id`          | 単体取得（前回の summary を同梱）。完了済みの回は、レポートを作ったときの入力 `reported` も返す（差分表示と「作成時に戻す」に使う）                                                                                                                                |
+| PATCH  | `/assessments/:id`          | 自動保存。`{ assessedOn?, unlockExt?, data }` を **全体置換**（部分マージしない）。`ext_unlocked` の子どもは `unlockExt` を true に強制。後続のアセスメントが存在する回は 409。完了済みの回でもレポートは作り直さない（§2.5）                              |
 | DELETE | `/assessments/:id`          | 下書きの破棄。`status='draft'` のときだけ許可（done は 409）。誤って作った下書きを消して前の回の編集に戻るための唯一の手段                                                                               |
-| POST   | `/assessments/:id/complete` | 検証（全種目の到達が選択済み・PPI 全5設問）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書き）。後続のアセスメントが存在する回は 409                        |
-| GET    | `/assessments/:id/report`   | レポート取得                                                                                                                                                    |
+| POST   | `/assessments/:id/complete` | 「レポートを作る／更新」。検証（全種目の到達が選択済み・PPI 全5設問・目標の文言が空でない）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書きし、押したコーチを担当にする）。後続のアセスメントが存在する回は 409                        |
+| POST   | `/assessments/:id/revert`   | `{ updatedAt }`。完了済みの回の入力を、レポートを作ったときの内容に戻す。下書きと、後続のアセスメントが存在する回は 409 |
+| GET    | `/assessments/:id/report`   | レポート取得。レポート作成後の未反映の変更の有無 `hasUnreportedChanges` も返す                                                                                                                                                |
 
 
 子どもスコープの全ルートで `child_coaches` **の membership を確認**する（services 層の共通関数 `requireMembership(childId, coachId)`）。アセスメント／レポートのルートは `assessment.child_id` から子どもを引いて同じ確認を通す。アーカイブ済みの子どもは **読み取りのみ許可**（復元と削除を除く書き込みは 409）、オーナー限定の操作は `role='owner'` を併せて確認する。
@@ -467,7 +475,7 @@ export interface ReportGenerator {
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | タブで「概要／振り返りと計画／登録・共有」に分ける（§15.1）。育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
-| `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、到達のドロップダウン（未実施／実施不可＋帯ごとに区切ったLv1〜上限の課題文。前回Lvに「（前回）」表示）、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
+| `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、到達のドロップダウン（未実施／実施不可＋帯ごとに区切ったLv1〜上限の課題文。前回Lvに「（前回）」表示）、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。完了済みの回では、レポート作成後に変えたセクションを案内とジャンプナビの「未反映」で示し、下部バーは「レポートを更新」（未反映がないときは「レポートを見る」）、案内から「レポート作成時の内容に戻す」を選べる。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
 | `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
 
 
@@ -494,7 +502,7 @@ export interface ReportGenerator {
 ## 10. テスト
 
 - `packages/shared`：ルールエンジン・状態判定・日付計算・**学年の自動進級**（3/31 と 4/1 の境界、上限の中3で止まること）のユニットテスト。**モックの6人分のダミーデータ（`CHILDREN` / `ASSESS`）をフィクスチャ**（`fixtures/children.ts`）にして、レポート出力をスナップショットで固定する。初回・比較・5種目開放済み（c6 の3回目）・下書き途中（c3）が最低限のケース。
-- `apps/api`：`@cloudflare/vitest-pool-workers` で D1 マイグレーションを適用した上でルートを結合テスト。認証は JWKS を差し替えられるようにし、テスト用鍵で署名したトークンを使う。必須ケース：membership 無しの 403、オーナーのリンク解除 403、通常コード／オーナー移譲コードでの取り込み、draft 重複 409、Lv 未確定の complete が 400、完了済みの回の再編集 → 再 complete でレポートが上書きされる、後続の回があるときの PATCH が 409、draft の DELETE と done の DELETE が 409、PPI 未回答での complete が 400、ext_unlocked の伝播、アーカイブ済みの子どもが一覧に出ない・書き込みが 409・復元できる、最初のレポート前は下書きと共有先ごと子どもを DELETE できる・レポート後は 409、表示名未登録での 403 `onboarding_required`。
+- `apps/api`：`@cloudflare/vitest-pool-workers` で D1 マイグレーションを適用した上でルートを結合テスト。認証は JWKS を差し替えられるようにし、テスト用鍵で署名したトークンを使う。必須ケース：membership 無しの 403、オーナーのリンク解除 403、通常コード／オーナー移譲コードでの取り込み、draft 重複 409、Lv 未確定の complete が 400、完了済みの回の再編集では自動保存でレポートが変わらず、再 complete でレポートが上書きされて押したコーチが担当になる、レポート作成時の内容に戻せる、未反映の変更があると次の回を作れない（409）、担当が100名に達すると登録・取り込み・復元が 409、後続の回があるときの PATCH が 409、draft の DELETE と done の DELETE が 409、PPI 未回答での complete が 400、ext_unlocked の伝播、アーカイブ済みの子どもが一覧に出ない・書き込みが 409・復元できる、最初のレポート前は下書きと共有先ごと子どもを DELETE できる・レポート後は 409、表示名未登録での 403 `onboarding_required`。
 - `apps/web`：主要コンポーネント（Lvリスト、状態バッジ、レポートの初回/比較切替）を Testing Library で。E2E は初期リリースでは行わない。
 - PR には必ず該当テストを含める。`pnpm -r test && pnpm -r typecheck && pnpm -r lint` が通らないものはマージしない。
 
@@ -618,6 +626,8 @@ REPORT_GENERATOR = "rule_v1"
 - 一覧カードの状態バッジは名前・学年と同じ行に置かない。日本語の学年表記と並べると300px幅のカードで重なるため、独立した行にする。次回予定のバッジは年を省く（例「次回 12月12日 予定」）。
 - アセスメント画面は縦に長いと負担に見えるため、design-mock-v2 の密度に寄せる（2026-09-28）。本文幅は最大1080px（入力欄 約870px）、見出しと補足は1行、部品の高さは PC で 32〜40px に詰める。タッチ端末（`pointer: coarse`）では 44px に戻す。スタイルは `page.module.css` 末尾の `.assessmentPage` 配下にまとめ、他画面の共通クラスには波及させない。
 - アセスメントは1ビューを維持し、ボタン・チェックは800ms、文字入力は1500msのデバウンスで自動保存する。保存中に変更された場合は古いレスポンスでフォームを戻さず、最新版を続けて保存する。
+- 入力画面と子どもページは、開いたとき（とログイン直後）だけ読み込む。supabase-js はタブが前面に戻るたびに中身の同じセッションを新しいオブジェクトで通知し、トークンも1時間ごとに更新されるため、`session` の変化で読み直すと入力中の内容がサーバーの内容で上書きされる。`SupabaseAuthProvider` もトークンが変わらない通知ではセッションを差し替えない。
+- 自動保存を止める入力を作らない。自由記入欄には `TEXT_LIMITS` の `maxLength` を付け、実施日は消した状態を保存しない。文言が空の目標行は保存し、下部バーの不足項目（「目標Nの文言」）として案内する。
 - レーダーは全軸を 0〜30 の等間隔（10刻みのリングと数値）で描く。モックの指数スケール（1.55）は使わない。Lvの差がそのまま長さの差になるようにし、未実施・実施不可は中心（0）に寄せ、未開放の種目は軸ラベルの下に「半年目以降」を出す。レポート版は加えて軸ラベルの下に今回のLv（または「未実施」「実施不可」）を出す（下記）。
 - 入力は「その場で観察して記入」と「保護者と確認して記入」の2エリアにゆるく分ける。運動観察中に保護者へ聞くこともあるため、破線と淡い地色だけにとどめ、操作やナビは分けない。
 - 入力画面の見出しには連番を振る（2026-09-28）。観察エリアの見出しは「1.アセスメント」とし、以降「2.取り組みの発達」「3.お子さまのお困りごと」「4.ご家族・本人の目標」「5.ご家庭のお困り度」「6.コーチ所見メモ」。基本情報・各種目・「保護者と確認して記入」には番号を振らない。
@@ -642,8 +652,8 @@ REPORT_GENERATOR = "rule_v1"
 - 目標の正は各アセスメントの `data.copm`。`children` と `AssessmentData` に別の `goals` 保存欄を作らない。子ども詳細レスポンスの完了アセスメント summary にだけ、`copm[].text` から導出した表示用 `goals` を返す。下書き summary の `goals` は空にする。
 - 子ども詳細の目標は直接編集しない。目標の変更はアセスメント画面の COPM で行い、完了後に子ども詳細へ反映する。
 - 困りごとの各項目は `domain` を持ち、レポートの背景ドメイン照合に使う。就学／未就学の統合が決まるまでは文言を据え置き、未就学セットの紐づけは `tuning` に出す。
-- 子ども一覧が読むアセスメントは「入力中の回」と「直近の完了回」だけに絞り、過去の全記録やアーカイブ済みの記録を読まない。一覧の並び順は 状態 → 期限超過が大きい順 → 名前。`latestAssessment.id` を返す。
-- 旧版の形で保存されたレポートは、レポート取得と子ども詳細（最新回のみ）のたびに同じ記録から作り直して返す（`regenerateStoredReport`）。保存し直すのは次の編集・完了のとき。
+- 子ども一覧が読むアセスメントは「入力中の回」と「直近の完了回」だけに絞り、過去の全記録やアーカイブ済みの記録を読まない。一覧の並び順は 状態 → 期限超過が大きい順 → 名前。`latestAssessment.id` を返す。子どもの ID を `IN (?, ?, …)` に並べると D1 のバインド変数の上限（100）に当たるため、担当の絞り込みはサブクエリで書く（開発用の一括削除も同じ）。
+- 旧版の形で保存されたレポートは、レポート取得と子ども詳細（最新回のみ）のたびにレポート作成時の入力（`assessment_input`）から作り直して返す（`regenerateStoredReport`）。名前・担当の表示名・マスタはいまの値を使う。保存し直すのは次に「レポートを更新」したとき。
 - レポート応答には本文とは別に `childId` と `assessmentId` を載せ、レポート画面から子どもページへ戻るために使う。
 - 409 は「他コーチの更新」「アーカイブ中」「後続の回あり」で共通。Web は文言ではなく `error.code` で判定する。401 は `apiRequest` が拾ってサインアウトし、中断画面は `sessionStorage` に記録して再ログイン後に戻す。
 - 存在する子ども・アセスメントに membership がない場合は403、ID自体が存在しない場合は404を返す。
@@ -651,14 +661,15 @@ REPORT_GENERATOR = "rule_v1"
 - 入会は **月単位（`joined_month` = `YYYY-MM`）** で持つ。サービス側で入会日を記録していないため（2026-09-28 変更）。入力は年・月の2つのセレクト（`MonthSelect`）で、`<input type="month">` は PC 版 Safari・Firefox で文字入力になるため使わない。「入会から何か月目」は入会月を1か月目として `monthOrdinalSince` で数え、日付計算が要る箇所は `firstDayOfMonth` でその月の1日に寄せる。`ReportContent.header.joinedMonth` は必須。
 - 外部キー、列の値域、子どもごとの単一owner・単一下書きはD1制約でも保証する。サービス層の事前確認は分かりやすいエラー表示のために残す。
 - アセスメント更新は内部の `revision` と `mutation_id` でCASを行う。`updatedAt` はクライアント向けの競合検知契約として維持する。
-- 完了済みアセスメントの自動保存では、完了用検証・レポート再生成・アセスメント更新を同じD1 batchで行う。`reports.assessment_revision` はアセスメントのrevisionと一致させる。
+- 完了済みアセスメントの自動保存は下書きと同じくアセスメントだけを更新する。「レポートを更新」（`complete`）では、完了用検証・レポート生成・アセスメント更新（担当を押したコーチに）・`assessment_input` の保存を同じD1 batchで行い、`reports.assessment_revision` はそのときのアセスメントの revision にそろえる（書き込み時にトリガーで確認する）。以後の自動保存で revision が進むのは正常で、未反映かどうかは revision ではなく入力の比較で判定する。
 - 子どもの完全削除はオーナーかつ最初のレポート作成前だけ許可する。D1 batch 内でレポートのないアセスメントを先に削除し、子ども削除を続ける。競合時は外部キーで batch 全体をロールバックし、`child_coaches` は `ON DELETE CASCADE` で削除する。
 - 共有先で開いている間に子どもが完全削除され、子ども・アセスメントAPIが `not_found` を返した場合、Webは端末下書きを破棄して担当一覧へ戻す。
 - Drizzle のクライアントは `apps/api/src/db/client.ts` の `dbFor` だけを使う。サービスごとに `drizzle()` を作らない。
 - `children` 行から学年を読むときは `apps/api/src/services/child-row.ts` の `gradeOf` を通す。
 - 「その回で記録する種目」は `activeExerciseKeys(unlockExt)`、「4・5種目目を閉じたときの入力整理」は `withoutExtExerciseInput(data, unlockExt)` を使い、API と Web で共有する。
 - `AssessmentServiceError` はコードに対応するHTTPステータスを自分で持つ。WorkersのBinding型は `wrangler types` で生成し、手書きしない。
-- 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。
+- 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。`internalError` は `describeError` を通す：Drizzle のクエリ失敗はメッセージにバインド値を含むので SQL 文と原因だけ、zod の検証エラーは項目の位置とコードだけ、JSON の解析エラーはメッセージなし、スタックは呼び出し位置の行だけを残す。
+- 401 の画面（`AuthErrorNotice`）で、ローカル Supabase・ポート番号などの開発者向けの案内は `import.meta.env.DEV` のときだけ出す。ステージング・本番のコーチには「有効期限が切れた可能性」と再試行・再ログインだけを示す。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
 - 非本番の作り直し（`pnpm --filter @papamo/api db:rebuild:local` / `db:rebuild:staging`）は本リポジトリのD1の全テーブルを `d1_migrations` ごと DROP し（`seeds/drop-all.sql`）、マイグレーションを最初から適用し直す。適用済みマイグレーションを書き換えたときは `db:migrate:*` では反映されない（ファイル名で適用済みと判定される）ため、これを使う。行だけ消すコマンドは作り直しで代替できるため持たない。テーブルを追加したら `drop-all.sql` にも足す（`seeds.test.ts` が消し残しを検出する）。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
