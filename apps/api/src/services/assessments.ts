@@ -351,12 +351,14 @@ export async function deleteAssessment(env: Env, assessmentId: string, coachId: 
   if (affectedRows(result) !== 1) throw concurrentUpdateError();
 }
 
-function assertCompletable(data: CompletedAssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
+// 完了用スキーマで弾く前に、コーチが直せる言葉で理由を返す。
+function assertCompletable(data: AssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
   const missing = activeExerciseKeys(unlockExt).filter((key) => data.lv[key] === undefined);
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
   if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
   const validTroubles = new Set(troubleItemsOf(ageGroup));
   if (!data.troubles.every((trouble) => validTroubles.has(trouble))) throw new AssessmentServiceError('validation', '困りごとの選択内容を確認してください。');
+  if (data.copm.some((goal) => !goal.text.trim())) throw new AssessmentServiceError('validation', '文言が空の目標があります。文言を入力するか、その目標を削除してください。');
 }
 
 async function coachOrThrow(env: Env, coachId: string): Promise<CoachRecord> {
@@ -491,9 +493,9 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   const draftData = assessmentDataDraftSchema.safeParse(JSON.parse(assessment.data));
   if (!draftData.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const unlockExt = child.extUnlocked || assessment.unlockExt;
+  assertCompletable(draftData.data, unlockExt, gradeOf(child, assessment.assessedOn).ageGroup);
   const data = assessmentDataCompletedSchema.safeParse(draftData.data);
   if (!data.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
-  assertCompletable(data.data, unlockExt, gradeOf(child, assessment.assessedOn).ageGroup);
 
   const previous = await previousForReport(env, assessment);
   const generatedAt = nextUpdatedAt(assessment.updatedAt);

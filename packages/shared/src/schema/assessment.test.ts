@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assessmentDataCompletedSchema,
   assessmentPatchRequestSchema,
   childCreateRequestSchema,
+  TEXT_LIMITS,
   parseStoredAssessmentData,
   withoutExtExerciseInput,
 } from './assessment';
@@ -94,5 +96,36 @@ describe('アセスメント入力スキーマ', () => {
     expect(withoutExtExerciseInput(data, true)).toBe(data);
     // 元のオブジェクトは書き換えない。
     expect(data.lv.sacc).toBe(7);
+  });
+
+  it('文言が空の目標は下書きには保存でき、完了では前後の空白を落として1文字以上を求める', () => {
+    const goal = { memo: '', performance: 5, satisfaction: 5, importance: 5 };
+    const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { copm: [{ ...goal, text: '' }] } }).success).toBe(true);
+
+    const completed = {
+      lv: { post: 1, eyeh: 1, hand: 1 },
+      observations: {},
+      observationNotes: {},
+      engagement: {},
+      envSupports: [],
+      troubles: [],
+      wants: [],
+      ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
+      ppiNote: '',
+      memo: '',
+    };
+    expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, text: '　' }] }).success).toBe(false);
+    expect(assessmentDataCompletedSchema.parse({ ...completed, copm: [{ ...goal, text: ' 縄跳びを跳べる　' }] }).copm[0]?.text)
+      .toBe('縄跳びを跳べる');
+  });
+
+  it('自由記入欄は入力欄と同じ上限で検証する', () => {
+    const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
+    const within = (data: Record<string, unknown>) => assessmentPatchRequestSchema.safeParse({ ...base, data }).success;
+    expect(within({ memo: 'あ'.repeat(TEXT_LIMITS.memo) })).toBe(true);
+    expect(within({ memo: 'あ'.repeat(TEXT_LIMITS.memo + 1) })).toBe(false);
+    expect(within({ ppiNote: 'あ'.repeat(TEXT_LIMITS.ppiNote + 1) })).toBe(false);
+    expect(within({ observationNotes: { post: 'あ'.repeat(TEXT_LIMITS.observationNote + 1) } })).toBe(false);
   });
 });

@@ -380,6 +380,28 @@ describe('アセスメント入力：保存が止まらないこと', () => {
       expect(JSON.parse(String(patchCall?.[1]?.body)).data.memo).toBe('入力途中のメモ');
     }, { timeout: 3000 });
   });
+
+  it('目標を追加しただけでは保存を止めず、レポート作成前の不足として案内する', async () => {
+    renderAssessmentPage();
+    const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    fireEvent.click(within(goals).getByRole('button', { name: '目標を追加' }));
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true);
+    }, { timeout: 2000 });
+    await waitFor(() => expect(screen.getByText(/保存済み/)).toBeInTheDocument());
+    expect(screen.queryByText('アセスメントの入力内容を確認してください。')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '目標1の文言' })).toHaveAttribute('href', '#copm-text-0');
+    expect(within(goals).getByLabelText('目標 1')).toHaveAttribute('maxLength', '100');
+  });
+
+  it('実施日を消しても、保存できない値にはしない', async () => {
+    renderAssessmentPage();
+    const date = await screen.findByLabelText('実施日');
+    fireEvent.change(date, { target: { value: '' } });
+
+    expect(date).toHaveValue('2026-09-12');
+  });
 });
 
 function renderAssessmentPage() {

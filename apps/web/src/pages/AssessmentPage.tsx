@@ -21,6 +21,7 @@ import {
   LEVEL_NOT_POSSIBLE_LABEL,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
+  TEXT_LIMITS,
   TROUBLE_CATEGORIES,
   WANT_GROUPS,
   WANT_ITEMS,
@@ -543,6 +544,9 @@ export function AssessmentPage() {
   const missingPpi = PPI_QUESTIONS.filter(({ key }) => form.data.ppi[key] === undefined);
   const completionIssues = [
     ...missingExercises.map((exercise) => ({ target: `assessment-${exercise.key}`, label: `${exercise.name}のLv` })),
+    ...form.data.copm.flatMap((goal, index) => (
+      goal.text.trim() ? [] : [{ target: `copm-text-${index}`, label: `目標${index + 1}の文言` }]
+    )),
     ...(missingPpi.length ? [{ target: 'assessment-ppi', label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
   ];
   const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing;
@@ -604,7 +608,18 @@ export function AssessmentPage() {
               <div className={styles.basicGrid}>
                 <div className={styles.formField}>
                   <label htmlFor="assessed-on">実施日</label>
-                  <input id="assessed-on" type="date" value={form.assessedOn} disabled={assessment.readOnly} onChange={(event) => updateForm((current) => ({ ...current, assessedOn: event.target.value }))} />
+                  <input
+                    id="assessed-on"
+                    type="date"
+                    required
+                    value={form.assessedOn}
+                    disabled={assessment.readOnly}
+                    onChange={(event) => {
+                      // 日付を消した状態は保存できない（自動保存が止まる）ので、入れ直すまで前の日付を保つ。
+                      const assessedOn = event.target.value;
+                      if (assessedOn) updateForm((current) => ({ ...current, assessedOn }));
+                    }}
+                  />
                 </div>
                 <div className={styles.formField}>
                   <label htmlFor="assessment-sequence">回数</label>
@@ -754,11 +769,11 @@ export function AssessmentPage() {
                   <div className={styles.copmRow} key={index}>
                     <div className={styles.formField}>
                       <label htmlFor={`copm-text-${index}`}>目標 {index + 1}</label>
-                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} maxLength={TEXT_LIMITS.copmText} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
                     <div className={styles.formField}>
                       <label htmlFor={`copm-memo-${index}`}>メモ</label>
-                      <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                      <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} maxLength={TEXT_LIMITS.copmMemo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
                     <div className={styles.copmScores}>
                       {COPM_FIELDS.map((field) => (
@@ -798,7 +813,7 @@ export function AssessmentPage() {
               ))}
               <div className={styles.formField}>
                 <label htmlFor="ppi-note">いま一番負担に感じている場面（任意）</label>
-                <input id="ppi-note" value={form.data.ppiNote} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, ppiNote: event.target.value }))} />
+                <input id="ppi-note" value={form.data.ppiNote} maxLength={TEXT_LIMITS.ppiNote} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, ppiNote: event.target.value }))} />
               </div>
             </section>
 
@@ -808,7 +823,7 @@ export function AssessmentPage() {
               <div className={styles.sectionHeader}><div><h2 id="memo-title">6.コーチ所見メモ</h2><p className={styles.muted}>内部用です。保護者レポートには出ません</p></div></div>
               <div className={styles.formField}>
                 <label htmlFor="coach-memo">コーチ所見メモ（内部用）</label>
-                <textarea id="coach-memo" rows={4} value={form.data.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
+                <textarea id="coach-memo" rows={4} value={form.data.memo} maxLength={TEXT_LIMITS.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
               </div>
             </section>
           </div>
@@ -986,6 +1001,7 @@ function ExerciseSection({
           id={`observation-note-${exercise.key}`}
           rows={2}
           value={note}
+          maxLength={TEXT_LIMITS.observationNote}
           disabled={disabled}
           placeholder="例：Lv9で頭上物が2試行とも落下。後進になると振り返る動作が出る。"
           onChange={(event) => onNoteChange(event.target.value)}

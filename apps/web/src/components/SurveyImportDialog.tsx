@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
-import { COPM_MAX, PPI_QUESTIONS, PPI_SCORE_MAX, WANT_ITEMS, WANT_MAX, type PpiKey } from '@papamo/shared';
+import { COPM_MAX, PPI_QUESTIONS, PPI_SCORE_MAX, TEXT_LIMITS, WANT_ITEMS, WANT_MAX, type PpiKey } from '@papamo/shared';
 import styles from '../styles/page.module.css';
 
-const MAX_GOAL_LENGTH = 100;
 /** アンケート1件のなかで複数の回答を並べるときの区切り（design-mock-v2 のCSV仕様）。 */
 const MULTI_VALUE_PATTERN = /[｜|,]/;
 /** お困り度は0〜5の1桁だけを取り込む。 */
@@ -126,8 +125,13 @@ export function SurveyImportDialog({
       setError(`目標は${COPM_MAX}件までです。貼り付けるセルを確認してください。`);
       return;
     }
-    if (result.goals.some((goal) => goal.length > MAX_GOAL_LENGTH)) {
-      setError(`1件の目標は${MAX_GOAL_LENGTH}文字以内にしてください。`);
+    // 上限を超えたまま取り込むと自動保存が通らなくなるため、ここで止める。
+    if (result.goals.some((goal) => goal.length > TEXT_LIMITS.copmText)) {
+      setError(`1件の目標は${TEXT_LIMITS.copmText}文字以内にしてください。`);
+      return;
+    }
+    if (result.ppiNote.length > TEXT_LIMITS.ppiNote) {
+      setError(`いま一番負担に感じている場面は${TEXT_LIMITS.ppiNote}文字以内にしてください。`);
       return;
     }
     onImport(result);

@@ -66,6 +66,18 @@ const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
 ]));
 const ppiFields = Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema.optional()]));
 
+/**
+ * 自由記入欄の文字数上限。API の検証と入力欄の maxLength で同じ値を使う
+ * （入力欄だけ上限なしにすると、超えた時点で自動保存が止まるため）。
+ */
+export const TEXT_LIMITS = {
+  copmText: 100,
+  copmMemo: 300,
+  observationNote: 500,
+  ppiNote: 200,
+  memo: 2000,
+} as const;
+
 // 見えた動作（選択）。種目ごとに固定の選択肢から複数選ぶ。
 const observationFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,
@@ -76,7 +88,7 @@ const observationFields = Object.fromEntries(EXERCISES.map((exercise) => [
 const observationsSchema = z.object(observationFields).strict();
 // 見えた動作（自由記入）。選択肢に当てはまらない動きだけを書く。
 const observationNotesSchema = z.object(
-  Object.fromEntries(EXERCISES.map((exercise) => [exercise.key, z.string().max(500).optional()])),
+  Object.fromEntries(EXERCISES.map((exercise) => [exercise.key, z.string().max(TEXT_LIMITS.observationNote).optional()])),
 ).strict();
 
 const engagementSchema = z.object(
@@ -94,14 +106,20 @@ const wantSchema = z.array(
 ).max(WANT_MAX);
 
 export const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
+// 下書きでは文言が空の行も保存する（「目標を追加」した直後の行で自動保存を止めないため）。
+// 空のまま残っている行は、レポートを作るときに止める。
 const copmGoalSchema = z.object({
-  text: z.string().trim().min(1).max(100),
-  memo: z.string().max(300).default(''),
+  text: z.string().max(TEXT_LIMITS.copmText),
+  memo: z.string().max(TEXT_LIMITS.copmMemo).default(''),
   performance: copmScoreSchema,
   satisfaction: copmScoreSchema,
   importance: copmScoreSchema,
 });
 const copmSchema = z.array(copmGoalSchema).max(COPM_MAX);
+// レポートに載せる回は、文言の前後の空白を落として1文字以上を求める（前回との突き合わせは文言の一致で行うため）。
+const completedCopmSchema = z.array(copmGoalSchema.extend({
+  text: z.string().trim().min(1, '目標の文言を入力してください。').max(TEXT_LIMITS.copmText),
+})).max(COPM_MAX);
 
 const troubleSchema = z.enum(ALL_TROUBLE_ITEMS as [string, ...string[]]);
 
@@ -115,8 +133,8 @@ export const assessmentDataDraftSchema = z.object({
   wants: wantSchema.default([]),
   copm: copmSchema.default([]),
   ppi: z.object(ppiFields).strict().default({}),
-  ppiNote: z.string().default(''),
-  memo: z.string().default(''),
+  ppiNote: z.string().max(TEXT_LIMITS.ppiNote).default(''),
+  memo: z.string().max(TEXT_LIMITS.memo).default(''),
 }).strict();
 
 export const assessmentDataPatchSchema = z.object({
@@ -129,8 +147,8 @@ export const assessmentDataPatchSchema = z.object({
   wants: wantSchema.optional(),
   copm: copmSchema.optional(),
   ppi: z.object(ppiFields).strict().optional(),
-  ppiNote: z.string().optional(),
-  memo: z.string().optional(),
+  ppiNote: z.string().max(TEXT_LIMITS.ppiNote).optional(),
+  memo: z.string().max(TEXT_LIMITS.memo).optional(),
 }).strict();
 
 export const assessmentDataCompletedSchema = z.object({
@@ -141,10 +159,10 @@ export const assessmentDataCompletedSchema = z.object({
   envSupports: envSupportSchema,
   troubles: z.array(troubleSchema),
   wants: wantSchema,
-  copm: copmSchema,
+  copm: completedCopmSchema,
   ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema]))).strict(),
-  ppiNote: z.string(),
-  memo: z.string(),
+  ppiNote: z.string().max(TEXT_LIMITS.ppiNote),
+  memo: z.string().max(TEXT_LIMITS.memo),
 }).strict();
 
 export const childCreateRequestSchema = z.object({

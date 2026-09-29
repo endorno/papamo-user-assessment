@@ -254,6 +254,31 @@ describe('アセスメントサービス', () => {
     expect(edited.status).toBe('done');
   });
 
+  it('文言が空の目標は下書きに残せるが、レポートを作るときは止める', async () => {
+    const { coach, child } = await createFixture('なぎ');
+    const assessment = await createAssessment(testEnv, child.id, coach.id, false);
+    const blankGoal = { text: '', memo: '', performance: 5, satisfaction: 5, importance: 5 };
+    const saved = await patchAssessment(testEnv, assessment.id, coach.id, {
+      data: { ...completedInput(), copm: [blankGoal] },
+      updatedAt: assessment.updatedAt,
+    });
+    expect(saved.data.copm).toEqual([blankGoal]);
+
+    await expect(completeAssessment(testEnv, assessment.id, coach, saved.updatedAt)).rejects.toMatchObject({
+      code: 'validation',
+      message: '文言が空の目標があります。文言を入力するか、その目標を削除してください。',
+    });
+
+    const filled = await patchAssessment(testEnv, assessment.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...blankGoal, text: '縄跳びを跳べる　' }] },
+      updatedAt: saved.updatedAt,
+    });
+    const { report } = await completeAssessment(testEnv, assessment.id, coach, filled.updatedAt);
+    // 前回との突き合わせは文言の一致で行うため、レポートにする時点で前後の空白を落とす。
+    expect(report.copm[0]?.text).toBe('縄跳びを跳べる');
+    expect((await getAssessment(testEnv, assessment.id, coach.id)).data.copm[0]?.text).toBe('縄跳びを跳べる');
+  });
+
   it('下書きの間は4・5種目目の開放を取り消し、入力済みのLvも落とす', async () => {
     const { coach, child } = await createFixture('かえで');
     const assessment = await createAssessment(testEnv, child.id, coach.id, true);
