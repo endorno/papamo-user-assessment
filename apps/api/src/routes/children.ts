@@ -14,7 +14,9 @@ import { Hono } from 'hono';
 import type { AppContext, AppVariables, Env } from '../env';
 import { internalError, jsonError } from '../http/errors';
 import {
+  assertCanTakeChild,
   childById,
+  ChildLimitError,
   createChild,
   deleteChildBeforeFirstReport,
   getChildForCoach,
@@ -54,6 +56,9 @@ childrenRoutes.post('/', async (context) => {
     const child = await createChild(context.env, context.get('coach').id, parsed.data);
     return context.json(childResponseSchema.parse({ child }), 201);
   } catch (caught) {
+    if (caught instanceof ChildLimitError) {
+      return jsonError(context, 'conflict', caught.message, 409);
+    }
     return internalError(context, caught, 'child.create', 'お子さまを登録できませんでした。');
   }
 });
@@ -76,6 +81,9 @@ childrenRoutes.post('/import', async (context) => {
   }
   if (result.kind === 'conflict') {
     return jsonError(context, 'conflict', 'そのお子さまはすでに一覧にあります。', 409);
+  }
+  if (result.kind === 'limit') {
+    return jsonError(context, 'conflict', new ChildLimitError().message, 409);
   }
   const child = await getChildForCoach(context.env, result.childId, context.get('coach').id);
   if (!child) {
@@ -207,6 +215,14 @@ async function archive(context: AppContext, archived: boolean) {
   }
   if (membership !== 'owner') {
     return jsonError(context, 'forbidden', 'この操作はオーナーのみ行えます。', 403);
+  }
+  if (!archived) {
+    try {
+      await assertCanTakeChild(context.env, context.get('coach').id);
+    } catch (caught) {
+      if (caught instanceof ChildLimitError) return jsonError(context, 'conflict', caught.message, 409);
+      throw caught;
+    }
   }
   await setArchiveState(context.env, childId, archived);
   const child = await getChildForCoach(context.env, childId, context.get('coach').id);

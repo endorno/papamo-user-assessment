@@ -1,10 +1,11 @@
-import { and, asc, eq, inArray, isNotNull, isNull, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNotNull, isNull, notExists, or, sql } from 'drizzle-orm';
 import { ulid } from 'ulid';
 
 import {
   parseStoredAssessmentData,
   formatShareCode,
   generateShareCode,
+  MAX_ACTIVE_CHILDREN_PER_COACH,
   normalizeShareCode,
   reportContentSchema,
   schoolYear,
@@ -30,6 +31,13 @@ import type { Env } from '../env';
 export type ChildRole = 'owner' | 'member';
 
 type ChildAssessmentProgress = AssessmentProgress & { id: string; seqNo: number; goals: string[] };
+
+export class ChildLimitError extends Error {
+  constructor() {
+    super(`担当できるお子さまは${MAX_ACTIVE_CHILDREN_PER_COACH}名までです。退会したお子さまをアーカイブしてから、もう一度お試しください。`);
+    this.name = 'ChildLimitError';
+  }
+}
 
 function assessmentProgressFrom(row: {
   id: string;
@@ -144,7 +152,15 @@ export async function listChildren(env: Env, coachId: string, archived: boolean)
   }
 
   // 一覧に要るのは「入力中の回」と「直近の完了回」だけ。過去の全記録は読まない。
-  const visibleChildIds = rows.map(({ child }) => child.id);
+  // 子どもの ID を IN (?, ?, …) に並べると D1 のバインド変数の上限（100）に当たるため、サブクエリで絞る。
+  const visibleChildIds = db
+    .select({ id: childCoaches.childId })
+    .from(childCoaches)
+    .innerJoin(children, eq(children.id, childCoaches.childId))
+    .where(and(
+      eq(childCoaches.coachId, coachId),
+      archived ? isNotNull(children.archivedAt) : isNull(children.archivedAt),
+    ));
   const assessmentRows = await db
     .select({
       id: assessments.id,
@@ -197,8 +213,29 @@ function newShareCode(): string {
   return generateShareCode(bytes);
 }
 
+/** アーカイブ中を除いて、コーチが担当しているお子さまの人数。 */
+async function activeChildCount(env: Env, coachId: string): Promise<number> {
+  const row = await dbFor(env)
+    .select({ total: count() })
+    .from(childCoaches)
+    .innerJoin(children, eq(children.id, childCoaches.childId))
+    .where(and(eq(childCoaches.coachId, coachId), isNull(children.archivedAt)))
+    .get();
+  return row?.total ?? 0;
+}
+
+/**
+ * 担当を1人増やせるか。同時に登録した場合など、わずかに上限を超えることはありうる（一覧はそれでも描ける）。
+ */
+export async function assertCanTakeChild(env: Env, coachId: string) {
+  if (await activeChildCount(env, coachId) >= MAX_ACTIVE_CHILDREN_PER_COACH) {
+    throw new ChildLimitError();
+  }
+}
+
 export async function createChild(env: Env, coachId: string, input: ChildCreateRequest) {
   const db = dbFor(env);
+  await assertCanTakeChild(env, coachId);
   const now = new Date().toISOString();
   const today = todayInJst();
   const gradeBaseYear = schoolYear(today);
@@ -371,6 +408,10 @@ export async function importChild(env: Env, coachId: string, code: string) {
   ).get();
   if (existing?.role === 'owner' || (existing?.role === 'member' && !isOwnerTransfer)) {
     return { kind: 'conflict' as const };
+  }
+  // すでに担当しているお子さまのオーナーを引き継ぐだけなら、人数は増えない。
+  if (!existing && await activeChildCount(env, coachId) >= MAX_ACTIVE_CHILDREN_PER_COACH) {
+    return { kind: 'limit' as const };
   }
 
   const now = new Date().toISOString();

@@ -5,6 +5,9 @@ import {
   childImportResponseSchema,
   childResponseSchema,
   childrenResponseSchema,
+  generateShareCode,
+  MAX_ACTIVE_CHILDREN_PER_COACH,
+  meResponseSchema,
   reportResponseSchema,
 } from '@papamo/shared';
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
@@ -307,5 +310,49 @@ describe('API ルート結合', () => {
       }),
     });
     expect(invalidAssessment.status).toBe(400);
+  });
+
+  it(`担当が${MAX_ACTIVE_CHILDREN_PER_COACH}名に達したら、登録・取り込み・復元を409で止める`, async () => {
+    const client = await createTestClient();
+    const other = await createTestClient();
+    await onboard(client);
+    await onboard(other);
+    const coachId = meResponseSchema.parse(await (await request(client, '/me')).json()).id;
+    const otherChild = await createChild(other, 'ほかの担当');
+    const archivedChild = await createChild(client, 'あとで復元');
+    expect((await request(client, `/children/${archivedChild.id}/archive`, { method: 'POST' })).status).toBe(200);
+
+    const now = new Date().toISOString();
+    // 100名分をAPIで登録すると遅いので、担当の行だけ直接入れる。
+    const shareCode = () => generateShareCode(crypto.getRandomValues(new Uint8Array(8)));
+    const statements = Array.from({ length: MAX_ACTIVE_CHILDREN_PER_COACH }, (_, index) => {
+      const id = crypto.randomUUID();
+      return [
+        testEnv.DB.prepare(`INSERT INTO children (id, share_code, owner_share_code, created_by, name, honorific, gender,
+          grade_code, grade_base_year, joined_month, ext_unlocked, archived_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'chan', 'unspecified', 'k2', 2026, '2026-01', 0, NULL, ?, ?)`)
+          .bind(id, shareCode(), shareCode(), coachId, `上限${index}`, now, now),
+        testEnv.DB.prepare(`INSERT INTO child_coaches (child_id, coach_id, role, created_at) VALUES (?, ?, 'owner', ?)`)
+          .bind(id, coachId, now),
+      ];
+    }).flat();
+    await testEnv.DB.batch(statements);
+
+    const createResponse = await request(client, '/children', {
+      method: 'POST',
+      body: JSON.stringify({ name: '上限超え', honorific: 'chan', gradeCode: 'k2', joinedMonth: '2026-09' }),
+    });
+    expect(createResponse.status).toBe(409);
+    await expect(createResponse.json()).resolves.toMatchObject({
+      error: { code: 'conflict', message: expect.stringContaining(`${MAX_ACTIVE_CHILDREN_PER_COACH}名まで`) },
+    });
+    const importResponse = await request(client, '/children/import', {
+      method: 'POST',
+      body: JSON.stringify({ code: otherChild.shareCode }),
+    });
+    expect(importResponse.status).toBe(409);
+    expect((await request(client, `/children/${archivedChild.id}/unarchive`, { method: 'POST' })).status).toBe(409);
+    expect(childrenResponseSchema.parse(await (await request(client, '/children')).json()).children)
+      .toHaveLength(MAX_ACTIVE_CHILDREN_PER_COACH);
   });
 });

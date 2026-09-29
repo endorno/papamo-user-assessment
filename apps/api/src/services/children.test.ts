@@ -2,9 +2,11 @@ import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { childrenResponseSchema, MAX_EXERCISE_LEVEL } from '@papamo/shared';
+import { childrenResponseSchema, MAX_ACTIVE_CHILDREN_PER_COACH, MAX_EXERCISE_LEVEL } from '@papamo/shared';
 import type { Env } from '../env';
 import {
+  assertCanTakeChild,
+  ChildLimitError,
   createChild,
   deleteChildBeforeFirstReport,
   getChildForCoach,
@@ -279,4 +281,28 @@ describe('子ども管理サービス', () => {
     await patchChild(testEnv, child.id, { name: 'かなで' });
     expect((await getChildForCoach(testEnv, child.id, coach.id))?.gender).toBe('girl');
   });
+
+  it(`担当は${MAX_ACTIVE_CHILDREN_PER_COACH}名まで。上限でも一覧を取得でき、アーカイブすれば空きができる`, async () => {
+    const coach = await upsertCoach(testEnv, { id: crypto.randomUUID(), email: `${crypto.randomUUID()}@example.com` });
+    const otherOwner = await upsertCoach(testEnv, { id: crypto.randomUUID(), email: `${crypto.randomUUID()}@example.com` });
+    const input = { honorific: 'chan' as const, gender: 'unspecified' as const, gradeCode: 'k2' as const, joinedMonth: '2026-01' };
+    const shared = await createChild(testEnv, otherOwner.id, { ...input, name: '共有される子' });
+    const created = [];
+    for (let index = 0; index < MAX_ACTIVE_CHILDREN_PER_COACH; index += 1) {
+      created.push(await createChild(testEnv, coach.id, { ...input, name: `上限確認${index}` }));
+    }
+    // 子どものIDを IN に並べると D1 のバインド変数の上限（100）に当たる。上限ちょうどでも一覧を返せること。
+    expect(await listChildren(testEnv, coach.id, false)).toHaveLength(MAX_ACTIVE_CHILDREN_PER_COACH);
+
+    await expect(createChild(testEnv, coach.id, { ...input, name: '上限超え' })).rejects.toBeInstanceOf(ChildLimitError);
+    expect(await importChild(testEnv, coach.id, shared.shareCode)).toEqual({ kind: 'limit' });
+
+    await setArchiveState(testEnv, created[0]!.id, true);
+    // 復元は空きがあるときだけ（ルートで確認する）。
+    await expect(assertCanTakeChild(testEnv, coach.id)).resolves.toBeUndefined();
+    expect(await importChild(testEnv, coach.id, shared.shareCode)).toMatchObject({ kind: 'member' });
+    await expect(assertCanTakeChild(testEnv, coach.id)).rejects.toBeInstanceOf(ChildLimitError);
+    // すでに担当している子のオーナーを引き継ぐだけなら人数は増えないので、上限でも受け付ける。
+    expect(await importChild(testEnv, coach.id, shared.ownerShareCode!)).toMatchObject({ kind: 'owner' });
+  }, 60000);
 });

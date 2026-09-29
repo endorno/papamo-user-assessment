@@ -38,6 +38,7 @@ import { dbFor } from '../db/client';
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
 import { isUniqueConstraintError } from '../db/errors';
 import type { CoachRecord, Env } from '../env';
+import { assertCanTakeChild, ChildLimitError } from './children';
 import { generateReport } from './report';
 
 const REQUIRED_BACKGROUND_COACH_COUNT = 15;
@@ -64,7 +65,7 @@ export interface SampleDataOptions {
 }
 
 export class SampleDataServiceError extends Error {
-  constructor(readonly code: 'not_ready', message: string) {
+  constructor(readonly code: 'not_ready' | 'limit', message: string) {
     super(message);
     this.name = 'SampleDataServiceError';
   }
@@ -219,30 +220,35 @@ export async function clearChildrenOfCoach(env: Env, coachId: string) {
     .from(childCoaches)
     .where(eq(childCoaches.coachId, coachId))
     .all();
-  const ownedIds = rows.filter((row) => row.role === 'owner').map((row) => row.childId);
-  const linkedIds = rows.filter((row) => row.role !== 'owner').map((row) => row.childId);
+  const deleted = rows.filter((row) => row.role === 'owner').length;
+  const unlinked = rows.length - deleted;
+  // ID を IN (?, ?, …) に並べると D1 のバインド変数の上限（100）に当たるため、サブクエリで絞る。
+  const ownedChildIds = db
+    .select({ id: childCoaches.childId })
+    .from(childCoaches)
+    .where(and(eq(childCoaches.coachId, coachId), eq(childCoaches.role, 'owner')));
 
   const statements: BatchItem<'sqlite'>[] = [];
-  if (ownedIds.length > 0) {
+  if (deleted > 0) {
     // prev_assessment_id は RESTRICT。回どうしの参照を先に切ってからまとめて消す。
     // reports は assessments の、child_coaches は children の CASCADE で一緒に消える。
     statements.push(
-      db.update(assessments).set({ prevAssessmentId: null }).where(inArray(assessments.childId, ownedIds)),
-      db.delete(assessments).where(inArray(assessments.childId, ownedIds)),
-      db.delete(children).where(inArray(children.id, ownedIds)),
+      db.update(assessments).set({ prevAssessmentId: null }).where(inArray(assessments.childId, ownedChildIds)),
+      db.delete(assessments).where(inArray(assessments.childId, ownedChildIds)),
+      db.delete(children).where(inArray(children.id, ownedChildIds)),
     );
   }
-  if (linkedIds.length > 0) {
+  if (unlinked > 0) {
     statements.push(db.delete(childCoaches).where(and(
       eq(childCoaches.coachId, coachId),
-      inArray(childCoaches.childId, linkedIds),
+      eq(childCoaches.role, 'member'),
     )));
   }
   if (statements.length > 0) {
     await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
   }
 
-  return { deleted: ownedIds.length, unlinked: linkedIds.length };
+  return { deleted, unlinked };
 }
 
 export async function createSampleChild(
@@ -259,6 +265,12 @@ export async function createSampleChild(
       'not_ready',
       'オーナー移譲後や複数コーチ担当のサンプルも作るため、先に非本番用シードを実行して背景コーチを作成してください。',
     );
+  }
+  try {
+    await assertCanTakeChild(env, owner.id);
+  } catch (caught) {
+    if (caught instanceof ChildLimitError) throw new SampleDataServiceError('limit', caught.message);
+    throw caught;
   }
 
   for (let attempt = 0; attempt < 5; attempt += 1) {

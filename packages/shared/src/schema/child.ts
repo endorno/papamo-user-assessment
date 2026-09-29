@@ -67,6 +67,12 @@ export const childResponseSchema = z.object({
   child: childViewSchema,
 });
 
+/**
+ * 1人のコーチが担当できるお子さま（アーカイブ中を除く）の上限。
+ * 一覧はページングせずに全員を描くため、これを超える運用になったらページングを入れる。
+ */
+export const MAX_ACTIVE_CHILDREN_PER_COACH = 100;
+
 export const childAssessmentSummarySchema = z.object({
   id: z.string(),
   seqNo: z.number().int().positive(),
