@@ -220,7 +220,7 @@ export function ExerciseNotesPanel({ report, source }: SectionProps) {
   );
 }
 
-/** 概要タブ用。困りごとの件数とご家庭のお困り度だけを出し、照合の詳細は「観察の記録」に回す。 */
+/** 概要タブ用。困りごとの件数とご家庭のお困り度だけを出し、照合の詳細は「振り返りと計画」に回す。 */
 export function TroubleSummaryPanel({ report, source }: SectionProps) {
   const ppiTotal = Object.values(report.ppi.current).reduce((sum, value) => sum + value, 0);
   return (

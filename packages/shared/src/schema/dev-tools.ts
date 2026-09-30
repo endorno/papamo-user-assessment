@@ -10,6 +10,7 @@ export const sampleDataStatusResponseSchema = z.object({
   environment: nonProductionEnvSchema,
   ready: z.boolean(),
   backgroundCoachCount: z.number().int().nonnegative(),
+  requiredBackgroundCoachCount: z.number().int().positive(),
   presets: z.array(z.union([z.literal(1), z.literal(10), z.literal(30)])),
 });
 

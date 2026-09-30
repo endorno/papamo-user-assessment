@@ -117,7 +117,7 @@
 | ランタイム    | Cloudflare Workers（1 Worker に API と静的アセットを同梱）                                               |
 | API      | Hono                                                                                        |
 | DB       | Cloudflare D1 + Drizzle ORM（drizzle-kit でマイグレーション）                                          |
-| フロント     | Vite + React 19 + TypeScript、react-router、@tanstack/react-query                             |
+| フロント     | Vite + React 19 + TypeScript、react-router                                                     |
 | 認証クライアント | @supabase/supabase-js（セッション取得のみ）                                                            |
 | JWT 検証     | jose（JWKS の取得・キャッシュ・ES256 検証）                                                               |
 | ID 生成      | ulid                                                                                        |
@@ -134,7 +134,7 @@
 ├── package.json                 # workspace ルート。lint/test/build を束ねる
 ├── pnpm-workspace.yaml
 ├── reference/                   # 参照専用（ビルド・テスト対象外）
-│   ├── design-mock.html         # PdM 承認済みモック。マスタ文言とロジックの唯一の正
+│   ├── design-mock.html         # PdM 承認済みモック（v1）。画面構成・挙動の参考。項目定義の正は design-mock-v2.html
 │   └── papamo-lesson-admin/     # 既存のメニュー構築サイト（別リポジトリへの symlink）
 ├── packages/
 │   └── shared/                  # 依存ゼロ（zod のみ）。API/web 両方から import
@@ -159,7 +159,7 @@
             ├── app/             # ルーター・プロバイダ
             ├── pages/           # Login / Onboarding / Home / Child / Assessment / Report
             ├── components/
-            ├── api/             # fetch ラッパ（Bearer 付与）と react-query hooks
+            ├── api/             # fetch ラッパ（Bearer 付与）と API 呼び出し
             └── styles/          # tokens.css / print.css
 
 ```
@@ -193,6 +193,8 @@ pnpm -r lint && pnpm -r typecheck
 | `SUPABASE_JWT_ISSUER` | `${SUPABASE_URL}/auth/v1`                                                |
 | `SUPABASE_JWT_AUDIENCE` | `authenticated`（Supabase のアクセストークンの `aud`）                          |
 | `REPORT_GENERATOR`    | `rule_v1`（既定）。将来 `llm_v1` などを追加                                          |
+| `APP_ENV`             | `local` / `staging` / `production`。開発用API（大量データ生成・一括削除）の有効判定に使う（§15.2）        |
+| `NON_PRODUCTION_TOOLS_ENABLED` | `true` かつ `APP_ENV` が `local` / `staging` のときだけ開発用APIを有効にする。本番では設定しない |
 | `TZ` 相当               | コード内で `Asia/Tokyo` 固定。環境変数にしない                                           |
 
 
@@ -272,7 +274,7 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 
 設計上の注意
 
-- `share_code` / `owner_share_code` は人が口頭・チャットで伝えられる **8文字**（Crockford Base32、`0/O/1/I` を除く、`XXXX-XXXX` 表示）。子ども作成時に2本とも生成し、衝突時は再生成。取り込みAPIは受け取ったコードがどちらの列に一致したかで「参加」か「オーナー移譲」かを判定する（§8.2）。オーナー移譲コードは子どもページのオーナーにだけ表示し、移譲のたびに再生成する。
+- `share_code` / `owner_share_code` は人が口頭・チャットで伝えられる **8文字**（`A-Z` から `I`・`O` を除いた24文字と `2-9` の計32文字。`0/1/O/I` は使わない。`XXXX-XXXX` 表示）。子ども作成時に2本とも生成し、衝突時は再生成。取り込みAPIは受け取ったコードがどちらの列に一致したかで「参加」か「オーナー移譲」かを判定する（§8.2）。オーナー移譲コードは子どもページのオーナーにだけ表示し、移譲のたびに再生成する。
 - **生年月日・生年月・年齢は保存しない**（§2.4）。`grade_code` は登録時の学年、`grade_base_year` はその学年だった **年度**（4/1 始まり）。表示する学年は `gradeAt(child, today)` で算出し、保存値は書き換えない。
   - 年度 `schoolYear(d)` = 月が4以上ならその年、1〜3月なら前年（Asia/Tokyo）。
   - 表示学年の添字 = 登録学年の添字 + (`schoolYear(today)` − `grade_base_year`)。上限（中3）を超えたら「中学卒業以上」で止める。
@@ -290,7 +292,7 @@ zod スキーマは **下書き用（すべて optional）と完了用（全種�
 
 初期リリースでは **TypeScript 定数** として管理する（D1 化は管理UIが必要になってから）。
 
-すべて `reference/design-mock.html` の `<script>` 冒頭にある定数を **そのまま** 移植する（文言を変えない）。
+すべて `reference/design-mock-v2.html` の `<script>` 冒頭にある定数を **そのまま** 移植する（文言を変えない）。ラインウォーク・グーパータッチの到達ラダーと帯は差し替え済みのマスタが正（下記 `ladders.ts`）。学年など v2 に無いものだけ新規に定義する。
 
 - `exercises.ts` — 5種目の定義。`design-mock-v2.html` の `AX` が正。1種目のフィールドは `key / core / icon / name（種目名）/ parentName（保護者向けの力の名前）/ clinicalName / summary / about / grow / maxLevel / pyramidRoot / pyramidRelated / build[] / changes3m[] / links[] / changes6m[] / observations[]（見えた動作）/ bands[] / errorPatterns[] / ladder[]`。到達の下限は `MIN_EXERCISE_LEVEL`（0）。Lv0 には帯がなく、課題文の代わりに `LEVEL_ZERO_LABEL`（「実施不可」）を使う。
 - `ladders.ts` — 到達ラダー。v2 の `LT` を移植（全種目30段。`sacc`/`inhi` の Lv21〜30 は仮置き）。`post`（ラインウォーク）と `hand`（グーパータッチ）は、2026-09-20版の修正資料（ラインウォーク：Lv2〜7 のタンデム削除・「頭の上にタオル」表記／グーパータッチ：30段と帯を組み替え）で v2 から差し替え済み（2026-09-29）。以後この2種目のラダーと帯は `ladders.ts`・`exercises.ts` が正。
@@ -319,7 +321,7 @@ export interface ReportInput {
   coach: { displayName: string };    // レポートに出る「担当」
   assessment: CompletedAssessment;   // seq_no, assessed_on, unlock_ext, data
   previous?: CompletedAssessment;    // 直前の完了アセスメント（初回は undefined）
-  master: MasterData;                // exercises/troubles/ppi/plans + version
+  master: MasterData;                // exercises/troubles/ppi + version
   generatedAt: string;               // 呼び出し側が注入（§7.2）
 }
 
@@ -471,6 +473,7 @@ export interface ReportGenerator {
 | ------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `/login`           | ログイン         | **「Google でログイン」ボタン1つ**（supabase-js の `signInWithOAuth({ provider: 'google' })`）。モックのメール／パスワード欄は作らない（§2.1）                       |
 | `/onboarding`      | 表示名登録        | `displayName` 未登録時のみ。完了後 `/` へ                                                                                          |
+| `/me`              | 表示名の変更       | 登録済みの表示名を変更する（1〜30文字）。パスワード・招待などのプロフィール管理は作らない（§2.1）                                                              |
 | `/`                | 担当の子ども一覧     | 最上段に「初回アセスメント未実施」、続けて「まずやること」「次の予定まで余裕あり」のセクション、状態バッジ、Lvチップ。「＋ 新しいお子さまを登録」「コードで取り込む」。末尾に「アーカイブした子ども（N名）」の折りたたみ（復元導線）                         |
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | タブで「概要／振り返りと計画／登録・共有」に分ける（§15.1）。育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |

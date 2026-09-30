@@ -83,6 +83,7 @@ describe('開発用データAPI', () => {
       environment: 'local',
       ready: false,
       backgroundCoachCount: 0,
+      requiredBackgroundCoachCount: 15,
       presets: [1, 10, 30],
     });
 

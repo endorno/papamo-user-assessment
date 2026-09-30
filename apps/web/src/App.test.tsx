@@ -220,6 +220,7 @@ describe('担当の子ども一覧', () => {
           environment: 'local',
           ready: true,
           backgroundCoachCount: 15,
+          requiredBackgroundCoachCount: 15,
           presets: [1, 10, 30],
         });
       }
@@ -257,6 +258,7 @@ describe('担当の子ども一覧', () => {
           environment: 'staging',
           ready: true,
           backgroundCoachCount: 15,
+          requiredBackgroundCoachCount: 15,
           presets: [1, 10, 30],
         });
       }

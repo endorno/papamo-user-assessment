@@ -518,7 +518,7 @@ export function HomePage() {
                 </div>
               ) : (
                 <p className={styles.devToolsNotice} role="status">
-                  オーナー移譲後や複数コーチ担当のサンプルも作るため、背景コーチが{sampleDataStatus.backgroundCoachCount}名必要です。先に
+                  オーナー移譲後や複数コーチ担当のサンプルも作るため、背景コーチが{sampleDataStatus.requiredBackgroundCoachCount}名必要です（現在{sampleDataStatus.backgroundCoachCount}名）。先に
                   <code>{sampleSeedCommand(sampleDataStatus.environment)}</code> を実行してください。
                 </p>
               )}

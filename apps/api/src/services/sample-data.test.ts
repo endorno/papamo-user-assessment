@@ -25,6 +25,7 @@ describe('非本番用サンプルデータ', () => {
     await expect(sampleDataStatus(testEnv)).resolves.toEqual({
       ready: true,
       backgroundCoachCount: 15,
+      requiredBackgroundCoachCount: 15,
     });
   });
 

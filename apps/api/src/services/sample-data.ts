@@ -205,6 +205,7 @@ export async function sampleDataStatus(env: Env) {
   return {
     ready: backgroundCoachCount >= REQUIRED_BACKGROUND_COACH_COUNT,
     backgroundCoachCount,
+    requiredBackgroundCoachCount: REQUIRED_BACKGROUND_COACH_COUNT,
   };
 }
 
