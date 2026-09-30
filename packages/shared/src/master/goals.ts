@@ -69,14 +69,14 @@ export function wantShortText(text: string): string {
 
 /**
  * COPM形式の目標設定（最大4件）。
- * 遂行度／満足度／親御さんの重要度 を 1〜10 で採点する。
+ * 遂行度／満足度／重要度 を 1〜10 で採点する。
  * 遂行度と満足度を分けるのが要点で、「できていても納得していない」状態を取りこぼさない。
  * 重要度は今回どれに手をつけるかの並べ替えにだけ使う。
  */
 export const COPM_FIELDS = [
   { key: 'performance', name: '遂行度', hint: 'いまどれくらいできているか' },
   { key: 'satisfaction', name: '満足度', hint: 'その状態にどれくらい納得しているか' },
-  { key: 'importance', name: '親御さんの重要度', hint: '取り組む順番を決めるために使う' },
+  { key: 'importance', name: '重要度', hint: '取り組む順番を決めるために使う' },
 ] as const;
 
 export const COPM_MAX = 4;
