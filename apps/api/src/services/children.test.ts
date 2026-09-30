@@ -85,7 +85,10 @@ describe('子ども管理サービス', () => {
     const memberChildren = await listChildren(testEnv, memberId, false);
     expect(ownerChildren[0]?.role).toBe('member');
     expect(memberChildren[0]?.role).toBe('owner');
-    expect(memberChildren[0]?.ownerShareCode).toBe(created.ownerShareCode);
+    // 移譲に使ったコードは無効になり、新しいオーナーにだけ新しいコードが表示される。
+    expect(memberChildren[0]?.ownerShareCode).toBeDefined();
+    expect(memberChildren[0]?.ownerShareCode).not.toBe(created.ownerShareCode);
+    expect(await importChild(testEnv, ownerId, created.ownerShareCode!)).toEqual({ kind: 'not_found' });
   });
 
   it('メンバーは自分の紐づきだけ解除でき、オーナーは解除できない', async () => {

@@ -272,7 +272,7 @@ describe('API ルート結合', () => {
     });
     expect(ownerImport.status).toBe(200);
     expect(childImportResponseSchema.parse(await ownerImport.json())).toMatchObject({
-      child: { role: 'owner', ownerShareCode: child.ownerShareCode },
+      child: { role: 'owner' },
       ownershipTransferred: true,
     });
 

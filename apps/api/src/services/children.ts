@@ -449,7 +449,11 @@ export async function importChild(env: Env, coachId: string, code: string) {
             and(eq(childCoaches.childId, child.id), eq(childCoaches.coachId, coachId)),
           )
         : db.insert(childCoaches).values({ childId: child.id, coachId, role: 'owner', createdAt: now });
-      await db.batch([demoteCurrentOwner, promoteNewOwner]);
+      // 使ったコードで旧オーナーが取り戻せないよう、移譲のたびに作り直す。
+      const renewOwnerShareCode = db.update(children)
+        .set({ ownerShareCode: newShareCode(), updatedAt: now })
+        .where(eq(children.id, child.id));
+      await db.batch([demoteCurrentOwner, promoteNewOwner, renewOwnerShareCode]);
     } else {
       await db.insert(childCoaches).values({ childId: child.id, coachId, role: 'member', createdAt: now }).run();
     }
