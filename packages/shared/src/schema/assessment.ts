@@ -78,11 +78,16 @@ export const TEXT_LIMITS = {
   memo: 2000,
 } as const;
 
+/** 選択式の配列に同じ値が2つ以上入らないようにする。 */
+const hasNoDuplicates = (items: readonly string[]) => new Set(items).size === items.length;
+const DUPLICATE_MESSAGE = '同じ項目が重複しています。';
+
 // 見えた動作（選択）。種目ごとに固定の選択肢から複数選ぶ。
 const observationFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,
   z.array(z.enum(exercise.observations.map((observation) => observation.text) as [string, ...string[]]))
     .max(exercise.observations.length)
+    .refine(hasNoDuplicates, DUPLICATE_MESSAGE)
     .optional(),
 ]));
 const observationsSchema = z.object(observationFields).strict();
@@ -99,11 +104,11 @@ const engagementSchema = z.object(
 ).strict();
 const envSupportSchema = z.array(
   z.enum(ENVIRONMENT_SUPPORT_ITEMS.map((item) => item.key) as [string, ...string[]]),
-).max(ENVIRONMENT_SUPPORT_ITEMS.length);
+).max(ENVIRONMENT_SUPPORT_ITEMS.length).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 const wantSchema = z.array(
   z.enum(WANT_ITEMS.map((item) => item.id) as [string, ...string[]]),
-).max(WANT_MAX);
+).max(WANT_MAX).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 export const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
 // 下書きでは文言が空の行も保存する（「目標を追加」した直後の行で自動保存を止めないため）。
@@ -122,6 +127,7 @@ const completedCopmSchema = z.array(copmGoalSchema.extend({
 })).max(COPM_MAX);
 
 const troubleSchema = z.enum(ALL_TROUBLE_ITEMS as [string, ...string[]]);
+const troublesSchema = z.array(troubleSchema).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 export const assessmentDataDraftSchema = z.object({
   lv: z.object(lvFields).strict().default({}),
@@ -129,7 +135,7 @@ export const assessmentDataDraftSchema = z.object({
   observationNotes: observationNotesSchema.default({}),
   engagement: engagementSchema.default({}),
   envSupports: envSupportSchema.default([]),
-  troubles: z.array(troubleSchema).default([]),
+  troubles: troublesSchema.default([]),
   wants: wantSchema.default([]),
   copm: copmSchema.default([]),
   ppi: z.object(ppiFields).strict().default({}),
@@ -143,7 +149,7 @@ export const assessmentDataPatchSchema = z.object({
   observationNotes: observationNotesSchema.optional(),
   engagement: engagementSchema.optional(),
   envSupports: envSupportSchema.optional(),
-  troubles: z.array(troubleSchema).optional(),
+  troubles: troublesSchema.optional(),
   wants: wantSchema.optional(),
   copm: copmSchema.optional(),
   ppi: z.object(ppiFields).strict().optional(),
@@ -157,7 +163,7 @@ export const assessmentDataCompletedSchema = z.object({
   observationNotes: observationNotesSchema,
   engagement: engagementSchema,
   envSupports: envSupportSchema,
-  troubles: z.array(troubleSchema),
+  troubles: troublesSchema,
   wants: wantSchema,
   copm: completedCopmSchema,
   ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema]))).strict(),
