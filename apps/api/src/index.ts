@@ -11,8 +11,10 @@ import { updateCoachDisplayName } from './services/coaches';
 import { childrenRoutes } from './routes/children';
 import { assessmentsRoutes } from './routes/assessments';
 import { devToolsRoutes } from './routes/dev-tools';
+import { renderReportPdf, type ReportPdfRenderer } from './services/report-pdf';
 
-export function createApi(auth = authMiddleware) {
+// テストではヘッドレス Chrome を起動しないよう、PDF生成を差し替えられるようにする。
+export function createApi(auth = authMiddleware, { renderPdf = renderReportPdf }: { renderPdf?: ReportPdfRenderer } = {}) {
   const app = new Hono<{
     Bindings: Env;
     Variables: AppVariables;
@@ -20,6 +22,10 @@ export function createApi(auth = authMiddleware) {
 
   app.use('/api/*', auth);
   app.use('/api/*', onboardingMiddleware);
+  app.use('/api/*', async (context, next) => {
+    context.set('renderPdf', renderPdf);
+    await next();
+  });
 
   app.get('/api/health', (context) => {
     const response = apiHealthResponseSchema.parse({

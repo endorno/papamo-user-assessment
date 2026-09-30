@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 
@@ -74,6 +74,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('保護者向けレポート', () => {
@@ -138,13 +139,56 @@ describe('保護者向けレポート', () => {
     expect(within(container as HTMLElement).getByRole('link', { name: '入力画面を開く' })).toHaveAttribute('href', '/assessments/assessment-1');
   });
 
-  it('印刷ボタンからブラウザ印刷を呼び出す', async () => {
-    const print = vi.fn();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
-    vi.stubGlobal('print', print);
+  it('PDFボタンで表示中のレポートをサーバーへ送り、ファイルとして保存する', async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input) => {
+      if (String(input).endsWith('/report/pdf')) {
+        return new Response('%PDF-1.7', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+      }
+      return new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    // jsdom には Blob の URL 化がないため、差し替えた URL で受ける。
+    const createObjectURL = vi.fn(() => 'blob:report');
+    vi.stubGlobal('URL', class extends URL {
+      static override createObjectURL = createObjectURL;
+      static override revokeObjectURL = vi.fn();
+    });
+    const savedFileNames: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      savedFileNames.push(this.download);
+    });
     renderReportPage();
-    fireEvent.click(await screen.findByRole('button', { name: '印刷 / PDF' }));
-    expect(print).toHaveBeenCalledOnce();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'PDFをダウンロード' }));
+
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    const [url, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/report/pdf'))!;
+    expect(url).toBe('/api/assessments/assessment-1/report/pdf');
+    expect(init?.method).toBe('POST');
+    const { html } = JSON.parse(String(init?.body)) as { html: string };
+    // 画面の4枚をそのまま送り、操作ボタンなど紙面に要らないものは含めない。
+    expect(html).toContain('はるとくんの3か月の変化');
+    expect(html).toContain('<title>育ちマップ_はるとくん_第2回</title>');
+    expect(html).not.toContain('PDFをダウンロード');
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(savedFileNames).toEqual(['育ちマップ_はるとくん_第2回.pdf']);
+    expect(screen.getByRole('button', { name: 'PDFをダウンロード' })).toBeEnabled();
+  });
+
+  it('PDFを作れなかったときは理由と再試行を通知する', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/report/pdf')) {
+        return new Response(JSON.stringify({ error: { code: 'internal', message: 'PDFを作成できませんでした。少し待ってからもう一度お試しください。' } }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    renderReportPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'PDFをダウンロード' }));
+
+    expect(await screen.findByText('PDFを作成できませんでした。少し待ってからもう一度お試しください。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'もう一度' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PDFをダウンロード' })).toBeEnabled();
   });
 });
 

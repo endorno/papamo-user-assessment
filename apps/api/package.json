@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudflare/puppeteer": "^1.4.0",
     "@papamo/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.33",

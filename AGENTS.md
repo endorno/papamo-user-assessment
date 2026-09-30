@@ -104,7 +104,7 @@
   - 未反映の変更が残っている間は次のアセスメントを始められない（次の回を作ると前の回は編集できなくなり、変更が宙に浮くため）。子どもページでは前回の入力画面へ案内する。
   - 前回との比較・子どもページ・一覧は、完了済みの回を **レポートに反映した入力** で扱う（下書きの目標を完了まで出さないのと同じ考え方）。
 - 「保護者に共有した」フラグはモックUIにはあるが、実装不要。コーチが自己責任で保護者に共有する。
-- PDF は **ブラウザ印刷**（`window.print()` + 印刷用CSS）。サーバー側PDF生成は初期はしない。
+- PDF は **Cloudflare Browser Run のヘッドレス Chrome でサーバー側生成** し、レポート画面の「PDFをダウンロード」1つで保存させる。レポートを HTML（React）で組むのは維持する。ブラウザの印刷ダイアログはヘッダ・フッタが入り、余白・倍率・背景色が端末と操作で崩れ、操作も分かりにくいため切り替えた（2026-09-30）。
 - 引き継ぎシートもモックUIにはあるが実装不要。子どもの共有機能（共有コード）で代替する。
 
 ---
@@ -120,6 +120,7 @@
 | フロント     | Vite + React 19 + TypeScript、react-router                                                     |
 | 認証クライアント | @supabase/supabase-js（セッション取得のみ）                                                            |
 | JWT 検証     | jose（JWKS の取得・キャッシュ・ES256 検証）                                                               |
+| PDF 生成     | Cloudflare Browser Run（`[browser]` バインディング `BROWSER`）+ @cloudflare/puppeteer                           |
 | ID 生成      | ulid                                                                                        |
 | スタイル     | 素の CSS（CSS Modules）。Tailwind は使わない。デザイントークンはモックの `:root` 変数を移植                           |
 | バリデーション  | zod（`packages/shared` に集約、API とフロントで共用）                                                     |
@@ -216,6 +217,7 @@ VITE_SUPABASE_ANON_KEY=...   # reference/papamo-lesson-admin/.env.local の同�
 
 - ローカルの JWKS は `http://127.0.0.1:15421/auth/v1/.well-known/jwks.json`。**ES256 の鍵が返ることを確認済み**（2026-09-12）。
 - D1 のバインディング名は `DB`、`database_name` は `papamo-user-assessment`。ローカルは `wrangler dev` が `.wrangler/` 配下に自動で作る。
+- Browser Run のバインディング名は `BROWSER`。ローカルは `wrangler dev` が最初のPDF生成時に Chrome をダウンロードして起動する（初回だけ数十秒かかる）。ローカルの Chrome には絵文字フォントが無く、レポート内の一部の絵文字が □ になる。本番の Browser Run には Noto Color Emoji と日本語フォントが入っている。
 - Orca でワークツリーを作ると、`.worktreeinclude` に列挙した `.dev.vars` / `.env.local` / `.env.staging.local` が元のチェックアウトからコピーされ、`orca.yaml` の setup で `pnpm install` → `pnpm -r build` → ローカル D1 マイグレーションを行う。`node_modules` とローカル D1 はワークツリーごとに別々に持つ（共有しない）。
 - 動作環境：Node 24 / pnpm 10.33 / wrangler 4 で確認。`engines.node` は `>=22`。依存のバージョンは初回 install 時に最新安定版で解決し、**lockfile をコミットする**。
 
@@ -376,7 +378,7 @@ export interface ReportGenerator {
 
 ### 7.1.1 保護者向けレポートのシート構成（`design-mock-v2.html` 準拠）
 
-印刷して4枚。フロントはこの順で `.sheet` を並べる。
+PDF（A4）で4枚。フロントはこの順で `.sheet` を並べる。
 
 | シート | 見出し | 載せる `ReportContent` のフィールド |
 | --- | --- | --- |
@@ -442,6 +444,7 @@ export interface ReportGenerator {
 | POST   | `/assessments/:id/complete` | 「レポートを作る／更新」。検証（全種目の到達が選択済み・PPI 全5設問・目標の文言が空でない）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書きし、押したコーチを担当にする）。後続のアセスメントが存在する回は 409                        |
 | POST   | `/assessments/:id/revert`   | `{ updatedAt }`。完了済みの回の入力を、レポートを作ったときの内容に戻す。下書きと、後続のアセスメントが存在する回は 409 |
 | GET    | `/assessments/:id/report`   | レポート取得。レポート作成後の未反映の変更の有無 `hasUnreportedChanges` も返す                                                                                                                                                |
+| POST   | `/assessments/:id/report/pdf` | `{ html }`（画面に表示したレポート全体と CSS を1枚にしたHTML）を Browser Run で A4 のPDFにして `application/pdf` で返す。権限とレポートの有無はレポート取得と同じ確認（403 / 404） |
 
 
 子どもスコープの全ルートで `child_coaches` **の membership を確認**する（services 層の共通関数 `requireMembership(childId, coachId)`）。アセスメント／レポートのルートは `assessment.child_id` から子どもを引いて同じ確認を通す。アーカイブ済みの子どもは **読み取りのみ許可**（復元と削除を除く書き込みは 409）、オーナー限定の操作は `role='owner'` を併せて確認する。
@@ -478,7 +481,7 @@ export interface ReportGenerator {
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | タブで「概要／振り返りと計画／登録・共有」に分ける（§15.1）。育ちマップ（レーダー + Lv行 + 差分）、今期のレッスン戦略、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新の保護者向けレポート」、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、到達のドロップダウン（「Lv0　実施不可」＋帯ごとに区切ったLv1〜上限の課題文。前回Lvに「（前回）」表示）、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。完了済みの回では、レポート作成後に変えたセクションを案内とジャンプナビの「未反映」で示し、下部バーは「レポートを更新」（未反映がないときは「レポートを見る」）、案内から「レポート作成時の内容に戻す」を選べる。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
-| `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。印刷/PDF。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
+| `/reports/:id`     | 保護者向けレポート    | 4枚構成（§7.1.1）。初回 / 比較の2レイアウト。「PDFをダウンロード」でA4 4枚のPDFを保存。ルール未確定の箇所には「アルゴリズム調整中」を表示                                                                                                   |
 
 
 ### 9.2 実装ルール
@@ -490,7 +493,7 @@ export interface ReportGenerator {
 - ページ離脱時に未保存があれば `beforeunload` で警告。
 - 新しいアセスメントを始めるボタンは、**前の回が編集できなくなる**ことを確認ダイアログで伝えてから作成する（§2.5）。
 - レーダー・タイムラインは SVG を自前で描く（モックの `radar()` を React 化）。チャートライブラリは入れない。
-- 印刷用 CSS は `styles/print.css`。`.sheet` を A4 1ページ相当にし `page-break-after: always`（保護者向けレポートは4枚構成）。
+- 紙面（PDF）の CSS は `@media print` に書く。ページ全体の設定は `styles/print.css`、シートまわりは `page.module.css` 末尾の `@media print`（画面用の `.reportPage :global(.sheet)` と同じ詳細度なので、それより後ろに置く）。`.sheet` は `break-after: page` で1シート＝1ページ（保護者向けレポートは4枚構成）。
 - 文言・順序・色はモックに合わせる。デザイントークンは `:root` 変数をそのまま移植し、フォント（Zen Kaku Gothic New）も同じものを使う。改善案があればコードではなく Issue/PR 説明に書く。
 - 学年・年齢の表示は **「小学1年生（6〜7歳）」** の形（年齢は `ageHint` の参考値。§2.4）。学年は表示のたびに今日の年度で算出するので、4/1 を跨げば自動で上がる。
 - 目標の入力・編集はアセスメント画面の「ご家族・本人の目標」1か所（COPM表、最大4件）。保存先はその回の `AssessmentData.copm` だけとし、子どもレコードへ同期しない。子どもページでは直近の**完了**アセスメントの `copm[].text` を保護者・コーチ向けに「目標」として表示し、下書き中の変更は完了するまで反映しない。
@@ -535,6 +538,9 @@ database_name = "papamo-user-assessment"
 database_id = "（作成後に埋める）"
 migrations_dir = "migrations"
 
+[browser]                    # 保護者向けレポートのPDF生成（Browser Run）
+binding = "BROWSER"
+
 [vars]                       # ローカルは .dev.vars で上書きする（§4）
 SUPABASE_URL = "..."
 SUPABASE_JWT_ISSUER = "..."
@@ -545,6 +551,7 @@ REPORT_GENERATOR = "rule_v1"
   未定義の `/api/*` は Hono 側で JSON の 404 を返す（SPA のフォールバックに流さない）。
 - D1 マイグレーションはデプロイ前に `pnpm db:migrate:production` を手動で実行する（初期は自動化しない。マイグレーションを含む PR の説明に必ず明記）。ステージングは `pnpm db:migrate:staging` を使い、実行前に対象環境のD1 IDを確認する。
 - staging 用 Worker は将来追加。`wrangler.toml` は `[env.staging]` を書けるように環境固有値を `[vars]` に寄せておく。
+- バインディングは環境に継承されないため、`[browser]` は `[env.staging.browser]` にも書く。Browser Run の利用枠は Workers Free で1日10分、Paid で月10時間（超過は従量）。PDF 1件は数秒。
 - Secrets（あれば）は `wrangler secret put`。リポジトリに置かない。
 
 ---
@@ -580,8 +587,8 @@ REPORT_GENERATOR = "rule_v1"
 - 引き継ぎシート（PDF）と「保護者に共有した」フラグ、「SVへ引き継ぐ」チェック。モックには画面があるが実装しない（§2.3 / §2.5）。
 - 共有コードの失効・再発行（§2.2）。
 - 生年月日・生年月・年齢の保持。年齢は学年からの参考表示だけ（§2.4）。
-- 保護者向けのログイン・画面。レポートはコーチが印刷・共有する。
-- サーバー側 PDF 生成、メール送信、通知、LLM 呼び出し（初期リリース）。
+- 保護者向けのログイン・画面。レポートはコーチがPDFを保存して共有する。
+- メール送信、通知、LLM 呼び出し（初期リリース）。
 - Tailwind、状態管理ライブラリ（Redux 等）、チャートライブラリ、ORM 以外の DB アクセス。
 - `reference/` 配下の編集。
 
@@ -645,7 +652,8 @@ REPORT_GENERATOR = "rule_v1"
   - 登録・共有（`settings`）：登録情報／共有コード・管理
   - 振り返りと計画は直近の完了回のレポートから描き、出典（「第N回で記録」）を見出しの下に出す。今後コーチ向けの項目を足すときは、概要ではなく該当タブに置く。v2 の「単独で判断しない（SV引き継ぎ）」警告は SV 引き継ぎを実装しないため出さない。
 - レポートの番号つき見出しは、そのページに2つ以上あるときだけ連番を振る（「1」だけだと続きがあるように見えるため）。
-- レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。
+- レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。見出しの番号の丸は `.headingNumber` で指定する（見出しの中の `TuningTag` も `span` のため、`span` 指定だと巻き込まれる）。
+- 保護者向けレポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプトを外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は `育ちマップ_{名前}{敬称}_第N回.pdf`。ブラウザ印刷のボタンは置かない（2026-09-30）。
 - モーションは `global.css` の `--dur-fast` / `--dur` / `--ease` を使い、`prefers-reduced-motion: reduce` で遷移とスムーススクロールを止める。
 
 ### 15.2 API とデータ
@@ -672,6 +680,7 @@ REPORT_GENERATOR = "rule_v1"
 - `AssessmentServiceError` はコードに対応するHTTPステータスを自分で持つ。WorkersのBinding型は `wrangler types` で生成し、手書きしない。
 - 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。`internalError` は `describeError` を通す：Drizzle のクエリ失敗はメッセージにバインド値を含むので SQL 文と原因だけ、zod の検証エラーは項目の位置とコードだけ、JSON の解析エラーはメッセージなし、スタックは呼び出し位置の行だけを残す。
 - 401 の画面（`AuthErrorNotice`）で、ローカル Supabase・ポート番号などの開発者向けの案内は `import.meta.env.DEV` のときだけ出す。ステージング・本番のコーチには「有効期限が切れた可能性」と再試行・再ログインだけを示す。
+- PDF生成は `apps/api/src/services/report-pdf.ts` の `renderReportPdf` に集約する。受け取ったHTMLはスクリプトを止め、通信は Google Fonts の配信元（`fonts.googleapis.com` / `fonts.gstatic.com`）だけを通す（任意の宛先へアクセスさせないため）。A4・余白 上下9mm／左右8mm の刷り面と同じ幅で、印刷用スタイルを当てて採寸し、シートごとに zoom（0.55〜1.1）で1ページに収めてからPDFにする（design-mock-v2 の `fitA4` を移植）。Chrome 127 以前は zoom をかけた要素の `getBoundingClientRect` が拡縮前の大きさを返す（ローカルの Chrome は 126。2026-09-30 時点）ため、どちらの挙動かを判定してから測る。生成に失敗したら 500 と「少し待ってからもう一度」の文言を返し、Web は通知に再試行を添える。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
 - 非本番の作り直し（`pnpm --filter @papamo/api db:rebuild:local` / `db:rebuild:staging`）は本リポジトリのD1の全テーブルを `d1_migrations` ごと DROP し（`seeds/drop-all.sql`）、マイグレーションを最初から適用し直す。適用済みマイグレーションを書き換えたときは `db:migrate:*` では反映されない（ファイル名で適用済みと判定される）ため、これを使う。行だけ消すコマンドは作り直しで代替できるため持たない。テーブルを追加したら `drop-all.sql` にも足す（`seeds.test.ts` が消し残しを検出する）。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
@@ -687,6 +696,7 @@ REPORT_GENERATOR = "rule_v1"
 - 承認モックの6人分の子どもとアセスメントは `packages/shared/src/fixtures/children.ts` を使う。
 - Web の画面テストは `apps/web/src/test-utils.tsx` の `renderWithProviders` を使い、本番と同じ順でプロバイダを重ねる。
 - API 結合テストでは `createAuthMiddleware` にテスト鍵の検証関数を注入し、本番の JWKS 検証は差し替えない。
+- PDF生成は `createApi(auth, { renderPdf })` で差し替え、テストではヘッドレス Chrome を起動しない。紙面の見た目（4ページに収まるか、ヘッダ・フッタが無いか）は自動テストが無いので、レポートの画面やCSSを変えたら `wrangler dev` と Vite を立ててPDFを実際に作り、初回・比較・5種目開放済みのレポートで確認する。
 - 変更後は `pnpm -r lint && pnpm -r typecheck && pnpm -r test && pnpm -r build` を実行する。
 - 公式リリース前にマイグレーション履歴を再構築した場合は、空DBから最終スキーマ・インデックス・トリガーを構築できることをテストする。公式リリース後のDB変更は、既存データを保持する移行テストも追加する。
 - D1マイグレーションはルートの `db:migrate:local` / `db:migrate:staging` / `db:migrate:production` を使い、リモート適用前に `wrangler.toml` の対象D1 IDを確認する。

@@ -1,6 +1,8 @@
 import type { Context } from 'hono';
 import type { JWTPayload } from 'jose';
 
+import type { ReportPdfRenderer } from './services/report-pdf';
+
 export type Env = Omit<
   WorkerBindings,
   'APP_ENV' | 'NON_PRODUCTION_TOOLS_ENABLED'
@@ -18,6 +20,7 @@ export interface CoachRecord {
 export interface AppVariables {
   coach: CoachRecord;
   token: JWTPayload;
+  renderPdf: ReportPdfRenderer;
 }
 
 export type AppContext = Context<{

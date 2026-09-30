@@ -242,3 +242,11 @@ export const reportResponseSchema = z.object({
   hasUnreportedChanges: z.boolean(),
 });
 
+// 画面に表示したレポートをそのままPDFにするため、DOMとCSSを1つにしたHTMLを受け取る。
+export const REPORT_PDF_HTML_MAX_LENGTH = 3_000_000;
+
+export const reportPdfRequestSchema = z.object({
+  html: z.string()
+    .min(1, 'レポートの内容を読み取れませんでした。画面を再読み込みしてからもう一度お試しください。')
+    .max(REPORT_PDF_HTML_MAX_LENGTH, 'レポートが大きすぎてPDFにできませんでした。'),
+});
