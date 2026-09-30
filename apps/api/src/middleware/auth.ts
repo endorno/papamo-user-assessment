@@ -38,6 +38,8 @@ async function verifyToken(env: Env, token: string): Promise<JWTPayload> {
   const result = await jwtVerify(token, getJwks(env), {
     issuer: env.SUPABASE_JWT_ISSUER,
     audience: env.SUPABASE_JWT_AUDIENCE,
+    // Supabase の非対称鍵は ES256。想定外のアルゴリズム（none・HS256 など）は受け付けない。
+    algorithms: ['ES256'],
   });
   return result.payload;
 }
