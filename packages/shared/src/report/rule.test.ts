@@ -74,27 +74,22 @@ describe('RuleBasedReportGenerator', () => {
     expect(report.upcomingExercises).toEqual([]);
   });
 
-  it('未実施・実施不可の種目は優先テーマにも強みにも入れず、注記に回す', async () => {
-    const partialData: CompletedAssessmentData = {
+  it('Lv0 の種目もいちばん低い到達として優先テーマに入れる', async () => {
+    const lowData: CompletedAssessmentData = {
       ...data,
-      lv: { post: 6, eyeh: 0, hand: -1 },
+      lv: { post: 6, eyeh: 0, hand: 3 },
     };
-    const report = await new RuleBasedReportGenerator().generate(inputFor(partialData));
+    const report = await new RuleBasedReportGenerator().generate(inputFor(lowData));
 
-    expect(report.priorities.map(({ key }) => key)).toEqual(['post']);
-    expect(report.strengths).toEqual([]);
-    expect(report.levels.find(({ key }) => key === 'hand')).toMatchObject({
-      lv: -1,
-      measured: false,
-      band: '実施不可',
-      ladderLabel: '実施不可（取り組めなかった）',
+    expect(report.priorities.map(({ key }) => key)).toEqual(['eyeh', 'hand']);
+    expect(report.strengths.map(({ key }) => key)).toEqual(['post']);
+    expect(report.link.lowestKey).toBe('eyeh');
+    expect(report.levels.find(({ key }) => key === 'eyeh')).toMatchObject({
+      lv: 0,
+      band: 'Lv0',
+      ladderLabel: '実施不可',
     });
-    expect(report.unmeasured).toEqual([
-      { key: 'eyeh', name: 'お手玉キャッチ', upcoming: false, notPossible: false },
-      { key: 'hand', name: 'グーパータッチ', upcoming: false, notPossible: true },
-      { key: 'sacc', name: 'あしあとものまね', upcoming: true, notPossible: false },
-      { key: 'inhi', name: '信号ゲーム', upcoming: true, notPossible: false },
-    ]);
+    expect(report.coach.strategies[0]).toMatchObject({ key: 'eyeh', lv: 0, nextLv: 1 });
     expect(reportContentSchema.parse(report)).toEqual(report);
   });
 
@@ -120,13 +115,13 @@ describe('RuleBasedReportGenerator', () => {
   it('子どもページ用に、当てるメニュー・注意点・目標の見立てを出す', async () => {
     const coachData: CompletedAssessmentData = {
       ...data,
-      // hand が最小、post が最大。eyeh は実施不可なので主軸・次点・維持から外れる。
-      lv: { post: 16, eyeh: -1, hand: 3 },
+      // eyeh（Lv0）が最小、post が最大。
+      lv: { post: 16, eyeh: 0, hand: 3 },
       observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
       observationNotes: { hand: '左右の切り替えで止まる。' },
       troubles: ['姿勢がすぐ崩れる／机に伏せる'],
-      // w1 は post（Lv16）が支える／w12 は hand（Lv3）が支える／w9 は eyeh（実施不可）が支える。
-      wants: ['w1', 'w12', 'w9'],
+      // w1 は post（Lv16）／w12 は hand（Lv3）／w9 は eyeh（Lv0）／w11 は未開放の sacc が支える。
+      wants: ['w1', 'w12', 'w9', 'w11'],
       copm: [
         { text: '縄跳びが跳べる', memo: '', performance: 7, satisfaction: 3, importance: 6 },
         { text: '字をきれいに書ける', memo: '', performance: 3, satisfaction: 3, importance: 9 },
@@ -136,15 +131,17 @@ describe('RuleBasedReportGenerator', () => {
     const { coach } = report;
 
     expect(coach.plan.focus.map(({ key, role }) => ({ key, role }))).toEqual([
-      { key: 'hand', role: 'main' },
-      { key: 'post', role: 'next' },
+      { key: 'eyeh', role: 'main' },
+      { key: 'hand', role: 'next' },
+      { key: 'post', role: 'keep' },
     ]);
     expect(coach.plan.focus[0]?.month3).toHaveLength(5);
     expect(coach.plan.focus[1]?.month3).toHaveLength(2);
+    expect(coach.plan.focus[2]?.month3).toHaveLength(1);
     expect(coach.exerciseNotes.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
     expect(coach.exerciseNotes[1]).toMatchObject({ key: 'eyeh', conditions: ['指示理解の難しさ'] });
     expect(coach.cautions.map(({ key, exercises }) => ({ key, exercises }))).toEqual([
-      { key: 'notPossible', exercises: ['eyeh'] },
+      { key: 'levelZero', exercises: ['eyeh'] },
       { key: 'condition', exercises: ['eyeh'] },
       { key: 'postVor', exercises: ['post'] },
       { key: 'parentBelief', exercises: [] },
@@ -152,7 +149,8 @@ describe('RuleBasedReportGenerator', () => {
     expect(coach.wantPackages.map(({ id, status }) => ({ id, status }))).toEqual([
       { id: 'w1', status: 'ready' },
       { id: 'w12', status: 'foundationFirst' },
-      { id: 'w9', status: 'unmeasured' },
+      { id: 'w9', status: 'foundationFirst' },
+      { id: 'w11', status: 'unmeasured' },
     ]);
     expect(coach.copmFocus).toEqual({
       mostImportant: { text: '字をきれいに書ける', importance: 9 },

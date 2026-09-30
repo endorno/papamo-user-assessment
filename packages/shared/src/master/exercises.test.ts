@@ -8,11 +8,10 @@ import {
   EXT_EXERCISE_KEYS,
   isMeasured,
   ladderLabel,
-  LEVEL_NOT_MEASURED,
-  LEVEL_NOT_POSSIBLE,
   levelValue,
   MAX_EXERCISE_LEVEL,
   maxLevelOf,
+  MIN_EXERCISE_LEVEL,
   RADAR_MAX_LEVEL,
 } from './exercises';
 
@@ -39,22 +38,19 @@ describe('種目マスタ', () => {
     expect(EXT_EXERCISE_KEYS).toHaveLength(2);
   });
 
-  it('未実施・実施不可は「測れた」扱いにせず、比較では0として扱う', () => {
+  it('Lv0 も記録した到達として扱い、記録のない種目だけを比較で0にする', () => {
     expect(isMeasured(undefined)).toBe(false);
-    expect(isMeasured(LEVEL_NOT_MEASURED)).toBe(false);
-    expect(isMeasured(LEVEL_NOT_POSSIBLE)).toBe(false);
+    expect(isMeasured(MIN_EXERCISE_LEVEL)).toBe(true);
     expect(isMeasured(1)).toBe(true);
     expect(levelValue(undefined)).toBe(0);
-    expect(levelValue(LEVEL_NOT_POSSIBLE)).toBe(0);
+    expect(levelValue(MIN_EXERCISE_LEVEL)).toBe(0);
     expect(levelValue(12)).toBe(12);
   });
 
-  it('未実施・実施不可の帯とラダー文言を区別して返す', () => {
-    expect(bandName('post', LEVEL_NOT_MEASURED)).toBe('未実施');
-    expect(bandName('post', LEVEL_NOT_POSSIBLE)).toBe('実施不可');
+  it('Lv0 には帯がなく、課題文の代わりに「実施不可」を返す', () => {
+    expect(bandName('post', MIN_EXERCISE_LEVEL)).toBe('Lv0');
     expect(bandName('post', 1)).toBe('17cm一巡');
-    expect(ladderLabel('post', LEVEL_NOT_MEASURED)).toContain('未実施');
-    expect(ladderLabel('post', LEVEL_NOT_POSSIBLE)).toContain('実施不可');
+    expect(ladderLabel('post', MIN_EXERCISE_LEVEL)).toBe('実施不可');
     expect(ladderLabel('post', 1)).not.toBe('');
     // 上限のLvまでは必ず課題文がある。
     expect(ladderLabel('post', maxLevelOf('post'))).not.toBe('');

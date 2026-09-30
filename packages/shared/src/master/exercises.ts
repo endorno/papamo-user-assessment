@@ -1,13 +1,12 @@
 import { LADDERS } from './ladders';
 
 /**
- * 到達の状態。Lv1 以上はラダーの到達段階そのものを指す。
- * 0（未実施）と -1（実施不可）はレポートのレーダーでは 0 として描く。
+ * 到達の下限。Lv1 以上はラダーの到達段階そのものを指し、Lv0 は Lv1 に取り組めなかった回を表す。
+ * 旧「実施不可」を Lv0 として扱い、旧「未実施」は廃止した（途中で止まっても下書きを保存して後日続けられるため）。
  */
-export const LEVEL_NOT_MEASURED = 0;
-export const LEVEL_NOT_POSSIBLE = -1;
-export const LEVEL_NOT_MEASURED_LABEL = '未実施（今回は測っていない）';
-export const LEVEL_NOT_POSSIBLE_LABEL = '実施不可（取り組めなかった）';
+export const MIN_EXERCISE_LEVEL = 0;
+/** Lv0 の課題文の代わりに出す文言。ドロップダウンでほかの Lv の課題文と並びをそろえるため。 */
+export const LEVEL_ZERO_LABEL = '実施不可';
 
 /** レーダーの目盛り上限。全種目の maxLevel と同じ 30。 */
 export const RADAR_MAX_LEVEL = 30;
@@ -248,7 +247,7 @@ export function maxLevelOf(key: ExerciseKey): number {
   return exerciseByKey(key).maxLevel;
 }
 
-/** Lv1 以上のときだけ帯を返す。未実施・実施不可には帯がない。 */
+/** Lv1 以上のときだけ帯を返す。Lv0 はどの帯にも届いていない。 */
 export function bandOf(key: ExerciseKey, level: number) {
   if (level <= 0) return null;
   const exercise = exerciseByKey(key);
@@ -256,23 +255,21 @@ export function bandOf(key: ExerciseKey, level: number) {
 }
 
 export function bandName(key: ExerciseKey, level: number): string {
-  const band = bandOf(key, level);
-  if (band) return band.name;
-  return level === LEVEL_NOT_POSSIBLE ? '実施不可' : '未実施';
+  return bandOf(key, level)?.name ?? `Lv${level}`;
 }
 
+/** Lv0 には課題文がないため「実施不可」を返す。 */
 export function ladderLabel(key: ExerciseKey, level: number): string {
-  if (level === LEVEL_NOT_POSSIBLE) return LEVEL_NOT_POSSIBLE_LABEL;
-  if (level <= 0) return LEVEL_NOT_MEASURED_LABEL;
+  if (level <= MIN_EXERCISE_LEVEL) return LEVEL_ZERO_LABEL;
   return exerciseByKey(key).ladder[level - 1] ?? '';
 }
 
-/** レーダーや大小比較で使う値。未実施・実施不可は 0 として扱う。 */
+/** レーダーや大小比較で使う値。記録していない種目（未開放など）は 0 として扱う。 */
 export function levelValue(level: number | undefined): number {
-  return Math.max(0, level ?? 0);
+  return level ?? 0;
 }
 
-/** その種目を「今回測れた」とみなせるか。 */
+/** その回で到達を記録したか。未開放の4・5種目目は記録しない。 */
 export function isMeasured(level: number | undefined): boolean {
-  return level !== undefined && level > 0;
+  return level !== undefined;
 }

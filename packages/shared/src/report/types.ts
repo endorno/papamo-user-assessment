@@ -36,8 +36,6 @@ export interface ReportLevel {
   parentName: string;
   lv: number;
   maxLv: number;
-  /** Lv1 以上で実際に測れた回かどうか。0＝未実施／-1＝実施不可は false。 */
-  measured: boolean;
   prevLv?: number;
   delta?: number;
   band: string;
@@ -60,6 +58,7 @@ export interface ReportDomainHit {
   priorityParentName: string;
   priorityLv: number;
   priorityMaxLv: number;
+  /** 主軸種目をその回に記録したか。未開放の4・5種目目なら false（priorityLv は 0 を入れる）。 */
   priorityMeasured: boolean;
 }
 
@@ -86,8 +85,6 @@ export interface ReportContent {
     coachName: string;
   };
   levels: ReportLevel[];
-  /** 今回測っていない／実施できなかった種目（図の注記に使う）。 */
-  unmeasured: { key: ExerciseKey; name: string; upcoming: boolean; notPossible: boolean }[];
   /** 当日の様子（指示理解の難しさなど）による測定条件の注記。 */
   conditionNotes: { key: ExerciseKey; name: string; notes: string[] }[];
   upcomingExercises: { key: ExerciseKey; name: string; parentName: string; about: string }[];
@@ -196,7 +193,7 @@ export interface ReportContent {
 
 export type CoachFocusRole = 'main' | 'next' | 'keep';
 
-/** ready＝着手可／foundationFirst＝土台が届いていない／unmeasured＝支える種目が未実施。 */
+/** ready＝着手可／foundationFirst＝土台が届いていない／unmeasured＝支える種目が未開放で記録がない。 */
 export type WantPackageStatus = 'ready' | 'foundationFirst' | 'unmeasured';
 
 export interface ReportGenerator {

@@ -16,7 +16,7 @@ import {
   isMeasured,
   ladderLabel,
   levelValue,
-  LEVEL_NOT_POSSIBLE,
+  MIN_EXERCISE_LEVEL,
   NEURO_DOMAINS,
   PPI_QUESTIONS,
   PYRAMID_TIERS,
@@ -85,7 +85,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     const levelOf = (key: ExerciseKey) => data.lv[key];
 
     // --- 到達レベルの並べ替え（モックの analyze() 相当） ---
-    // 実際に測れた種目（Lv1以上）だけを優先テーマ・強みの対象にする。
+    // Lv0 も到達の一つとして扱い、その回に記録した種目をすべて優先テーマ・強みの対象にする。
     const measuredKeys = keys.filter((key) => isMeasured(levelOf(key)));
     const sorted = [...measuredKeys].sort((a, b) => (
       levelValue(levelOf(a)) - levelValue(levelOf(b))
@@ -114,29 +114,19 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       const exercise = exerciseByKey(key);
       const lv = levelOf(key) ?? 0;
       const prevLv = input.previous?.data.lv[key];
-      const delta = prevLv === undefined ? undefined : levelValue(lv) - levelValue(prevLv);
+      const delta = prevLv === undefined ? undefined : lv - prevLv;
       return {
         key,
         name: exercise.name,
         parentName: exercise.parentName,
         lv,
         maxLv: exercise.maxLevel,
-        measured: isMeasured(lv),
         ...(prevLv === undefined ? {} : { prevLv }),
         ...(delta === undefined ? {} : { delta }),
         band: bandName(key, lv),
         ladderLabel: ladderLabel(key, lv),
       };
     });
-
-    const unmeasured = EXERCISES
-      .filter((exercise) => !isMeasured(levelOf(exercise.key)))
-      .map((exercise) => ({
-        key: exercise.key,
-        name: exercise.name,
-        upcoming: !exercise.core && !input.assessment.unlockExt,
-        notPossible: levelOf(exercise.key) === LEVEL_NOT_POSSIBLE,
-      }));
 
     // 当日の様子（指示理解の難しさなど）は測定条件の注記として別に出す。
     const conditionsOf = (key: ExerciseKey) => {
@@ -237,7 +227,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         if (!troubles.length) return [];
         const priorityLevel = levelOf(domain.priorityKey);
         const weak = isWeak(domain.priorityKey);
-        // 帯の条件（VORなど）に届いていない、あるいは主軸種目を測れていなければ判断できない。
+        // 帯の条件（VORなど）に届いていない、あるいは主軸種目が未開放で記録がなければ判断できない。
         const bandUnreached = domain.bandCheck
           ? bandOf(domain.bandCheck.key, levelOf(domain.bandCheck.key) ?? 0)?.name !== domain.bandCheck.band
           : false;
@@ -346,8 +336,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       .map((key, index) => ({ key, role: COACH_FOCUS_ROLES[index]! }));
     const toCaution = (key: CoachCautionKey, exercises: ExerciseKey[]) => ({ key, ...COACH_CAUTIONS[key], exercises });
     const coachCautions = [
-      { key: 'notMeasuredCore' as const, exercises: keys.filter((key) => exerciseByKey(key).core && levelOf(key) === 0) },
-      { key: 'notPossible' as const, exercises: keys.filter((key) => levelOf(key) === LEVEL_NOT_POSSIBLE) },
+      { key: 'levelZero' as const, exercises: keys.filter((key) => levelOf(key) === MIN_EXERCISE_LEVEL) },
       { key: 'condition' as const, exercises: conditionNotes.map((note) => note.key) },
       { key: 'saccWorkingMemory' as const, exercises: keys.filter((key) => key === 'sacc' && bandOf(key, levelOf(key) ?? 0)?.name === 'WM・逆順') },
       { key: 'inhiEarly' as const, exercises: keys.filter((key) => key === 'inhi' && isMeasured(levelOf(key)) && (levelOf(key) ?? 0) <= 6) },
@@ -380,7 +369,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         coachName: input.coach.displayName,
       },
       levels,
-      unmeasured,
       conditionNotes,
       upcomingExercises,
       priorities,
@@ -420,9 +408,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       },
       link: {
         lowestKey,
-        text: isMeasured(levelOf(lowestKey))
-          ? `チェックされた困りごとの多くは、${lowestExercise.parentName}（${lowestExercise.name} Lv${levelOf(lowestKey)}／${lowestExercise.maxLevel}）がまだ育っている途中であることと一致しています。${lowestExercise.grow}`
-          : `今回は${lowestExercise.name}を測れていないため、困りごととのつながりは次回あらためて確認します。${lowestExercise.grow}`,
+        text: `チェックされた困りごとの多くは、${lowestExercise.parentName}（${lowestExercise.name} Lv${levelValue(levelOf(lowestKey))}／${lowestExercise.maxLevel}）がまだ育っている途中であることと一致しています。${lowestExercise.grow}`,
       },
       ppi: {
         current: ppiSnapshot(input),
@@ -441,7 +427,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         strategies: priorityKeys.map((key) => {
           const exercise = exerciseByKey(key);
           const lv = levelOf(key) ?? 0;
-          const nextLv = Math.min(exercise.maxLevel, Math.max(1, levelValue(lv) + 1));
+          const nextLv = Math.min(exercise.maxLevel, lv + 1);
           return {
             key,
             lv,
@@ -490,7 +476,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           const axisLv = levelOf(want.axis) ?? 0;
           const axisMaxLv = exerciseByKey(want.axis).maxLevel;
           // 支える種目が上限の3割以下なら、パッケージより先に土台を上げる。
-          const status: WantPackageStatus = !isMeasured(axisLv)
+          const status: WantPackageStatus = !isMeasured(levelOf(want.axis))
             ? 'unmeasured'
             : axisLv <= Math.ceil(axisMaxLv * WANT_FOUNDATION_RATIO) ? 'foundationFirst' : 'ready';
           return [{

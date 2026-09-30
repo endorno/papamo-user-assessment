@@ -32,7 +32,6 @@ const reportLevelSchema = z.object({
   parentName: z.string(),
   lv: storedLevelSchema,
   maxLv: z.number().int().positive(),
-  measured: z.boolean(),
   prevLv: storedLevelSchema.optional(),
   delta: z.number().int().optional(),
   band: z.string(),
@@ -71,12 +70,6 @@ export const reportContentSchema = z.object({
     coachName: z.string(),
   }),
   levels: z.array(reportLevelSchema),
-  unmeasured: z.array(z.object({
-    key: exerciseKeySchema,
-    name: z.string(),
-    upcoming: z.boolean(),
-    notPossible: z.boolean(),
-  })),
   conditionNotes: z.array(z.object({
     key: exerciseKeySchema,
     name: z.string(),

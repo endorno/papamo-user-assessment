@@ -70,15 +70,15 @@ describe('アセスメント入力スキーマ', () => {
     }).success).toBe(false);
   });
 
-  it('種目ごとのLv上限を超える値と、未実施・実施不可の外の値を拒否する', () => {
+  it('種目ごとのLv上限を超える値と、Lv0 未満の値を拒否する', () => {
     const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
     // 上限は種目ごとに持つが、現在はどの種目も30まで。
     expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: 30 } } }).success).toBe(true);
     expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: 31 } } }).success).toBe(false);
     expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { sacc: 30 } } }).success).toBe(true);
     expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { sacc: 31 } } }).success).toBe(false);
-    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: -1 } } }).success).toBe(true);
-    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: -2 } } }).success).toBe(false);
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: 0 } } }).success).toBe(true);
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { lv: { post: -1 } } }).success).toBe(false);
   });
 
   it('4・5種目目を閉じるとLv・見えた動作・自由記入をまとめて落とす', () => {

@@ -4,8 +4,8 @@ import { PPI_QUESTIONS, PPI_SCORE_MAX } from '../master/ppi';
 import {
   EXERCISES,
   EXT_EXERCISE_KEYS,
-  LEVEL_NOT_POSSIBLE,
   MAX_EXERCISE_LEVEL,
+  MIN_EXERCISE_LEVEL,
   type ExerciseKey,
 } from '../master/exercises';
 import {
@@ -46,10 +46,10 @@ export const gradeCodeSchema = z.enum([
 ]);
 
 /**
- * 保存済みの到達値。-1 実施不可 / 0 未実施 / 1〜（種目ごとの上限）。
+ * 保存済みの到達値。0（Lv1 に取り組めなかった）〜 種目ごとの上限。
  * 種目が決まらない場面（一覧・レポートのレスポンス検証）はこちらで受ける。
  */
-export const storedLevelSchema = z.number().int().min(LEVEL_NOT_POSSIBLE).max(MAX_EXERCISE_LEVEL);
+export const storedLevelSchema = z.number().int().min(MIN_EXERCISE_LEVEL).max(MAX_EXERCISE_LEVEL);
 
 const dateSchema = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, '日付は YYYY-MM-DD 形式で入力してください。')
@@ -57,8 +57,8 @@ const dateSchema = z.string()
 const monthSchema = z.string()
   .regex(/^\d{4}-\d{2}$/, '年月は YYYY-MM 形式で入力してください。')
   .refine(isValidMonthString, '存在する年月を入力してください。');
-// -1 実施不可 / 0 未実施 / 1〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
-const levelSchemaFor = (maxLevel: number) => z.number().int().min(LEVEL_NOT_POSSIBLE).max(maxLevel);
+// Lv0〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
+const levelSchemaFor = (maxLevel: number) => z.number().int().min(MIN_EXERCISE_LEVEL).max(maxLevel);
 export const ppiScoreSchema = z.number().int().min(0).max(PPI_SCORE_MAX);
 const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,

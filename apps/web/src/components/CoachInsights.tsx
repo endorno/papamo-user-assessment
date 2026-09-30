@@ -1,7 +1,6 @@
 import {
   COACH_COPY,
   exerciseByKey,
-  LEVEL_NOT_POSSIBLE,
   NEURO_DOMAINS,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
@@ -24,9 +23,10 @@ const WANT_STATUS_LABEL: Record<WantPackageStatus, string> = {
   unmeasured: '見通し未定',
 };
 
+/** 未開放の4・5種目目は到達の記録がないため、Lv の代わりに出す。 */
+const UPCOMING_LEVEL_TEXT = '半年目以降';
+
 function levelText(lv: number, maxLv?: number) {
-  if (lv === LEVEL_NOT_POSSIBLE) return '実施不可';
-  if (lv <= 0) return '未実施';
   return maxLv ? `Lv${lv}/${maxLv}` : `Lv${lv}`;
 }
 
@@ -254,7 +254,7 @@ export function TroubleMatchPanel({ report, source }: SectionProps) {
                 <strong>{hit.id}. {hit.title}</strong>
                 <span className={styles.verdictBadge} data-verdict={hit.verdict}>{hit.verdict}</span>
               </header>
-              <small>{NEURO_DOMAINS.find((domain) => domain.id === hit.id)?.region}・主軸：{hit.priorityParentName}（{hit.priorityName} {levelText(hit.priorityLv, hit.priorityMaxLv)}）</small>
+              <small>{NEURO_DOMAINS.find((domain) => domain.id === hit.id)?.region}・主軸：{hit.priorityParentName}（{hit.priorityName} {hit.priorityMeasured ? levelText(hit.priorityLv, hit.priorityMaxLv) : UPCOMING_LEVEL_TEXT}）</small>
               <ul>{hit.troubles.map((trouble) => <li key={trouble}>{trouble}</li>)}</ul>
             </article>
           ))}
@@ -296,7 +296,7 @@ export function GoalFocusPanel({ report, source }: SectionProps) {
                     <strong>{want.icon} {want.short}</strong>
                     <span className={styles.wantStatus} data-status={want.status}>{WANT_STATUS_LABEL[want.status]}</span>
                   </div>
-                  <small>{want.menu}・支える種目：{exerciseByKey(want.axisKey).name} {levelText(want.axisLv, want.axisMaxLv)}</small>
+                  <small>{want.menu}・支える種目：{exerciseByKey(want.axisKey).name} {want.status === 'unmeasured' ? UPCOMING_LEVEL_TEXT : levelText(want.axisLv, want.axisMaxLv)}</small>
                   {want.status === 'foundationFirst' ? <small className={styles.wantWarning}>{COACH_COPY.wantFoundationFirst}</small> : null}
                   {want.status === 'unmeasured' ? <small className={styles.wantWarning}>{COACH_COPY.wantUnmeasured}</small> : null}
                 </li>

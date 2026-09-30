@@ -102,14 +102,11 @@ export function ReportPage() {
     report.upcomingExercises.length
     && report.nextDue >= addMonthsClamped(firstDayOfMonth(report.header.joinedMonth), 6),
   );
-  // 今回測れなかった種目と、半年目以降に加わる種目は同じ注記でまとめて触れる。
-  const notMeasuredNow = report.unmeasured.filter((item) => !item.upcoming);
-  const measuredLater = report.unmeasured.filter((item) => item.upcoming);
   const growNote = exerciseByKey(report.link.lowestKey).grow;
-  // 総合点は実際に測れた種目だけで出す。未実施・実施不可を分母に入れると低く見えてしまうため。
-  const measuredLevels = report.levels.filter((level) => level.measured);
-  const measuredTotal = measuredLevels.reduce((sum, level) => sum + level.lv, 0);
-  const measuredMax = measuredLevels.reduce((sum, level) => sum + level.maxLv, 0);
+  // 総合点はその回に記録した種目（Lv0 を含む）だけで出す。未開放の種目を分母に入れると低く見えてしまうため。
+  const levelTotal = report.levels.reduce((sum, level) => sum + level.lv, 0);
+  const levelMax = report.levels.reduce((sum, level) => sum + level.maxLv, 0);
+  const upcomingNames = report.upcomingExercises.map((item) => item.name).join('・');
   const page1HeadingCount = [report.kind === 'comparison', report.engagement.length > 0].filter(Boolean).length;
   // 3枚目は「ご家庭のお困り度」が必ず入り、目標は入力があったときだけ加わる。
   const page3HeadingCount = (report.copm.length > 0 ? 1 : 0) + 1;
@@ -143,20 +140,18 @@ export function ReportPage() {
             <section className={styles.reportHero} aria-label="育ちマップ">
               <strong className={styles.reportHeroTitle}>🧭 育ちマップ（5つの土台のレーダーチャート）</strong>
               <RadarChart report={report} extUnlocked={report.upcomingExercises.length === 0} showLevels />
-              <p className={styles.radarScaleNote}>外側ほどLvが高い（Lv1＝入口 〜 Lv30＝最上位）{measuredLevels.length < report.levels.length + report.upcomingExercises.length ? '／白い点の軸は「未実施」で、まだ測っていません' : ''}</p>
-              {measuredLevels.length ? (
-                <p className={styles.reportTotal}>
-                  今の到達 <strong>{measuredTotal}</strong> /{measuredMax}
-                  <small>（実施した{measuredLevels.length}種目の合計）</small>
-                </p>
-              ) : null}
+              <p className={styles.radarScaleNote}>外側ほどLvが高い（Lv1＝入口 〜 Lv30＝最上位）{report.upcomingExercises.length ? '／白い点の軸は「半年目以降」の種目で、まだ測っていません' : ''}</p>
+              <p className={styles.reportTotal}>
+                今の到達 <strong>{levelTotal}</strong> /{levelMax}
+                <small>（実施した{report.levels.length}種目の合計）</small>
+              </p>
               <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : <>できた・できなかったの採点ではなく、<strong>いまどの段にいるか</strong>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。</>}</p>
               <p>{growNote}</p>
             </section>
-            {notMeasuredNow.length || report.upcomingExercises.length ? (
+            {report.upcomingExercises.length ? (
               <p className={styles.reportNote}>
-                ※ {[...notMeasuredNow, ...measuredLater].map((item) => item.name).join('・')} は今回まだ測っていません。図では中心に近く描かれますが、
-                {report.upcomingExercises.length ? `${report.upcomingExercises.map((item) => item.name).join('・')}は、からだの土台が安定してきた半年目以降にあらためて実施する種目です。` : ''}
+                ※ {upcomingNames} は今回まだ測っていません。図では中心に近く描かれますが、
+                {upcomingNames}は、からだの土台が安定してきた半年目以降にあらためて実施する種目です。
                 「できない」という意味ではありません。
               </p>
             ) : null}
@@ -336,7 +331,7 @@ export function ReportPage() {
                 <h3>現在地<span>（今ここ）</span></h3>
                 <div className={styles.roadmapBody}>
                   <p className={styles.roadmapLabel}>育ちマップの特徴</p>
-                  <ul>{report.levels.filter((level) => level.measured).map((level) => <li key={level.key}>{level.parentName}{'\u3000'}Lv{level.lv}</li>)}</ul>
+                  <ul>{report.levels.map((level) => <li key={level.key}>{level.parentName}{'\u3000'}Lv{level.lv}</li>)}</ul>
                   <div className={styles.roadmapSub}>
                     <p className={styles.roadmapLabel}>強み</p>
                     <ul>{report.strengths.length ? report.strengths.map((strength) => <li key={strength.key}>{strength.parentName}</li>) : <li>これから見つけていきます</li>}</ul>

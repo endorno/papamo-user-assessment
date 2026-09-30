@@ -211,19 +211,19 @@ describe('子ども管理サービス', () => {
     expect(list[0]?.latestAssessment?.id).toBe(draft.id);
   });
 
-  it('未実施・実施不可・種目上限の到達値を載せても一覧レスポンスが検証を通る', async () => {
+  it('Lv0・種目上限の到達値を載せても一覧レスポンスが検証を通る', async () => {
     const { coach, child } = await createFixture('こはる');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     await patchAssessment(testEnv, assessment.id, coach.id, {
-      // -1 実施不可 / 0 未実施 / 種目ごとの上限、の3つをまとめて確認する。
-      data: { lv: { post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: -1 } },
+      // 下限の Lv0 と種目ごとの上限をまとめて確認する。
+      data: { lv: { post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: 5 } },
       updatedAt: assessment.updatedAt,
     });
 
     const children = await listChildren(testEnv, coach.id, false);
     expect(() => childrenResponseSchema.parse({ children })).not.toThrow();
     const listed = children.find(({ id }) => id === child.id);
-    expect(listed?.latestAssessment?.lv).toEqual({ post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: -1 });
+    expect(listed?.latestAssessment?.lv).toEqual({ post: MAX_EXERCISE_LEVEL, eyeh: 0, hand: 5 });
   });
 
   it('回を重ねても、一覧には直近の完了回だけを反映する', async () => {

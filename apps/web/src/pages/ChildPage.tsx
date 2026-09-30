@@ -408,8 +408,8 @@ export function ChildPage() {
                           return (
                             <div className={styles.levelRow} key={exercise.key}>
                               <span><strong>{exercise.name}</strong><small>{exercise.parentName}</small></span>
-                              <span className={styles.levelTrack}><i style={{ width: `${(Math.max(0, level.lv) / level.maxLv) * 100}%` }} /></span>
-                              <span><strong>{level.measured ? `Lv${level.lv}` : level.band}</strong><small>{level.measured ? deltaLabel : ''}</small></span>
+                              <span className={styles.levelTrack}><i style={{ width: `${(level.lv / level.maxLv) * 100}%` }} /></span>
+                              <span><strong>{`Lv${level.lv}`}</strong><small>{deltaLabel}</small></span>
                             </div>
                           );
                         })}

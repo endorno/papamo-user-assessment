@@ -37,18 +37,16 @@ function pointsFor(values: number[]) {
     .join(' ');
 }
 
-/** 未実施（0）・実施不可（-1）は中心に寄せて描く。「できない」という意味ではない。 */
+/** 記録のない軸（未開放の4・5種目目）は中心に寄せて描く。 */
 function chartValue(level: number | undefined) {
-  return Math.max(0, level ?? 0);
+  return level ?? 0;
 }
 
-/** 軸ラベルの下に添える今回の到達。未実施・実施不可は数値の代わりに状態を出す。 */
+/** 軸ラベルの下に添える今回の到達。未開放の軸は数値の代わりに「半年目以降」を出す。 */
 function levelCaption(level: ReportLevel | undefined, available: boolean) {
-  if (!available) return '半年目以降';
-  if (!level) return '未実施';
-  if (!level.measured) return level.band;
-  const delta = level.prevLv !== undefined && level.prevLv > 0 ? level.delta : undefined;
-  if (delta === undefined) return `Lv${level.lv}`;
+  if (!available || !level) return '半年目以降';
+  if (level.delta === undefined) return `Lv${level.lv}`;
+  const { delta } = level;
   return `Lv${level.lv}（${delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '±0'}）`;
 }
 
@@ -81,10 +79,10 @@ export function RadarChart({ report, extUnlocked, showLevels = false }: { report
         {report?.kind === 'comparison' ? <polygon className={styles.radarPrevious} points={pointsFor(previous)} /> : null}
         {report ? <polygon className={styles.radarCurrent} points={pointsFor(current)} /> : null}
         <circle cx={CENTER_X} cy={CENTER_Y} r="3" className={styles.radarCenter} />
-        {/* 頂点：測れた軸は塗り、測っていない軸は白抜きにして「まだ測っていない」ことを示す。 */}
+        {/* 頂点：記録した軸は塗り、未開放の軸は白抜きにして「まだ測っていない」ことを示す。 */}
         {showLevels && report ? EXERCISES.map((exercise, index) => {
           const point = axisPoint(index, radiusFor(current[index] ?? 0));
-          return <circle className={levels[index]?.measured ? styles.radarDot : styles.radarDotEmpty} cx={point.x} cy={point.y} key={exercise.key} r="4" />;
+          return <circle className={levels[index] ? styles.radarDot : styles.radarDotEmpty} cx={point.x} cy={point.y} key={exercise.key} r="4" />;
         }) : null}
         {EXERCISES.map((exercise, index) => {
           const available = exercise.core || extUnlocked;
@@ -99,7 +97,7 @@ export function RadarChart({ report, extUnlocked, showLevels = false }: { report
           }
           const label = axisPoint(index, RADIUS + 34);
           const anchor = anchorFor(label.x);
-          const measured = Boolean(levels[index]?.measured);
+          const measured = Boolean(levels[index]);
           // 長い名前で図が小さくならないよう、「/」の後ろで2行に折る（スマホ幅対策）。
           const nameLines = exercise.clinicalName.split(/(?<=\/)/);
           // 真上の軸は下へ伸ばすと目盛りに重なるため、ラベル全体を上へ積む。

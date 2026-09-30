@@ -196,7 +196,7 @@ describe('子どもページ', () => {
         assessedOn: '2026-06-01',
         unlockExt: false,
         data: {
-          lv: { post: 8, eyeh: -1, hand: 4 },
+          lv: { post: 8, eyeh: 0, hand: 4 },
           observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
           observationNotes: { hand: '左右の切り替えで止まる。' },
           engagement: { dur: 2, sup: 1 },
@@ -232,7 +232,7 @@ describe('子どもページ', () => {
     expect(engagement).toHaveTextContent('情報の入り方');
     expect(engagement).toHaveTextContent('視覚');
     expect(engagement).toHaveTextContent('タイマー');
-    expect(screen.getByRole('region', { name: 'レッスン前の注意点' })).toHaveTextContent('実施不可：お手玉キャッチ');
+    expect(screen.getByRole('region', { name: 'レッスン前の注意点' })).toHaveTextContent('Lv0：お手玉キャッチ');
     expect(screen.getByRole('region', { name: '3か月・6か月に当てるメニュー' })).toHaveTextContent('主軸');
     expect(screen.getByRole('region', { name: '目標への当て方' })).toHaveTextContent('先に土台');
     expect(screen.getByRole('region', { name: '見えた動作・つまずき方' })).toHaveTextContent('左右の切り替えで止まる。');

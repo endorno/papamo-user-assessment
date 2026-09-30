@@ -16,10 +16,7 @@ import {
   ENVIRONMENT_SUPPORT_GROUPS,
   EXERCISES,
   ladderLabel,
-  LEVEL_NOT_MEASURED,
-  LEVEL_NOT_MEASURED_LABEL,
-  LEVEL_NOT_POSSIBLE,
-  LEVEL_NOT_POSSIBLE_LABEL,
+  MIN_EXERCISE_LEVEL,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
   TEXT_LIMITS,
@@ -1018,10 +1015,7 @@ function ExerciseSection({
   onObservationToggle: (observation: string) => void;
   onNoteChange: (note: string) => void;
 }) {
-  // 未実施・実施不可は差分の対象にしない。
-  const delta = level === undefined || previousLevel === undefined || level <= 0 || previousLevel <= 0
-    ? undefined
-    : level - previousLevel;
+  const delta = level === undefined || previousLevel === undefined ? undefined : level - previousLevel;
   const bandGroups = exercise.bands.map((band, index) => {
     const from = index === 0 ? 1 : exercise.bands[index - 1]!.to + 1;
     return { ...band, from, levels: Array.from({ length: band.to - from + 1 }, (_, offset) => from + offset) };
@@ -1050,10 +1044,10 @@ function ExerciseSection({
             onLevelChange(Number(event.target.value));
           }}
         >
-          {/* 未入力は「未実施」と区別するため、選ばれるまで空の行を出す */}
+          {/* 未入力は Lv0 と区別するため、選ばれるまで空の行を出す */}
           {level === undefined ? <option value="" disabled>選択してください</option> : null}
-          <option value={LEVEL_NOT_MEASURED}>{LEVEL_NOT_MEASURED_LABEL}</option>
-          <option value={LEVEL_NOT_POSSIBLE}>{LEVEL_NOT_POSSIBLE_LABEL}</option>
+          {/* Lv0 はどの帯にも届いていないため、帯の区切りの外に置く */}
+          <option value={MIN_EXERCISE_LEVEL}>{`Lv${MIN_EXERCISE_LEVEL}\u3000`}{ladderLabel(exercise.key, MIN_EXERCISE_LEVEL)}{previousLevel === MIN_EXERCISE_LEVEL ? '（前回）' : ''}</option>
           {bandGroups.map((band) => (
             <optgroup key={band.to} label={`${band.name}（Lv${band.from}〜${band.to}）`}>
               {band.levels.map((candidate) => (
@@ -1066,13 +1060,11 @@ function ExerciseSection({
         </select>
       </div>
       <div className={`${styles.selectedLevel} ${level === undefined ? styles.selectedLevelEmpty : ''}`} aria-live="polite">
-        <strong>{level === undefined ? '—' : level > 0 ? `Lv${level}` : level === LEVEL_NOT_POSSIBLE ? '不可' : '未実施'}</strong>
+        <strong>{level === undefined ? '—' : `Lv${level}`}</strong>
         <span>
           {level === undefined
             ? `到達できた一番上のレベルを選びます${previousLevel === undefined ? '' : `（前回 Lv${previousLevel}）`}`
-            : level > 0
-              ? <>{ladderLabel(exercise.key, level)}<small>帯：{bandName(exercise.key, level)}</small></>
-              : <>{level === LEVEL_NOT_POSSIBLE ? LEVEL_NOT_POSSIBLE_LABEL : LEVEL_NOT_MEASURED_LABEL}<small>レポートでは「できない」という意味では扱いません</small></>}
+            : <>{ladderLabel(exercise.key, level)}{level > MIN_EXERCISE_LEVEL ? <small>帯：{bandName(exercise.key, level)}</small> : null}</>}
         </span>
         {delta !== undefined ? <em className={delta < 0 ? styles.deltaDown : styles.deltaUp}>{delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '前回と同じ'}</em> : null}
       </div>

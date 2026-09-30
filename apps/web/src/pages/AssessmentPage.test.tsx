@@ -276,15 +276,19 @@ describe('アセスメント入力', () => {
     expect(within(levelSelect).queryByText(/（前回）/)).not.toBeInTheDocument();
   });
 
-  it('未実施・実施不可も到達の選択肢として記録できる', async () => {
+  it('実施不可を Lv0 として記録でき、未実施の選択肢は出さない', async () => {
     renderAssessmentPage();
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
-    fireEvent.change(within(exerciseSection).getByLabelText('到達'), { target: { value: '-1' } });
+    const levelSelect = within(exerciseSection).getByLabelText('到達');
+    expect(within(levelSelect).queryByRole('option', { name: /未実施/ })).not.toBeInTheDocument();
+    expect(within(levelSelect).getByRole('option', { name: 'Lv0\u3000実施不可' })).toHaveValue('0');
+    fireEvent.change(levelSelect, { target: { value: '0' } });
 
+    expect(within(exerciseSection).getByText('Lv0', { selector: 'strong' })).toBeInTheDocument();
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number } } };
-      expect(body.data.lv.post).toBe(-1);
+      expect(body.data.lv.post).toBe(0);
     }, { timeout: 2000 });
   });
 

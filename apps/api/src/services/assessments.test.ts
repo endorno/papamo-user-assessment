@@ -167,13 +167,13 @@ describe('アセスメントサービス', () => {
     });
     await expect(completeAssessment(testEnv, assessment.id, coach)).rejects.toMatchObject({ code: 'validation' });
 
-    // 到達が「未実施」でも、選ばれてさえいれば完了できる。
+    // 到達が Lv0 でも、選ばれてさえいれば完了できる。
     await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { ...completedInput(), lv: { post: 0, eyeh: -1, hand: 5 } },
+      data: { ...completedInput(), lv: { post: 0, eyeh: 0, hand: 5 } },
       updatedAt: missingPpi.updatedAt,
     });
     const { report } = await completeAssessment(testEnv, assessment.id, coach);
-    expect(report.levels.map(({ key, lv }) => [key, lv])).toEqual([['post', 0], ['eyeh', -1], ['hand', 5]]);
+    expect(report.levels.map(({ key, lv }) => [key, lv])).toEqual([['post', 0], ['eyeh', 0], ['hand', 5]]);
   });
 
   it('古い更新日時による上書きを競合として拒否する', async () => {

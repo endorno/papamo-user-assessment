@@ -1276,7 +1276,7 @@
   font-size: 13px;
 }
 
-/* 未実施・実施不可・未開放の軸は、ラベルごと薄くして「まだ測っていない」ことを色と破線で伝える。 */
+/* 未開放の軸は、ラベルごと薄くして「まだ測っていない」ことを色と破線で伝える。 */
 .radarAxisMuted .radarIcon {
   stroke: #a8b3ae;
   stroke-dasharray: 3 2.4;
