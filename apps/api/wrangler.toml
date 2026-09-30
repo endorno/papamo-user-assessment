@@ -15,6 +15,10 @@ database_name = "papamo-user-assessment"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
+# 保護者向けレポートのPDFを Browser Run のヘッドレス Chrome で作る。
+[browser]
+binding = "BROWSER"
+
 [vars]
 SUPABASE_URL = "http://127.0.0.1:15421"
 SUPABASE_JWT_ISSUER = "http://127.0.0.1:15421/auth/v1"
@@ -37,6 +41,10 @@ binding = "DB"
 database_name = "papamo-user-assessment-staging"
 database_id = "66203a74-eac7-4267-b036-e9d298daea30"
 migrations_dir = "migrations"
+
+# バインディングは環境に継承されないため、staging にも書く。
+[env.staging.browser]
+binding = "BROWSER"
 
 [env.staging.vars]
 SUPABASE_URL = "https://rqrtabsygnlhgjlevqah.supabase.co"

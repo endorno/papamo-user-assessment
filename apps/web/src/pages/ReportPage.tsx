@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 
 import {
@@ -12,11 +12,13 @@ import {
   reportResponseSchema,
   type TuningKey,
 } from '@papamo/shared';
-import { apiRequest } from '../api/client';
+import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { RadarChart } from '../components/RadarChart';
+import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
+import { buildReportHtml, saveBlob } from '../utils/report-pdf';
 import styles from '../styles/page.module.css';
 
 type ParsedReport = ReturnType<typeof reportResponseSchema.parse>['report'];
@@ -52,7 +54,7 @@ function ReportSheetHeader({ report, title }: { report: ParsedReport; title: str
 
 /** 見出しが1つしかないページで「1」だけ振ると続きがあるように見えるため、番号は省けるようにする。 */
 function NumberedHeading({ number, children }: { number?: number | undefined; children: ReactNode }) {
-  return <h2 className={styles.numberedHeading}>{number === undefined ? null : <span>{number}</span>}{children}</h2>;
+  return <h2 className={styles.numberedHeading}>{number === undefined ? null : <span className={styles.headingNumber}>{number}</span>}{children}</h2>;
 }
 
 /** 番号つき見出しが2つ以上あるときだけ連番を振る。 */
@@ -70,6 +72,9 @@ export function ReportPage() {
   const [report, setReport] = useState<ParsedReport | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creatingPdf, setCreatingPdf] = useState(false);
+  const documentRef = useRef<HTMLElement>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!session || !id) return;
@@ -82,6 +87,26 @@ export function ReportPage() {
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
+
+  async function downloadPdf() {
+    if (!session || !id || !report || !documentRef.current) return;
+    const title = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_第${report.header.seqNo}回`;
+    setCreatingPdf(true);
+    try {
+      const pdf = await apiRequestBlob(`/assessments/${id}/report/pdf`, session, {
+        method: 'POST',
+        body: JSON.stringify({ html: buildReportHtml(documentRef.current, title) }),
+      });
+      saveBlob(pdf, `${title}.pdf`);
+    } catch (caught) {
+      showToast(
+        caught instanceof ApiClientError ? caught.message : 'PDFを作成できませんでした。通信状況を確認してもう一度お試しください。',
+        { action: { label: 'もう一度', onClick: () => void downloadPdf() } },
+      );
+    } finally {
+      setCreatingPdf(false);
+    }
+  }
 
   if (error) return <main className={styles.page}><div className={styles.errorPanel} role="alert"><p>{error}</p><Link className={styles.secondaryButton} to="/">一覧に戻る</Link></div></main>;
   if (!report) {
@@ -115,14 +140,16 @@ export function ReportPage() {
   return (
     <div className={styles.pageFrame}>
       <AppHeader breadcrumbs={[{ label: '担当の子ども', to: '/' }, { label: childName, ...(childId ? { to: `/children/${childId}` } : {}) }, { label: `第${report.header.seqNo}回レポート` }]} />
-      <main className={`${styles.page} ${styles.reportPage} report-document`}>
+      <main className={`${styles.page} ${styles.reportPage}`} ref={documentRef}>
         <div className={styles.reportWrap}>
           <div className={styles.reportActions} data-print-hidden>
             <div><strong>保護者向けレポート</strong><span>コーチ用の所見・つまずきは子どもページで確認できます。</span></div>
             <div>
               <Link className={styles.secondaryButton} to="/">一覧に戻る</Link>
               {childId ? <Link className={styles.secondaryButton} to={`/children/${childId}`}>{childName}のページへ</Link> : null}
-              <button className={styles.primaryButton} type="button" onClick={() => window.print()}>印刷 / PDF</button>
+              <button className={styles.primaryButton} type="button" onClick={() => void downloadPdf()} disabled={creatingPdf} aria-busy={creatingPdf}>
+                {creatingPdf ? 'PDFを作成中…' : 'PDFをダウンロード'}
+              </button>
             </div>
           </div>
 

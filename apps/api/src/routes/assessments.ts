@@ -2,6 +2,7 @@ import {
   assessmentCompleteRequestSchema,
   assessmentPatchRequestSchema,
   assessmentResponseSchema,
+  reportPdfRequestSchema,
   reportResponseSchema,
 } from '@papamo/shared';
 import { Hono } from 'hono';
@@ -98,5 +99,33 @@ assessmentsRoutes.get('/:id/report', async (context) => {
     return context.json(reportResponseSchema.parse(found));
   } catch (caught) {
     return serviceError(context, caught);
+  }
+});
+
+assessmentsRoutes.post('/:id/report/pdf', async (context) => {
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return jsonError(context, 'validation', 'レポートの内容を読み取れませんでした。画面を再読み込みしてからもう一度お試しください。', 400);
+  }
+  const parsed = reportPdfRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonError(context, 'validation', parsed.error.issues[0]?.message ?? 'レポートの内容を読み取れませんでした。', 400);
+  }
+  try {
+    // 担当していない子どものレポートはPDFにもさせない。存在と membership の確認はレポート取得と同じ。
+    await getReport(context.env, context.req.param('id'), context.get('coach').id);
+  } catch (caught) {
+    return serviceError(context, caught);
+  }
+  try {
+    const pdf = await context.get('renderPdf')(context.env, parsed.data.html);
+    return context.body(pdf, 200, {
+      'Content-Type': 'application/pdf',
+      'Cache-Control': 'no-store',
+    });
+  } catch (caught) {
+    return internalError(context, caught, 'report.pdf', 'PDFを作成できませんでした。少し待ってからもう一度お試しください。');
   }
 });

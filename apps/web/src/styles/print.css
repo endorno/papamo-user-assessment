@@ -1,7 +1,13 @@
 @media print {
+  /* 余白と縮尺は PDF 生成側（apps/api/src/services/report-pdf.ts）で決める。 */
   @page {
     size: A4 portrait;
-    margin: 14mm;
+  }
+
+  /* ブラウザ既定では背景を印刷しないため、背景色・枠線・バッジが落ちないようにする。 */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body {
@@ -10,25 +16,5 @@
 
   [data-print-hidden] {
     display: none;
-  }
-
-  .report-document {
-    padding: 0;
-    background: #fff;
-  }
-
-  .sheet {
-    min-height: 267mm;
-    margin: 0;
-    padding: 0;
-    break-after: page;
-    border: 0;
-    border-radius: 0;
-    background: #fff;
-    box-shadow: none;
-  }
-
-  .sheet:last-child {
-    break-after: auto;
   }
 }

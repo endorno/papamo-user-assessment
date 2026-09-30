@@ -1699,13 +1699,6 @@
   font-weight: 400;
 }
 
-@media print {
-  /* A4 1枚に収めるため、印刷時だけレーダーを少し詰める。 */
-  .reportHero .radar {
-    width: 440px;
-  }
-}
-
 .reportLead {
   font-size: 0.94rem !important;
 }
@@ -1763,7 +1756,8 @@
   font-size: 1rem !important;
 }
 
-.numberedHeading > span {
+/* 見出しには「アルゴリズム調整中」のタグ（span）も入るため、番号の丸はクラスで指定する。 */
+.headingNumber {
   display: inline-grid;
   width: 26px;
   height: 26px;
@@ -1979,6 +1973,39 @@
 
   .reportPpi > div {
     grid-template-columns: 96px 1fr 52px;
+  }
+}
+
+/*
+ * 保護者向けレポートの紙面（PDF）。1シート＝A4 1ページにする。
+ * 画面用の .sheet 指定と同じ詳細度なので、それより後ろに置いて上書きする。
+ * シートごとの縮小・拡大（zoom）と最低高さは、PDF生成時にサーバーが実測して付ける。
+ */
+@media print {
+  .reportPage {
+    min-height: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .reportWrap {
+    width: 100%;
+  }
+
+  .reportPage :global(.sheet) {
+    min-height: 0;
+    margin: 0;
+    padding: 22px 20px 12px;
+    border-radius: 10px;
+    break-after: page;
+  }
+
+  .reportPage :global(.sheet):last-child {
+    break-after: auto;
+  }
+
+  .reportHero .radar {
+    width: 440px;
   }
 }
 
