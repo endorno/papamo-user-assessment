@@ -73,6 +73,7 @@ export function ReportPage() {
   const [report, setReport] = useState<ParsedReport | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const [hasUnreportedChanges, setHasUnreportedChanges] = useState(false);
+  const [readOnly, setReadOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingPdf, setCreatingPdf] = useState(false);
   const documentRef = useRef<HTMLElement>(null);
@@ -87,6 +88,7 @@ export function ReportPage() {
         setReport(parsed.data.report);
         setChildId(parsed.data.childId);
         setHasUnreportedChanges(parsed.data.hasUnreportedChanges);
+        setReadOnly(parsed.data.readOnly);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
@@ -146,8 +148,10 @@ export function ReportPage() {
           <div className={styles.reportActions} data-print-hidden>
             <div><strong>保護者向けレポート</strong><span>コーチ用の所見・つまずきは子どもページで確認できます。</span></div>
             <div>
-              <Link className={styles.secondaryButton} to="/">一覧に戻る</Link>
+              {/* 一覧へはロゴとパンくずで戻れる。子どもページはスマホでパンくずが隠れるため、ボタンでも置く。 */}
               {childId ? <Link className={styles.secondaryButton} to={`/children/${childId}`}>{childName}のページへ</Link> : null}
+              {/* 出力後に間違いに気づいたとき、子どもページを経由せず直せるようにする。直せない回では出さない。 */}
+              {readOnly ? null : <Link className={styles.secondaryButton} to={`/assessments/${id}`}>入力を修正する</Link>}
               <button className={styles.primaryButton} type="button" onClick={() => void downloadPdf()} disabled={creatingPdf} aria-busy={creatingPdf}>
                 {creatingPdf ? 'PDFを作成中…' : 'PDFをダウンロード'}
               </button>

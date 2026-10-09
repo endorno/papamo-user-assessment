@@ -144,6 +144,14 @@ async function assessmentOrThrow(env: Env, assessmentId: string) {
   return assessment;
 }
 
+/** 後続の回（下書きを含む）があれば、この回は読み取り専用になる。 */
+async function hasLaterAssessment(env: Env, assessment: Pick<AssessmentRow, 'childId' | 'seqNo'>) {
+  const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(
+    and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
+  ).limit(1).get();
+  return Boolean(later);
+}
+
 async function ensureWritable(
   env: Env,
   assessment: typeof assessments.$inferSelect,
@@ -153,10 +161,7 @@ async function ensureWritable(
   if (!linked) throw new AssessmentServiceError('forbidden', 'このアセスメントを操作する権限がありません。');
   const child = await childOrThrow(env, assessment.childId);
   if (child.archivedAt) throw new AssessmentServiceError('conflict', 'アーカイブ中のお子さまは編集できません。');
-  const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(
-    and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
-  ).limit(1).get();
-  if (later) throw new AssessmentServiceError('conflict', '次のアセスメントがあるため、この回は編集できません。');
+  if (await hasLaterAssessment(env, assessment)) throw new AssessmentServiceError('conflict', '次のアセスメントがあるため、この回は編集できません。');
   return child;
 }
 
@@ -284,9 +289,7 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
   const linked = await membership(env, assessment.childId, coachId);
   if (!linked) throw new AssessmentServiceError('forbidden', 'このアセスメントを閲覧する権限がありません。');
   const child = await childOrThrow(env, assessment.childId);
-  const later = await dbFor(env).select({ id: assessments.id }).from(assessments).where(
-    and(eq(assessments.childId, assessment.childId), gt(assessments.seqNo, assessment.seqNo)),
-  ).limit(1).get();
+  const later = await hasLaterAssessment(env, assessment);
   const previous = assessment.prevAssessmentId
     ? await dbFor(env)
         .select({ assessment: assessments, reportInput: reports.assessmentInput })
@@ -312,7 +315,7 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
     createdAt: assessment.createdAt,
     updatedAt: assessment.updatedAt,
     completedAt: assessment.completedAt,
-    readOnly: Boolean(child.archivedAt || later),
+    readOnly: Boolean(child.archivedAt) || later,
     reported,
     previous: previous
       ? (() => {
@@ -563,7 +566,7 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
     ...(unlockExt && !child.extUnlocked ? [childUpdate] : []),
   ]);
   if (affectedRows(results[0]) !== 1) throw concurrentUpdateError();
-  return { report, childId: assessment.childId, assessmentId: assessment.id, hasUnreportedChanges: false };
+  return { report, childId: assessment.childId, assessmentId: assessment.id, hasUnreportedChanges: false, readOnly: false };
 }
 
 export async function getReport(env: Env, assessmentId: string, coachId: string) {
@@ -576,12 +579,14 @@ export async function getReport(env: Env, assessmentId: string, coachId: string)
   }).from(reports).where(eq(reports.assessmentId, assessmentId)).get();
   if (!report) throw new AssessmentServiceError('not_found', 'レポートが見つかりません。');
   const stored = reportContentSchema.safeParse(JSON.parse(report.content));
+  const child = await childOrThrow(env, assessment.childId);
   return {
     // 旧版の形で保存されたレポートは、読むたびにレポート作成時の入力から作り直して返す。保存し直すのは次にレポートを更新したとき。
     report: stored.success ? stored.data : await regenerateStoredReport(env, assessment, report),
     childId: assessment.childId,
     assessmentId: assessment.id,
     hasUnreportedChanges: hasUnreportedChanges(assessment, report.assessmentInput),
+    readOnly: Boolean(child.archivedAt) || await hasLaterAssessment(env, assessment),
   };
 }
 

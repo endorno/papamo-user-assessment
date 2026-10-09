@@ -79,7 +79,7 @@ afterEach(() => {
 
 describe('保護者向けレポート', () => {
   it('初回レポートの見出しと困りごとを初回向けに表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
@@ -99,7 +99,7 @@ describe('保護者向けレポート', () => {
   });
 
   it('比較レポートを4枚構成と日本語ラベルで表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
@@ -130,7 +130,7 @@ describe('保護者向けレポート', () => {
   });
 
   it('レポート作成後に入力が変更されていれば、印刷しない案内で知らせる', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: true, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     const notice = await screen.findByText('このレポートを作ったあとに、入力が変更されています');
@@ -139,12 +139,38 @@ describe('保護者向けレポート', () => {
     expect(within(container as HTMLElement).getByRole('link', { name: '入力画面を開く' })).toHaveAttribute('href', '/assessments/assessment-1');
   });
 
+  it('出力後に間違いに気づいても、レポート画面から入力画面へ戻れる', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const editLink = await screen.findByRole('link', { name: '入力を修正する' });
+    expect(editLink).toHaveAttribute('href', '/assessments/assessment-1');
+    // 印刷・PDFには出さない操作バーに置く。
+    expect(editLink.closest('[data-print-hidden]')).not.toBeNull();
+  });
+
+  it('次の回があって直せない回では、入力画面へのボタンを出さない', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '入力を修正する' })).not.toBeInTheDocument();
+  });
+
+  it('操作バーには子どもページへの導線だけを置き、一覧へはヘッダーから戻る', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    expect(await screen.findByRole('link', { name: 'はるとくんのページへ' })).toHaveAttribute('href', '/children/child-1');
+    expect(screen.queryByRole('link', { name: '一覧に戻る' })).not.toBeInTheDocument();
+  });
+
   it('PDFボタンで表示中のレポートをサーバーへ送り、ファイルとして保存する', async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input) => {
       if (String(input).endsWith('/report/pdf')) {
         return new Response('%PDF-1.7', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
       }
-      return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     });
     vi.stubGlobal('fetch', fetchMock);
     // jsdom には Blob の URL 化がないため、差し替えた URL で受ける。
@@ -181,7 +207,7 @@ describe('保護者向けレポート', () => {
       if (String(input).endsWith('/report/pdf')) {
         return new Response(JSON.stringify({ error: { code: 'internal', message: 'PDFを作成できませんでした。少し待ってからもう一度お試しください。' } }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
-      return new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }));
     renderReportPage();
 

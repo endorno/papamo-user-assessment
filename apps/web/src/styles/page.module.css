@@ -1974,8 +1974,13 @@
     flex-direction: column;
   }
 
+  /* ボタンが3つ並ぶと1行では文言が潰れるため、2つずつ折り返す（余りは横いっぱいに広げる）。 */
+  .reportActions > div:last-child {
+    flex-wrap: wrap;
+  }
+
   .reportActions > div:last-child > * {
-    flex: 1;
+    flex: 1 1 calc(50% - 5px);
   }
 
   .reportPage :global(.sheet) {

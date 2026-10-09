@@ -201,7 +201,10 @@ describe('API ルート結合', () => {
 
     const reportResponse = await request(client, `/assessments/${created.id}/report`);
     expect(reportResponse.status).toBe(200);
-    expect(reportResponseSchema.parse(await reportResponse.json()).report.header.childName).toBe('ゆい');
+    const firstReport = reportResponseSchema.parse(await reportResponse.json());
+    expect(firstReport.report.header.childName).toBe('ゆい');
+    // 次の回ができるまでは、レポート画面から入力を直しに戻れる。
+    expect(firstReport.readOnly).toBe(false);
 
     const completedDetailResponse = await request(client, `/assessments/${created.id}`);
     const completedDetail = assessmentResponseSchema.parse(await completedDetailResponse.json()).assessment;
@@ -250,6 +253,14 @@ describe('API ルート結合', () => {
     });
     expect(revertResponse.status).toBe(200);
     expect(assessmentResponseSchema.parse(await revertResponse.json()).assessment.data.memo).toBe('');
+
+    const nextAssessment = await request(client, `/children/${child.id}/assessments`, {
+      method: 'POST',
+      body: JSON.stringify({ unlockExt: false }),
+    });
+    expect(nextAssessment.status).toBe(201);
+    const lockedReport = reportResponseSchema.parse(await (await request(client, `/assessments/${created.id}/report`)).json());
+    expect(lockedReport.readOnly).toBe(true);
 
     const doneDeletion = await request(client, `/assessments/${created.id}`, { method: 'DELETE' });
     expect(doneDeletion.status).toBe(409);

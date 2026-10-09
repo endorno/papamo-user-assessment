@@ -240,6 +240,8 @@ export const reportResponseSchema = z.object({
   report: reportContentSchema,
   /** レポート作成後に入力を編集し、まだ反映していないか。 */
   hasUnreportedChanges: z.boolean(),
+  /** 次の回がある・アーカイブ中などで、この回の入力を直せないか。レポート画面から入力画面へ戻るボタンの文言に使う。 */
+  readOnly: z.boolean(),
 });
 
 // 画面に表示したレポートをそのままPDFにするため、DOMとCSSを1つにしたHTMLを受け取る。
