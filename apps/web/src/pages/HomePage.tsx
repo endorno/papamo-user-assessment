@@ -7,6 +7,7 @@ import {
   childrenResponseSchema,
   EXERCISES,
   isValidShareCode,
+  matchesChildId,
   sampleChildCreateResponseSchema,
   sampleDataStatusResponseSchema,
   todayInJst,
@@ -367,7 +368,7 @@ export function HomePage() {
 
   const keyword = filter.trim();
   const matches = useCallback(
-    (child: ChildView) => !keyword || child.name.includes(keyword),
+    (child: ChildView) => !keyword || child.name.includes(keyword) || matchesChildId(child.id, keyword),
     [keyword],
   );
   const visibleChildren = useMemo(() => children.filter(matches), [children, matches]);
@@ -431,13 +432,13 @@ export function HomePage() {
 
         {showFilter ? (
           <div className={styles.filterRow}>
-            <label htmlFor="child-filter" className={styles.eyebrow}>お名前でしぼり込む</label>
+            <label htmlFor="child-filter" className={styles.eyebrow}>お名前・IDでしぼり込む</label>
             <input
               id="child-filter"
               type="search"
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
-              placeholder="例：そうた"
+              placeholder="例：そうた、#7K3Q"
               autoComplete="off"
             />
             <span aria-live="polite">{keyword ? `${visibleChildren.length}名を表示中` : `${children.length}名`}</span>

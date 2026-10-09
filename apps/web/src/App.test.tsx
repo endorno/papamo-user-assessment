@@ -176,12 +176,29 @@ describe('担当の子ども一覧', () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({ children: many })));
     renderHomePage();
 
-    const filter = await screen.findByLabelText('お名前でしぼり込む');
+    const filter = await screen.findByLabelText('お名前・IDでしぼり込む');
     fireEvent.change(filter, { target: { value: 'そう' } });
 
     const settled = screen.getByRole('region', { name: '次の予定まで余裕あり' });
     expect(within(settled).getByText('そうた')).toBeInTheDocument();
     expect(within(settled).queryByText('こども1')).not.toBeInTheDocument();
+  });
+
+  it('同じお名前のお子さまは、名前の横の短縮IDでしぼり込める', async () => {
+    const many = Array.from({ length: 9 }, (_, index) => ({
+      ...settledChild,
+      id: `01K7A3B4C5D6E7F8G9HJKM${['7K3Q', 'PRST'][index] ?? `AB${index}${index}`}`,
+      name: index < 2 ? 'そうた' : `こども${index}`,
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => response({ children: many })));
+    renderHomePage();
+
+    fireEvent.change(await screen.findByLabelText('お名前・IDでしぼり込む'), { target: { value: '#7k3q' } });
+
+    const settled = screen.getByRole('region', { name: '次の予定まで余裕あり' });
+    expect(within(settled).getAllByText('そうた')).toHaveLength(1);
+    expect(within(settled).getByText('#7K3Q')).toBeInTheDocument();
+    expect(within(settled).queryByText('#PRST')).not.toBeInTheDocument();
   });
 
   it('カードは常に子どもページへ行き、入力中のときだけその回へのボタンを添える', async () => {

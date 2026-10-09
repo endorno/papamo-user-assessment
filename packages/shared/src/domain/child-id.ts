@@ -8,3 +8,14 @@ export const SHORT_CHILD_ID_LENGTH = 4;
 export function shortChildId(id: string): string {
   return id.slice(-SHORT_CHILD_ID_LENGTH).toUpperCase();
 }
+
+/**
+ * しぼり込みの入力がこのIDを指しているか。「#」の有無と大文字・小文字は問わない。
+ * 打ちながら絞れるよう短縮IDは一部一致で探し、IDの全体は貼り付けたときだけ一致させる
+ * （全体を一部一致にすると、時刻の入る先頭で同じ時期の子どもがまとめて当たるため）。
+ */
+export function matchesChildId(id: string, query: string): boolean {
+  const normalized = query.trim().replace(/^#/, '').toUpperCase();
+  if (!normalized) return false;
+  return shortChildId(id).includes(normalized) || id.toUpperCase() === normalized;
+}
