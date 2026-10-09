@@ -10,7 +10,7 @@ import { ToastProvider } from './components/Toast';
 export const testCoach: MeResponse = {
   id: 'coach-1',
   email: 'coach@example.com',
-  displayName: 'さとうコーチ',
+  displayName: 'さとう',
 };
 
 /**

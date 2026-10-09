@@ -130,6 +130,22 @@ describe('API ルート結合', () => {
     expect(childrenResponseSchema.parse(await childrenResponse.json()).children).toEqual([]);
   });
 
+  it('表示名は名前の後ろに入力された「コーチ」を落として保存する', async () => {
+    const client = await createTestClient();
+    const response = await request(client, '/me', {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: 'さとうコーチ' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ displayName: 'さとう' });
+
+    const titleOnly = await request(client, '/me', {
+      method: 'PUT',
+      body: JSON.stringify({ displayName: 'コーチ' }),
+    });
+    expect(titleOnly.status).toBe(400);
+  });
+
   it('作成・自動保存・完了・レポート取得を共有レスポンススキーマで検証する', async () => {
     const client = await createTestClient();
     await onboard(client);

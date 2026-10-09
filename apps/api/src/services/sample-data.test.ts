@@ -16,7 +16,7 @@ beforeAll(async () => {
       id: `seed-coach-${suffix}`,
       email: `seed-coach-${suffix}@example.invalid`,
     });
-    await updateCoachDisplayName(testEnv, `seed-coach-${suffix}`, `テストコーチ${suffix}`);
+    await updateCoachDisplayName(testEnv, `seed-coach-${suffix}`, `テスト${suffix}`);
   }
 });
 
@@ -34,9 +34,9 @@ describe('非本番用サンプルデータ', () => {
       id: crypto.randomUUID(),
       email: `${crypto.randomUUID()}@example.com`,
     });
-    await updateCoachDisplayName(testEnv, owner.id, '実データ確認コーチ');
+    await updateCoachDisplayName(testEnv, owner.id, '実データ確認');
 
-    const created = await createSampleChild(testEnv, { ...owner, displayName: '実データ確認コーチ' }, 'long', {
+    const created = await createSampleChild(testEnv, { ...owner, displayName: '実データ確認' }, 'long', {
       now: new Date('2026-09-12T03:00:00.000Z'),
       random: () => 0.4,
     });

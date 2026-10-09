@@ -317,3 +317,27 @@
   font-size: 0.78rem;
   font-weight: 500;
 }
+
+/* --- コーチの表示名（「コーチ」は欄の外に固定で添える） --- */
+
+.coachNameInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.coachNameInput input {
+  width: 100%;
+  min-width: 0;
+}
+
+.coachTitle {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.coachNameHint {
+  color: var(--mute);
+  font-size: 0.82rem;
+}

@@ -74,7 +74,7 @@ describe('開発用データAPI', () => {
     const currentEnv = environment({ APP_ENV: 'local', NON_PRODUCTION_TOOLS_ENABLED: 'true' });
     const api = client(id, `${id}@example.com`);
     await upsertCoach(currentEnv, { id, email: `${id}@example.com` });
-    await updateCoachDisplayName(currentEnv, id, 'ローカルテストコーチ');
+    await updateCoachDisplayName(currentEnv, id, 'ローカルテスト');
 
     const statusResponse = await request(api, currentEnv, '/dev-tools/sample-data');
     expect(statusResponse.status).toBe(200);
@@ -99,7 +99,7 @@ describe('開発用データAPI', () => {
     const currentEnv = environment({ APP_ENV: 'local', NON_PRODUCTION_TOOLS_ENABLED: 'true' });
     const api = client(id, `${id}@example.com`);
     await upsertCoach(currentEnv, { id, email: `${id}@example.com` });
-    await updateCoachDisplayName(currentEnv, id, '生成テストコーチ');
+    await updateCoachDisplayName(currentEnv, id, '生成テスト');
     for (let index = 1; index <= 15; index += 1) {
       const suffix = index.toString().padStart(2, '0');
       await upsertCoach(currentEnv, {
@@ -137,7 +137,7 @@ describe('開発用データAPI', () => {
     const memberId = crypto.randomUUID();
     const ownerApi = client(ownerId, `${ownerId}@example.com`);
     const memberApi = client(memberId, `${memberId}@example.com`);
-    for (const [id, name] of [[ownerId, 'オーナーコーチ'], [memberId, '片付けコーチ']] as const) {
+    for (const [id, name] of [[ownerId, 'オーナー'], [memberId, '片付け']] as const) {
       await upsertCoach(currentEnv, { id, email: `${id}@example.com` });
       await updateCoachDisplayName(currentEnv, id, name);
     }

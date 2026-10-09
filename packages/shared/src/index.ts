@@ -5,11 +5,26 @@ export const apiHealthResponseSchema = z.object({
   service: z.literal('api'),
 });
 
+/** コーチ名に必ず付ける呼び名。全コーチ共通なので、表示名には名前の部分だけを持つ。 */
+export const COACH_TITLE = 'コーチ';
+export const DISPLAY_NAME_MAX_LENGTH = 30;
+
 export const displayNameSchema = z
   .string()
   .trim()
-  .min(1, '表示名を入力してください。')
-  .max(30, '表示名は30文字以内で入力してください。');
+  // 名前の後ろに「コーチ」まで入力されても「さとうコーチコーチ」にならないよう落とす
+  .transform((value) => (value.endsWith(COACH_TITLE) ? value.slice(0, -COACH_TITLE.length).trim() : value))
+  .pipe(
+    z
+      .string()
+      .min(1, '表示名を入力してください。')
+      .max(DISPLAY_NAME_MAX_LENGTH, `表示名は${DISPLAY_NAME_MAX_LENGTH}文字以内で入力してください。`),
+  );
+
+/** 画面とレポートに出すコーチ名（「さとう」→「さとうコーチ」）。 */
+export function formatCoachName(displayName: string) {
+  return `${displayName}${COACH_TITLE}`;
+}
 
 export const updateMeRequestSchema = z.object({
   displayName: displayNameSchema,

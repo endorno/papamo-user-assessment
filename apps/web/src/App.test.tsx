@@ -15,7 +15,7 @@ vi.mock('./auth/SupabaseAuthProvider', () => ({
 import { HomePage } from './pages/HomePage';
 import { renderWithProviders } from './test-utils';
 
-const profile = { id: 'coach-1', email: 'coach@example.com', displayName: 'さとうコーチ' };
+const profile = { id: 'coach-1', email: 'coach@example.com', displayName: 'さとう' };
 const baseChild = {
   id: 'child-1',
   name: 'そうた',

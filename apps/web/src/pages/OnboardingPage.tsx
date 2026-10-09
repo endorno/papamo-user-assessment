@@ -5,6 +5,7 @@ import { meResponseSchema } from '@papamo/shared';
 import { apiRequest } from '../api/client';
 import { useMe } from '../app/MeContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
+import { CoachNameInput } from '../components/CoachNameInput';
 import styles from '../styles/auth.module.css';
 
 export function OnboardingPage() {
@@ -49,15 +50,7 @@ export function OnboardingPage() {
         </p>
         <form className={styles.form} onSubmit={handleSubmit}>
           <label htmlFor="display-name">表示名</label>
-          <input
-            id="display-name"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            maxLength={30}
-            autoComplete="name"
-            placeholder="さとうコーチ"
-            required
-          />
+          <CoachNameInput id="display-name" value={displayName} onChange={setDisplayName} />
           <button className={styles.primaryButton} type="submit" disabled={saving}>
             {saving ? '保存中…' : '登録して始める'}
           </button>

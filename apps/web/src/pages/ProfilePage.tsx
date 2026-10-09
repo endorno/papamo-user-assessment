@@ -6,6 +6,7 @@ import { apiRequest } from '../api/client';
 import { useMe } from '../app/MeContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { CoachNameInput } from '../components/CoachNameInput';
 import { useToast } from '../components/Toast';
 import styles from '../styles/page.module.css';
 
@@ -56,7 +57,7 @@ export function ProfilePage() {
               </div>
               <div className={styles.formField}>
                 <label htmlFor="profile-name">表示名</label>
-                <input id="profile-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} maxLength={30} required />
+                <CoachNameInput id="profile-name" value={displayName} onChange={setDisplayName} />
               </div>
               {error ? <p className={styles.formError} role="alert">{error}</p> : null}
               <div className={styles.formActions}>

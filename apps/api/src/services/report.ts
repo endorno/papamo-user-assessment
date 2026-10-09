@@ -1,4 +1,5 @@
 import {
+  formatCoachName,
   MASTER_VERSION,
   RuleBasedReportGenerator,
   type CompletedAssessmentData,
@@ -34,7 +35,7 @@ export async function generateReport(input: {
       ageGroup: grade.ageGroup,
       joinedMonth: input.child.joinedMonth,
     },
-    coach: { displayName: input.coach.displayName ?? input.coach.email },
+    coach: { displayName: input.coach.displayName ? formatCoachName(input.coach.displayName) : input.coach.email },
     assessment: input.assessment,
     previous: input.previous,
     master: { version: MASTER_VERSION },

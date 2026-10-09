@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router';
 
+import { formatCoachName } from '@papamo/shared';
 import { GuardedLink, useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { useMe } from '../app/MeContext';
@@ -16,7 +17,7 @@ export function AppHeader({ breadcrumbs }: { breadcrumbs: Breadcrumb[] }) {
   const { me } = useMe();
   const { confirmNavigation } = useUnsavedChanges();
   const navigate = useNavigate();
-  const coachName = me?.displayName ?? null;
+  const coachName = me?.displayName ? formatCoachName(me.displayName) : null;
 
   function handleSignOut() {
     confirmNavigation(() => {

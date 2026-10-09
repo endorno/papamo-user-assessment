@@ -260,7 +260,7 @@ describe('アセスメントサービス', () => {
       id: crypto.randomUUID(),
       email: `${crypto.randomUUID()}@example.com`,
     });
-    await testEnv.DB.prepare('UPDATE coaches SET display_name = ? WHERE id = ?').bind('となりのコーチ', colleague.id).run();
+    await testEnv.DB.prepare('UPDATE coaches SET display_name = ? WHERE id = ?').bind('となり', colleague.id).run();
     const detailForShare = await getChildForCoach(testEnv, child.id, coach.id);
     await importChild(testEnv, colleague.id, detailForShare!.shareCode);
 
@@ -275,9 +275,9 @@ describe('アセスメントサービス', () => {
     // 自動保存だけでは担当は変わらない。
     expect(edited.coachId).toBe(coach.id);
 
-    const updated = await completeAssessment(testEnv, assessment.id, { ...colleague, displayName: 'となりのコーチ' }, edited.updatedAt);
+    const updated = await completeAssessment(testEnv, assessment.id, { ...colleague, displayName: 'となり' }, edited.updatedAt);
     expect(updated.report.levels.find(({ key }) => key === 'post')?.lv).toBe(10);
-    expect(updated.report.header.coachName).toBe('となりのコーチ');
+    expect(updated.report.header.coachName).toBe('となりコーチ');
     expect(updated.hasUnreportedChanges).toBe(false);
     const after = await getAssessment(testEnv, assessment.id, coach.id);
     expect(after).toMatchObject({ coachId: colleague.id, reported: { data: { lv: { post: 10 } } } });
