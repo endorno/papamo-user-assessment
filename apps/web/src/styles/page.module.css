@@ -169,6 +169,18 @@
   text-wrap: balance;
 }
 
+/* 見出しは名前だけにしておき、同名を見分ける短縮IDはその横に添える。 */
+.titleWithId {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+}
+
+.headingShortId {
+  font-size: 0.9rem;
+}
+
 .childHero p:not(.eyebrow) {
   margin: 2px 0 8px;
   color: var(--mute);

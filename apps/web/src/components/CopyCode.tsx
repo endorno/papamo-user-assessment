@@ -1,6 +1,5 @@
-import { useState } from 'react';
-
 import styles from './ui.module.css';
+import { useClipboardCopy } from './useClipboardCopy';
 
 export function CopyCode({
   code,
@@ -13,16 +12,7 @@ export function CopyCode({
   description: string;
   sensitive?: boolean;
 }) {
-  const [message, setMessage] = useState('');
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(code);
-      setMessage('コピーしました');
-    } catch {
-      setMessage('コピーできませんでした。コードを選択してコピーしてください。');
-    }
-  }
+  const { message, copy } = useClipboardCopy(code, 'コピーできませんでした。コードを選択してコピーしてください。');
 
   return (
     <div className={`${styles.codeCard} ${sensitive ? styles.codeCardSensitive : ''}`}>

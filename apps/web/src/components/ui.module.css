@@ -252,3 +252,68 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
 }
+
+/* --- お子さまのID（同名の見分け用） --- */
+
+.childShortId {
+  color: var(--mute);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.childFullId {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0 10px;
+}
+
+.childFullId code {
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.childFullId code strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.childFullId button {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--green-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.childFullId button:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.childFullId button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 空のあいだは高さを取らず、結果が出たときだけ次の行に出す。 */
+.childFullIdStatus {
+  flex-basis: 100%;
+  color: var(--ink2);
+  font-size: 0.78rem;
+  font-weight: 500;
+}

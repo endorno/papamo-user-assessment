@@ -38,6 +38,7 @@ import { apiRequest, ApiClientError } from '../api/client';
 import { GuardedLink, useUnsavedChanges } from '../app/UnsavedChangesContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { ChildShortId } from '../components/ChildId';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { SurveyImportDialog, type SurveyImport } from '../components/SurveyImportDialog';
 import { useToast } from '../components/Toast';
@@ -638,7 +639,10 @@ export function AssessmentPage() {
             <header className={styles.assessmentHeader}>
               <div>
                 <p className={styles.eyebrow}>第{assessment.seqNo}回・{assessment.status === 'done' ? '完了済み' : '入力中'}</p>
-                <h1>{assessment.child.name}{honorificLabel(assessment.child.honorific)}のアセスメント</h1>
+                <div className={styles.titleWithId}>
+                  <h1>{assessment.child.name}{honorificLabel(assessment.child.honorific)}のアセスメント</h1>
+                  <ChildShortId id={assessment.child.id} className={styles.headingShortId} />
+                </div>
                 <p className={saveError ? styles.error : styles.saveStatus} role="status">
                   <span aria-hidden="true">{saveError ? '!' : saving ? '●' : '✓'}</span>
                   {assessment.readOnly ? readOnlyMessage : saveError?.message ?? savedMessage}

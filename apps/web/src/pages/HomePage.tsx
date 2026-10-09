@@ -18,6 +18,7 @@ import {
 import { apiRequest } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { ChildShortId } from '../components/ChildId';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toast';
@@ -99,11 +100,14 @@ function ChildCard({ child, highlighted }: { child: ChildView; highlighted: bool
         <div className={styles.childIdentity}>
           <span className={styles.face} aria-hidden="true">{child.name.charAt(0)}</span>
           <span>
-            <strong>
-              <Link className={styles.childCardLink} to={`/children/${child.id}`}>
-                {child.name}<small>{honorificLabel(child.honorific)}</small>
-              </Link>
-            </strong>
+            <span className={styles.childNameRow}>
+              <strong>
+                <Link className={styles.childCardLink} to={`/children/${child.id}`}>
+                  {child.name}<small>{honorificLabel(child.honorific)}</small>
+                </Link>
+              </strong>
+              <ChildShortId id={child.id} className={styles.childCardShortId} />
+            </span>
             <span className={styles.childMeta}>{child.grade.name}（{child.grade.ageHint}）</span>
           </span>
         </div>
@@ -480,7 +484,7 @@ export function HomePage() {
                 {visibleArchived.map((child) => (
                   <div className={styles.archivedCard} key={child.id}>
                     <Link to={`/children/${child.id}`}>
-                      <strong>{child.name}{honorificLabel(child.honorific)}</strong>
+                      <strong>{child.name}{honorificLabel(child.honorific)} <ChildShortId id={child.id} /></strong>
                       <span>{child.grade.name}・アーカイブ中</span>
                     </Link>
                     {child.role === 'owner' ? <button type="button" onClick={() => void restoreArchived(child)}>復元</button> : <span>オーナーのみ復元できます</span>}

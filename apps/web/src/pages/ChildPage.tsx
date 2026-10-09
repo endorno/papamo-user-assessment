@@ -17,6 +17,7 @@ import {
 import { apiRequest, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { ChildFullId, ChildShortId } from '../components/ChildId';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
 import { ChildTabs, isChildTabKey, tabPanelProps, type ChildTabKey } from '../components/ChildTabs';
 import {
@@ -338,7 +339,10 @@ export function ChildPage() {
               <span className={styles.childFace} aria-hidden="true">{child.name.charAt(0)}</span>
               <div>
                 <p className={styles.eyebrow}>{readOnly ? 'アーカイブ中・閲覧のみ' : '担当のお子さま'}</p>
-                <h1>{childName}</h1>
+                <div className={styles.titleWithId}>
+                  <h1>{childName}</h1>
+                  <ChildShortId id={child.id} className={styles.headingShortId} />
+                </div>
                 <p>{child.grade.name}（{child.grade.ageHint}）・入会 {formatJapaneseMonth(child.joinedMonth)}（{monthsSinceJoined}か月目）</p>
                 <ChildStatusBadge state={child.state} />
               </div>
@@ -552,6 +556,7 @@ export function ChildPage() {
                       <div><dt>性別</dt><dd>{genderLabel(child.gender)}</dd></div>
                       <div><dt>現在の学年</dt><dd>{child.grade.name}（{child.grade.ageHint}）</dd></div>
                       <div><dt>入会月</dt><dd>{formatJapaneseMonth(child.joinedMonth)}</dd></div>
+                      <div><dt>ID</dt><dd><ChildFullId id={child.id} /></dd></div>
                     </dl>
                   )}
                 </section>

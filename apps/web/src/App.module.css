@@ -310,6 +310,21 @@
   white-space: nowrap;
 }
 
+/* 名前が長くても短縮IDは隠さず、名前の側を省略する。 */
+.childNameRow {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* カード全面のリンクより手前に置き、マウスを重ねたときにIDの全体を出す。 */
+.childCardShortId {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+
 .childIdentity strong small {
   margin-left: 2px;
   color: var(--mute);

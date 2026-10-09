@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MASTER_VERSION, reportContentSchema, RuleBasedReportGenerator } from '@papamo/shared';
+import { ChildFullId, ChildShortId } from './ChildId';
 import { ChildStatusBadge } from './ChildStatusBadge';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CopyCode } from './CopyCode';
@@ -31,6 +32,21 @@ describe('共通UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'コピー' }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('コピーしました'));
     expect(writeText).toHaveBeenCalledWith('ABCD-EFGH');
+  });
+
+  it('同名を見分けるIDは末尾4文字だけ出し、全体はマウスを重ねると見られる', () => {
+    render(<ChildShortId id="01K7A3B4C5D6E7F8G9HJKM7K3Q" />);
+    expect(screen.getByText('#7K3Q')).toHaveAttribute('title', 'ID：01K7A3B4C5D6E7F8G9HJKM7K3Q');
+  });
+
+  it('IDの全体は末尾4文字を強調し、コピーできる', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    render(<ChildFullId id="01K7A3B4C5D6E7F8G9HJKM7K3Q" />);
+    expect(screen.getByText('7K3Q').tagName).toBe('STRONG');
+    fireEvent.click(screen.getByRole('button', { name: 'IDをコピー' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('コピーしました'));
+    expect(writeText).toHaveBeenCalledWith('01K7A3B4C5D6E7F8G9HJKM7K3Q');
   });
 
   it('破壊操作の確認はモーダルダイアログで行う', () => {
