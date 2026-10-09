@@ -20,22 +20,13 @@ import { AppHeader } from '../components/AppHeader';
 import { ChildFullId, ChildShortId } from '../components/ChildId';
 import { ChildStatusBadge } from '../components/ChildStatusBadge';
 import { ChildTabs, isChildTabKey, tabPanelProps, type ChildTabKey } from '../components/ChildTabs';
-import {
-  CoachCautionsPanel,
-  EngagementPanel,
-  ExerciseNotesPanel,
-  GoalFocusPanel,
-  LessonMenuPanel,
-  NextLessonCard,
-  StrategyPanel,
-  TroubleMatchPanel,
-  TroubleSummaryPanel,
-} from '../components/CoachInsights';
+import { COACH_MENU_ANCHOR } from '../components/CoachMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CopyCode } from '../components/CopyCode';
 import { MonthSelect } from '../components/MonthSelect';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
+import { TroubleSummaryPanel } from '../components/TroubleSummaryPanel';
 import { formatJapaneseDate, formatJapaneseMonth, genderLabel, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
 
@@ -97,15 +88,6 @@ function confirmationFor(action: Exclude<ConfirmAction, null>) {
     label: '完全に削除する',
     tone: 'danger' as const,
   };
-}
-
-function TabEmpty() {
-  return (
-    <div className={`${styles.panel} ${styles.mapEmpty}`}>
-      <span aria-hidden="true">🧭</span>
-      <p>初回アセスメントを完了すると、ここに前回の振り返りとこれからの計画が表示されます。</p>
-    </div>
-  );
 }
 
 export function ChildPage() {
@@ -368,7 +350,7 @@ export function ChildPage() {
               ) : child.role === 'owner' ? (
                 <button className={styles.secondaryButton} type="button" onClick={() => void restore()} disabled={busy}>アーカイブから復元</button>
               ) : null}
-              {latestCompleted?.reportAvailable ? <Link className={styles.textLink} to={`/reports/${latestCompleted.id}`}>最新の保護者向けレポート</Link> : null}
+              {latestCompleted?.reportAvailable ? <Link className={styles.textLink} to={`/reports/${latestCompleted.id}`}>最新のレポート</Link> : null}
             </div>
           </header>
 
@@ -377,7 +359,7 @@ export function ChildPage() {
             <div className={styles.unreportedNotice} role="status">
               <div>
                 <strong>第{latestCompleted.seqNo}回の入力に、レポートへ反映していない変更があります</strong>
-                <p>保護者向けレポートとこのページは、変更前の内容のままです。入力画面で「レポートを更新」するか、作成時の内容に戻してください。</p>
+                <p>レポートとこのページは、変更前の内容のままです。入力画面で「レポートを更新」するか、作成時の内容に戻してください。</p>
               </div>
               <Link className={styles.secondaryButton} to={`/assessments/${latestCompleted.id}`}>入力画面で確認する</Link>
             </div>
@@ -466,7 +448,13 @@ export function ChildPage() {
                 </section>
               </div>
               <div>
-                {report ? <NextLessonCard report={report} onOpenPlan={() => selectTab('plan')} /> : null}
+                {report && latestCompleted?.reportAvailable ? (
+                  <section className={`${styles.panel} ${styles.nextLessonCard}`} aria-labelledby="next-lesson-title">
+                    <h2 id="next-lesson-title">次のレッスンに向けて</h2>
+                    <p>3か月・6か月に当てるメニューは、第{latestCompleted.seqNo}回レポートの末尾（コーチ向け）にあります。</p>
+                    <Link className={styles.secondaryButton} to={`/reports/${latestCompleted.id}#${COACH_MENU_ANCHOR}`}>メニュー提案を見る</Link>
+                  </section>
+                ) : null}
 
                 <section className={styles.panel} aria-labelledby="goals-title">
                   <div className={styles.sectionHeader}>
@@ -480,28 +468,6 @@ export function ChildPage() {
 
                 {report ? <TroubleSummaryPanel report={report} source={reportSource} /> : null}
               </div>
-            </div>
-          ) : null}
-
-          {tab === 'plan' ? (
-            <div {...tabPanelProps('plan')}>
-              {report ? (
-                <div className={styles.planColumns}>
-                  <div>
-                    <p className={styles.planStep}><span>1</span>前回の様子<small>{reportSource}</small></p>
-                    <ExerciseNotesPanel report={report} source={reportSource} />
-                    <EngagementPanel report={report} source={reportSource} />
-                    <TroubleMatchPanel report={report} source={reportSource} />
-                  </div>
-                  <div>
-                    <p className={styles.planStep}><span>2</span>これからの計画<small>次のアセスメントまで</small></p>
-                    <CoachCautionsPanel report={report} source={reportSource} />
-                    <StrategyPanel report={report} />
-                    <LessonMenuPanel report={report} source={reportSource} />
-                    <GoalFocusPanel report={report} source={reportSource} />
-                  </div>
-                </div>
-              ) : <TabEmpty />}
             </div>
           ) : null}
 

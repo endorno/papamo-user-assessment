@@ -4,7 +4,6 @@ import styles from '../styles/page.module.css';
 
 export const CHILD_TABS = [
   { key: 'overview', label: '概要' },
-  { key: 'plan', label: '振り返りと計画' },
   { key: 'settings', label: '登録・共有' },
 ] as const;
 

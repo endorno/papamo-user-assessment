@@ -16,13 +16,21 @@ function collectStyles(ownerDocument: Document) {
   return { rules, links };
 }
 
+/** 保護者向けはコーチ向けの紙面（data-coach-only）を外した4枚、コーチ向けは末尾のメニュー提案まで含める。 */
+export type ReportAudience = 'parent' | 'coach';
+
+const REMOVED_ELEMENTS: Record<ReportAudience, string> = {
+  parent: '[data-print-hidden], [data-coach-only], script',
+  coach: '[data-print-hidden], script',
+};
+
 /**
  * 画面に表示しているレポートを、サーバーでそのままPDFにできる1枚のHTMLにまとめる。
  * CSS Modules のクラスは祖先要素のクラスに依存するため、シートだけでなくレポート全体を複製する。
  */
-export function buildReportHtml(root: HTMLElement, title: string) {
+export function buildReportHtml(root: HTMLElement, title: string, audience: ReportAudience) {
   const clone = root.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('[data-print-hidden], script').forEach((element) => element.remove());
+  clone.querySelectorAll(REMOVED_ELEMENTS[audience]).forEach((element) => element.remove());
   const { rules, links } = collectStyles(root.ownerDocument);
   const linkTags = links.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`).join('');
   // CSS の文字列に </style> が含まれていても、style 要素が途中で閉じないようにする。

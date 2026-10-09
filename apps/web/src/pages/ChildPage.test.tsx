@@ -187,7 +187,7 @@ describe('子どもページ', () => {
     expect(within(goals).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('前回の取り組みの様子・効いた条件など、コーチ向けの見立てを表示する', async () => {
+  it('コーチ向けのメニュー提案はレポート末尾へ案内し、振り返りと計画のタブは置かない', async () => {
     const latestReport = await new RuleBasedReportGenerator().generate({
       child: { name: 'ゆい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2025-06' },
       coach: { displayName: 'さとうコーチ' },
@@ -218,25 +218,14 @@ describe('子どもページ', () => {
       latestReport,
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: completedChild })));
-    renderChildPage();
+    // 以前の「振り返りと計画」タブのURLで開いても、概要を出す。
+    renderChildPage('plan');
 
-    // 概要タブには要点だけを出し、計画の詳細はタブの先に置く。
     const nextLesson = await screen.findByRole('region', { name: '次のレッスンに向けて' });
-    expect(nextLesson).toHaveTextContent('注意点');
-    expect(screen.queryByRole('region', { name: '取り組みの様子と効いた条件' })).not.toBeInTheDocument();
-    fireEvent.click(within(nextLesson).getByRole('button', { name: '振り返りと計画を見る' }));
-    expect(screen.getByRole('tab', { name: '振り返りと計画' })).toHaveAttribute('aria-selected', 'true');
-
-    const engagement = screen.getByRole('region', { name: '取り組みの様子と効いた条件' });
-    expect(engagement).toHaveTextContent('参加の持続');
-    expect(engagement).toHaveTextContent('情報の入り方');
-    expect(engagement).toHaveTextContent('視覚');
-    expect(engagement).toHaveTextContent('タイマー');
-    expect(screen.getByRole('region', { name: 'レッスン前の注意点' })).toHaveTextContent('Lv0：お手玉キャッチ');
-    expect(screen.getByRole('region', { name: '3か月・6か月に当てるメニュー' })).toHaveTextContent('主軸');
-    expect(screen.getByRole('region', { name: '目標への当て方' })).toHaveTextContent('先に土台');
-    expect(screen.getByRole('region', { name: '見えた動作・つまずき方' })).toHaveTextContent('左右の切り替えで止まる。');
-    expect(screen.getByRole('region', { name: 'お困りごと × アセスメント照合' })).toHaveTextContent('身体図式');
+    expect(within(nextLesson).getByRole('link', { name: 'メニュー提案を見る' })).toHaveAttribute('href', '/reports/assessment-1#coach-menu');
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['概要', '登録・共有']);
+    expect(screen.getByRole('tab', { name: '概要' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('link', { name: '最新のレポート' })).toHaveAttribute('href', '/reports/assessment-1');
   });
 
   it('共有先で削除済みの子どもを開いた場合は担当一覧へ戻す', async () => {

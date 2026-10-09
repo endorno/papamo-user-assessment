@@ -330,7 +330,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     if (copm.some((goal) => goal.previous)) tuningKeys.push('copmDelta');
     if (input.child.ageGroup === 'pre' && domainHits.length) tuningKeys.push('troubleDomainPre');
 
-    // --- コーチ向け（子どもページ） ---
+    // --- コーチ向け（plan・wantPackages・copmFocus はレポート末尾のメニュー提案に使う） ---
     // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。
     const coachFocus = unique([sorted[0], sorted[1], sorted.at(-1)].filter((key): key is ExerciseKey => key !== undefined))
       .map((key, index) => ({ key, role: COACH_FOCUS_ROLES[index]! }));

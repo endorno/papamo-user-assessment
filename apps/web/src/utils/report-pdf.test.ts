@@ -19,7 +19,7 @@ describe('buildReportHtml', () => {
         <script>alert(1)</script>
       </main>`;
 
-    const html = buildReportHtml(document.querySelector('main')!, '育ちマップ_<はると>くん');
+    const html = buildReportHtml(document.querySelector('main')!, '育ちマップ_<はると>くん', 'parent');
 
     expect(html).toMatch(/^<!doctype html><html lang="ja">/);
     expect(html).toContain('<title>育ちマップ_&lt;はると&gt;くん</title>');
@@ -28,5 +28,27 @@ describe('buildReportHtml', () => {
     expect(html).toContain('<section class="sheet">1枚目</section>');
     expect(html).not.toContain('PDFをダウンロード');
     expect(html).not.toContain('<script');
+  });
+
+  it('保護者向けにはコーチ向けの紙面を入れず、コーチ向けには末尾まで入れる', () => {
+    document.body.innerHTML = `
+      <main class="report">
+        <section class="sheet">4枚目</section>
+        <div data-print-hidden>ここからはコーチ向け</div>
+        <section class="sheet" data-coach-only>メニュー提案</section>
+      </main>`;
+    const root = document.querySelector('main')!;
+
+    const parentHtml = buildReportHtml(root, '育ちマップ', 'parent');
+    expect(parentHtml).toContain('4枚目');
+    expect(parentHtml).not.toContain('メニュー提案');
+
+    const coachHtml = buildReportHtml(root, '育ちマップ_コーチ用', 'coach');
+    expect(coachHtml).toContain('4枚目');
+    expect(coachHtml).toContain('メニュー提案');
+    // 画面だけの切れ目は、どちらのPDFにも入れない。
+    expect(coachHtml).not.toContain('ここからはコーチ向け');
+    // 画面の表示はそのまま残す。
+    expect(root).toHaveTextContent('メニュー提案');
   });
 });

@@ -664,7 +664,7 @@ export function AssessmentPage() {
               <div className={styles.unreportedNotice} role="status">
                 <div>
                   <strong>レポート作成後に変更した項目があります</strong>
-                  <p>保護者向けレポートにはまだ反映されていません。反映するには下の「レポートを更新」を押してください。</p>
+                  <p>レポートにはまだ反映されていません。反映するには下の「レポートを更新」を押してください。</p>
                   <span className={styles.unreportedSections}>
                     {changedSections.map((key) => <a href={`#${sectionId(key)}`} key={key}>{changedLabel(key)}</a>)}
                   </span>

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 
 import { MASTER_VERSION, RuleBasedReportGenerator, type ReportContent } from '@papamo/shared';
@@ -77,7 +77,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('保護者向けレポート', () => {
+describe('レポート', () => {
   it('初回レポートの見出しと困りごとを初回向けに表示する', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
@@ -129,6 +129,42 @@ describe('保護者向けレポート', () => {
     expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();
   });
 
+  it('保護者向けの4枚のあとに、コーチ向けの切れ目とメニュー提案を置く', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const coachSheet = await screen.findByRole('region', { name: 'コーチ向け メニュー提案' });
+    const lastParentSheet = screen.getByRole('region', { name: 'レポート4ページ目' });
+    expect(lastParentSheet.compareDocumentPosition(coachSheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 切れ目は画面だけに出し、紙面は保護者向けPDFから外す目印を付ける。
+    expect(screen.getByText('ここからはコーチ向け').closest('[data-print-hidden]')).not.toBeNull();
+    expect(coachSheet).toHaveAttribute('data-coach-only');
+    expect(coachSheet).toHaveTextContent('コーチ用・保護者には渡さない');
+    expect(within(coachSheet).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      '13か月・6か月に当てるメニュー',
+      '2目標への当て方',
+    ]);
+    expect(coachSheet).toHaveTextContent('主軸');
+    expect(coachSheet).toHaveTextContent('対応するメニューパッケージ');
+    // 保護者向けの4枚にはメニュー提案を出さない。
+    expect(lastParentSheet).not.toHaveTextContent('当てるメニュー');
+  });
+
+  it('子どもページからメニュー提案へ来たときは、読み込み後に末尾の紙面まで送る', async () => {
+    const scrollIntoView = vi.fn();
+    // jsdom には要素のスクロールがないため、差し替えて呼ばれたかだけを見る。
+    Element.prototype.scrollIntoView = scrollIntoView;
+    onTestFinished(() => {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderWithProviders(<ReportPage />, { route: '/reports/assessment-1#coach-menu', path: '/reports/:id' });
+
+    const coachSheet = await screen.findByRole('region', { name: 'コーチ向け メニュー提案' });
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledOnce());
+    expect(scrollIntoView.mock.contexts[0]).toBe(coachSheet);
+  });
+
   it('レポート作成後に入力が変更されていれば、印刷しない案内で知らせる', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: true, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
@@ -165,41 +201,48 @@ describe('保護者向けレポート', () => {
     expect(screen.queryByRole('link', { name: '一覧に戻る' })).not.toBeInTheDocument();
   });
 
-  it('PDFボタンで表示中のレポートをサーバーへ送り、ファイルとして保存する', async () => {
-    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input) => {
-      if (String(input).endsWith('/report/pdf')) {
-        return new Response('%PDF-1.7', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
-      }
-      return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    // jsdom には Blob の URL 化がないため、差し替えた URL で受ける。
-    const createObjectURL = vi.fn(() => 'blob:report');
-    vi.stubGlobal('URL', class extends URL {
-      static override createObjectURL = createObjectURL;
-      static override revokeObjectURL = vi.fn();
-    });
-    const savedFileNames: string[] = [];
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
-      savedFileNames.push(this.download);
-    });
+  it('保護者向けPDFは4枚だけをサーバーへ送り、ファイルとして保存する', async () => {
+    const { fetchMock, click, createObjectURL, savedFileNames } = stubPdfDownload();
     renderReportPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'PDFをダウンロード' }));
+    fireEvent.click(await screen.findByRole('button', { name: '保護者向けPDF' }));
 
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const [url, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/report/pdf'))!;
     expect(url).toBe('/api/assessments/assessment-1/report/pdf');
     expect(init?.method).toBe('POST');
     const { html } = JSON.parse(String(init?.body)) as { html: string };
-    // 画面の4枚をそのまま送り、操作ボタンなど紙面に要らないものは含めない。
+    // 画面の4枚をそのまま送り、操作ボタンやコーチ向けの紙面など保護者に渡さないものは含めない。
     expect(html).toContain('はるとくんの3か月の変化');
+    expect(html).not.toContain('はるとくんのメニュー提案');
+    expect(html).not.toContain('ここからはコーチ向け');
     // 同じお名前のお子さまと同じフォルダに保存しても上書きしないよう、IDの末尾4文字を入れる。
     expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回</title>');
-    expect(html).not.toContain('PDFをダウンロード');
+    expect(html).not.toContain('保護者向けPDF');
     expect(createObjectURL).toHaveBeenCalledOnce();
     expect(savedFileNames).toEqual(['育ちマップ_はるとくん_7K3Q_第2回.pdf']);
-    expect(screen.getByRole('button', { name: 'PDFをダウンロード' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '保護者向けPDF' })).toBeEnabled();
+    // 画面ではコーチ向けの紙面を出したままにする。
+    expect(screen.getByRole('region', { name: 'コーチ向け メニュー提案' })).toBeInTheDocument();
+  });
+
+  it('コーチ向けPDFは末尾のメニュー提案まで含め、保護者向けと別のファイル名で保存する', async () => {
+    const { fetchMock, click, savedFileNames } = stubPdfDownload();
+    renderReportPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'コーチ向けPDF' }));
+
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    const [, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/report/pdf'))!;
+    const { html } = JSON.parse(String(init?.body)) as { html: string };
+    expect(html).toContain('はるとくんの3か月の変化');
+    expect(html).toContain('はるとくんのメニュー提案');
+    // 画面だけの切れ目は入れず、紙面の帯でコーチ用と分かるようにする。
+    expect(html).not.toContain('ここからはコーチ向け');
+    expect(html).toContain('コーチ用・保護者には渡さない');
+    expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回_コーチ用</title>');
+    expect(savedFileNames).toEqual(['育ちマップ_はるとくん_7K3Q_第2回_コーチ用.pdf']);
+    expect(screen.getByRole('button', { name: 'コーチ向けPDF' })).toBeEnabled();
   });
 
   it('PDFを作れなかったときは理由と再試行を通知する', async () => {
@@ -211,14 +254,37 @@ describe('保護者向けレポート', () => {
     }));
     renderReportPage();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'PDFをダウンロード' }));
+    fireEvent.click(await screen.findByRole('button', { name: '保護者向けPDF' }));
 
     expect(await screen.findByText('PDFを作成できませんでした。少し待ってからもう一度お試しください。')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'もう一度' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'PDFをダウンロード' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '保護者向けPDF' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'コーチ向けPDF' })).toBeEnabled();
   });
 });
 
 function renderReportPage() {
   return renderWithProviders(<ReportPage />, { route: '/reports/assessment-1', path: '/reports/:id' });
+}
+
+/** PDF生成APIとファイル保存を差し替え、送ったHTMLと保存したファイル名を確かめられるようにする。 */
+function stubPdfDownload() {
+  const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input) => {
+    if (String(input).endsWith('/report/pdf')) {
+      return new Response('%PDF-1.7', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+    }
+    return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  // jsdom には Blob の URL 化がないため、差し替えた URL で受ける。
+  const createObjectURL = vi.fn(() => 'blob:report');
+  vi.stubGlobal('URL', class extends URL {
+    static override createObjectURL = createObjectURL;
+    static override revokeObjectURL = vi.fn();
+  });
+  const savedFileNames: string[] = [];
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    savedFileNames.push(this.download);
+  });
+  return { fetchMock, click, createObjectURL, savedFileNames };
 }

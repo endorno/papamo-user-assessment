@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 
 import {
   PPI_QUESTIONS,
@@ -16,10 +16,11 @@ import {
 import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
+import { COACH_MENU_ANCHOR, GoalFocus, LessonMenuPlan, hasGoalFocus } from '../components/CoachMenu';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
-import { buildReportHtml, saveBlob } from '../utils/report-pdf';
+import { buildReportHtml, saveBlob, type ReportAudience } from '../utils/report-pdf';
 import styles from '../styles/page.module.css';
 
 type ParsedReport = ReturnType<typeof reportResponseSchema.parse>['report'];
@@ -63,8 +64,8 @@ function headingNumber(position: number, count: number) {
   return count >= 2 ? position : undefined;
 }
 
-function ReportFooter({ page }: { page: number }) {
-  return <footer className={styles.reportFooter}><span>へやすぽ 育ちマップ</span><span>ご家庭説明用｜Page {page}</span></footer>;
+function ReportFooter({ page, usage = 'ご家庭説明用' }: { page: number; usage?: string }) {
+  return <footer className={styles.reportFooter}><span>へやすぽ 育ちマップ</span><span>{usage}｜Page {page}</span></footer>;
 }
 
 export function ReportPage() {
@@ -75,9 +76,10 @@ export function ReportPage() {
   const [hasUnreportedChanges, setHasUnreportedChanges] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [creatingPdf, setCreatingPdf] = useState(false);
+  const [creatingPdf, setCreatingPdf] = useState<ReportAudience | null>(null);
   const documentRef = useRef<HTMLElement>(null);
   const { showToast } = useToast();
+  const { hash } = useLocation();
 
   useEffect(() => {
     if (!session || !id) return;
@@ -93,24 +95,31 @@ export function ReportPage() {
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
 
-  async function downloadPdf() {
+  // 子どもページからメニュー提案へ直接来たときは、読み込みを待ってから末尾の紙面まで送る。
+  useEffect(() => {
+    if (!report || hash !== `#${COACH_MENU_ANCHOR}`) return;
+    document.getElementById(COACH_MENU_ANCHOR)?.scrollIntoView();
+  }, [report, hash]);
+
+  async function downloadPdf(audience: ReportAudience) {
     if (!session || !id || !report || !childId || !documentRef.current) return;
     // 同じお名前のお子さまのPDFを同じフォルダに保存しても上書きしないよう、短縮IDを入れる。
-    const title = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_${shortChildId(childId)}_第${report.header.seqNo}回`;
-    setCreatingPdf(true);
+    const baseTitle = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_${shortChildId(childId)}_第${report.header.seqNo}回`;
+    const title = audience === 'coach' ? `${baseTitle}_コーチ用` : baseTitle;
+    setCreatingPdf(audience);
     try {
       const pdf = await apiRequestBlob(`/assessments/${id}/report/pdf`, session, {
         method: 'POST',
-        body: JSON.stringify({ html: buildReportHtml(documentRef.current, title) }),
+        body: JSON.stringify({ html: buildReportHtml(documentRef.current, title, audience) }),
       });
       saveBlob(pdf, `${title}.pdf`);
     } catch (caught) {
       showToast(
         caught instanceof ApiClientError ? caught.message : 'PDFを作成できませんでした。通信状況を確認してもう一度お試しください。',
-        { action: { label: 'もう一度', onClick: () => void downloadPdf() } },
+        { action: { label: 'もう一度', onClick: () => void downloadPdf(audience) } },
       );
     } finally {
-      setCreatingPdf(false);
+      setCreatingPdf(null);
     }
   }
 
@@ -139,6 +148,8 @@ export function ReportPage() {
   const page1HeadingCount = [report.kind === 'comparison', report.engagement.length > 0].filter(Boolean).length;
   // 3枚目は「ご家庭のお困り度」が必ず入り、目標は入力があったときだけ加わる。
   const page3HeadingCount = (report.copm.length > 0 ? 1 : 0) + 1;
+  // コーチ向けの紙面はメニューが必ず入り、目標への当て方は入力があったときだけ加わる。
+  const coachHeadingCount = (hasGoalFocus(report) ? 1 : 0) + 1;
 
   return (
     <div className={styles.pageFrame}>
@@ -146,14 +157,17 @@ export function ReportPage() {
       <main className={`${styles.page} ${styles.reportPage}`} ref={documentRef}>
         <div className={styles.reportWrap}>
           <div className={styles.reportActions} data-print-hidden>
-            <div><strong>保護者向けレポート</strong><span>コーチ用の所見・つまずきは子どもページで確認できます。</span></div>
+            <div><strong>レポート</strong><span>保護者向けPDFは1〜4枚目、コーチ向けPDFは末尾のメニュー提案までを含みます。</span></div>
             <div>
               {/* 一覧へはロゴとパンくずで戻れる。子どもページはスマホでパンくずが隠れるため、ボタンでも置く。 */}
               {childId ? <Link className={styles.secondaryButton} to={`/children/${childId}`}>{childName}のページへ</Link> : null}
               {/* 出力後に間違いに気づいたとき、子どもページを経由せず直せるようにする。直せない回では出さない。 */}
               {readOnly ? null : <Link className={styles.secondaryButton} to={`/assessments/${id}`}>入力を修正する</Link>}
-              <button className={styles.primaryButton} type="button" onClick={() => void downloadPdf()} disabled={creatingPdf} aria-busy={creatingPdf}>
-                {creatingPdf ? 'PDFを作成中…' : 'PDFをダウンロード'}
+              <button className={styles.primaryButton} type="button" onClick={() => void downloadPdf('parent')} disabled={creatingPdf !== null} aria-busy={creatingPdf === 'parent'}>
+                {creatingPdf === 'parent' ? 'PDFを作成中…' : '保護者向けPDF'}
+              </button>
+              <button className={styles.secondaryButton} type="button" onClick={() => void downloadPdf('coach')} disabled={creatingPdf !== null} aria-busy={creatingPdf === 'coach'}>
+                {creatingPdf === 'coach' ? 'PDFを作成中…' : 'コーチ向けPDF'}
               </button>
             </div>
           </div>
@@ -420,6 +434,24 @@ export function ReportPage() {
             </div>
             <p className={styles.reportNote}>※ {REPORT_DISCLAIMER}</p>
             <ReportFooter page={4} />
+          </section>
+
+          {/* ここからはコーチ向け。切れ目は画面だけに出し、紙面は保護者向けPDFから外す（data-coach-only）。 */}
+          <div className={styles.audienceDivider} data-print-hidden>
+            <p><strong>ここからはコーチ向け</strong><small>保護者向けPDFには入りません</small></p>
+          </div>
+          <section className={`sheet ${styles.coachSheet}`} id={COACH_MENU_ANCHOR} aria-label="コーチ向け メニュー提案" data-coach-only>
+            <p className={styles.coachSheetBand}>コーチ用・保護者には渡さない</p>
+            <ReportSheetHeader report={report} title={`${childName}のメニュー提案`} />
+            <NumberedHeading number={headingNumber(1, coachHeadingCount)}>3か月・6か月に当てるメニュー</NumberedHeading>
+            <LessonMenuPlan report={report} />
+            {hasGoalFocus(report) ? (
+              <>
+                <NumberedHeading number={headingNumber(2, coachHeadingCount)}>目標への当て方</NumberedHeading>
+                <GoalFocus report={report} />
+              </>
+            ) : null}
+            <ReportFooter page={5} usage="コーチ用" />
           </section>
         </div>
       </main>
