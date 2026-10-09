@@ -144,7 +144,7 @@ describe('保護者向けレポート', () => {
       if (String(input).endsWith('/report/pdf')) {
         return new Response('%PDF-1.7', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
       }
-      return new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     });
     vi.stubGlobal('fetch', fetchMock);
     // jsdom には Blob の URL 化がないため、差し替えた URL で受ける。
@@ -168,10 +168,11 @@ describe('保護者向けレポート', () => {
     const { html } = JSON.parse(String(init?.body)) as { html: string };
     // 画面の4枚をそのまま送り、操作ボタンなど紙面に要らないものは含めない。
     expect(html).toContain('はるとくんの3か月の変化');
-    expect(html).toContain('<title>育ちマップ_はるとくん_第2回</title>');
+    // 同じお名前のお子さまと同じフォルダに保存しても上書きしないよう、IDの末尾4文字を入れる。
+    expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回</title>');
     expect(html).not.toContain('PDFをダウンロード');
     expect(createObjectURL).toHaveBeenCalledOnce();
-    expect(savedFileNames).toEqual(['育ちマップ_はるとくん_第2回.pdf']);
+    expect(savedFileNames).toEqual(['育ちマップ_はるとくん_7K3Q_第2回.pdf']);
     expect(screen.getByRole('button', { name: 'PDFをダウンロード' })).toBeEnabled();
   });
 

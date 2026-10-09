@@ -10,6 +10,7 @@ import {
   exerciseByKey,
   firstDayOfMonth,
   reportResponseSchema,
+  shortChildId,
   type TuningKey,
 } from '@papamo/shared';
 import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
@@ -91,8 +92,9 @@ export function ReportPage() {
   }, [id, session]);
 
   async function downloadPdf() {
-    if (!session || !id || !report || !documentRef.current) return;
-    const title = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_第${report.header.seqNo}回`;
+    if (!session || !id || !report || !childId || !documentRef.current) return;
+    // 同じお名前のお子さまのPDFを同じフォルダに保存しても上書きしないよう、短縮IDを入れる。
+    const title = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_${shortChildId(childId)}_第${report.header.seqNo}回`;
     setCreatingPdf(true);
     try {
       const pdf = await apiRequestBlob(`/assessments/${id}/report/pdf`, session, {

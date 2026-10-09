@@ -655,7 +655,7 @@ REPORT_GENERATOR = "rule_v1"
   - 振り返りと計画は直近の完了回のレポートから描き、出典（「第N回で記録」）を見出しの下に出す。今後コーチ向けの項目を足すときは、概要ではなく該当タブに置く。v2 の「単独で判断しない（SV引き継ぎ）」警告は SV 引き継ぎを実装しないため出さない。
 - レポートの番号つき見出しは、そのページに2つ以上あるときだけ連番を振る（「1」だけだと続きがあるように見えるため）。
 - レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。見出しの番号の丸は `.headingNumber` で指定する（見出しの中の `TuningTag` も `span` のため、`span` 指定だと巻き込まれる）。
-- 保護者向けレポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプトを外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は `育ちマップ_{名前}{敬称}_第N回.pdf`。ブラウザ印刷のボタンは置かない（2026-09-30）。
+- 保護者向けレポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプトを外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は `育ちマップ_{名前}{敬称}_{短縮ID}_第N回.pdf`（同名のPDFを同じフォルダに保存しても上書きしないため）。ブラウザ印刷のボタンは置かない（2026-09-30）。
 - モーションは `global.css` の `--dur-fast` / `--dur` / `--ease` を使い、`prefers-reduced-motion: reduce` で遷移とスムーススクロールを止める。
 
 ### 15.2 API とデータ
