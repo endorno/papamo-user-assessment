@@ -483,6 +483,12 @@ function guardedReportUpsert(
     generator: sql<string>`${input.generator}`.as('generator'),
     content: sql<string>`${input.content}`.as('content'),
     assessmentInput: sql<string>`${input.assessmentInput}`.as('assessment_input'),
+    // INSERT ... SELECT は列をすべて表の定義順に並べる必要がある。Drive の保存状態は新規作成時は空。
+    // 既存の行を更新するときは下の set に含めないので、保存済みのファイル（リンク）はそのまま残る。
+    driveParentFileId: sql<string | null>`NULL`.as('drive_parent_file_id'),
+    driveCoachFileId: sql<string | null>`NULL`.as('drive_coach_file_id'),
+    driveSavedAt: sql<string | null>`NULL`.as('drive_saved_at'),
+    driveReportUpdatedAt: sql<string | null>`NULL`.as('drive_report_updated_at'),
     createdAt: sql<string>`${input.updatedAt}`.as('created_at'),
     updatedAt: sql<string>`${input.updatedAt}`.as('updated_at'),
   }).from(assessments).where(and(

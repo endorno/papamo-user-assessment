@@ -2146,6 +2146,34 @@
   white-space: nowrap;
 }
 
+/* Googleドライブへの保存状態。レポートの操作バーの直下に1行で出す（印刷しない）。 */
+.driveStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin: -6px 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink2);
+  font-size: 0.82rem;
+}
+
+.driveStatus p {
+  min-width: 0;
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+.driveStatusFailed {
+  border-color: #efcfae;
+  background: var(--orange-soft);
+  color: var(--orange-ink);
+}
+
 .unreportedNotice {
   display: flex;
   flex-wrap: wrap;

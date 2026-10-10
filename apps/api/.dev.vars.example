@@ -4,3 +4,6 @@ SUPABASE_JWT_AUDIENCE=authenticated
 REPORT_GENERATOR=rule_v1
 APP_ENV=local
 NON_PRODUCTION_TOOLS_ENABLED=true
+# Googleドライブへの保存を試すときだけ設定する（docs/google-drive.md）。空のままなら保存しない。
+DRIVE_ROOT_FOLDER_ID=
+GOOGLE_SERVICE_ACCOUNT_KEY=

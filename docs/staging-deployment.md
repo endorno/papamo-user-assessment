@@ -60,6 +60,16 @@ pnpm --filter @papamo/api db:seed:staging -- --confirm papamo-user-assessment-st
 pnpm --filter @papamo/api db:rebuild:staging -- --confirm papamo-user-assessment-staging
 ```
 
+### 5. Googleドライブへのレポート保存
+
+レポートPDFを共有ドライブへ保存するため、サービスアカウントの鍵をステージングの Secret に登録します。サービスアカウントの作り方と共有ドライブの設定は `docs/google-drive.md` を参照してください。
+
+```bash
+pnpm --filter @papamo/api exec wrangler secret put GOOGLE_SERVICE_ACCOUNT_KEY --env staging < ~/Downloads/<ダウンロードした鍵>.json
+```
+
+鍵を登録しなくてもデプロイと他の機能は動きます（Drive への保存とリンクが出ないだけです）。
+
 ## 通常のデプロイ
 
 ```bash

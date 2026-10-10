@@ -1,3 +1,5 @@
+import type { ReportAudience } from '@papamo/shared';
+
 function escapeHtml(text: string) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -16,9 +18,7 @@ function collectStyles(ownerDocument: Document) {
   return { rules, links };
 }
 
-/** 保護者向けはコーチ向けの紙面（data-coach-only）を外した4枚、コーチ向けは末尾のメニュー提案まで含める。 */
-export type ReportAudience = 'parent' | 'coach';
-
+// 保護者向けはコーチ向けの紙面（data-coach-only）を外した4枚、コーチ向けは末尾のメニュー提案まで含める。
 const REMOVED_ELEMENTS: Record<ReportAudience, string> = {
   parent: '[data-print-hidden], [data-coach-only], script',
   coach: '[data-print-hidden], script',

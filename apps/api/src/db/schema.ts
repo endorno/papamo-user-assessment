@@ -15,6 +15,9 @@ export const coaches = sqliteTable('coaches', {
   id: text('id').primaryKey(),
   email: text('email').notNull(),
   displayName: text('display_name'),
+  // Googleドライブのコーチフォルダと、閲覧権限を付けたメールアドレス（ログインのメールが変わったら付け直す）。
+  driveFolderId: text('drive_folder_id'),
+  driveSharedEmail: text('drive_shared_email'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -35,6 +38,8 @@ export const children = sqliteTable(
     joinedMonth: text('joined_month').notNull(),
     extUnlocked: integer('ext_unlocked', { mode: 'boolean' }).notNull().default(false),
     archivedAt: text('archived_at'),
+    // Googleドライブのお子さまのフォルダ。オーナーのコーチフォルダの下に置く。
+    driveFolderId: text('drive_folder_id'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
@@ -118,6 +123,12 @@ export const reports = sqliteTable(
     // レポートを作ったときの入力（JSON: { assessedOn, unlockExt, data }）。未反映の変更の判定と「作成時に戻す」に使う。
     // 追加前に作られた行だけ NULL になりうる（マイグレーションで埋める）。
     assessmentInput: text('assessment_input'),
+    // Googleドライブに保存したPDF。レポートを更新しても同じファイルを上書きし、リンクを変えない。
+    driveParentFileId: text('drive_parent_file_id'),
+    driveCoachFileId: text('drive_coach_file_id'),
+    driveSavedAt: text('drive_saved_at'),
+    // 保存したPDFがどの版のレポート（updated_at）か。いまの updated_at と違えば保存し直す。
+    driveReportUpdatedAt: text('drive_report_updated_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

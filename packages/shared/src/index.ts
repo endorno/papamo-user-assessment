@@ -34,6 +34,8 @@ export const meResponseSchema = z.object({
   id: z.string().min(1),
   email: z.string().email(),
   displayName: displayNameSchema.nullable(),
+  /** Googleドライブの自分のフォルダ。オーナーのお子さまのレポートを初めて保存するまでは null。 */
+  driveFolderUrl: z.string().url().nullable(),
 });
 
 export type MeResponse = z.infer<typeof meResponseSchema>;

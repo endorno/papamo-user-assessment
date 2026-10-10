@@ -2,7 +2,8 @@ import puppeteer from '@cloudflare/puppeteer';
 
 import type { Env } from '../env';
 
-export type ReportPdfRenderer = (env: Env, html: string) => Promise<Uint8Array<ArrayBuffer>>;
+/** 渡したHTMLの順にPDFを返す。保護者向けとコーチ向けを同時に作るとき、ブラウザの起動を1回で済ませる。 */
+export type ReportPdfRenderer = (env: Env, htmls: string[]) => Promise<Uint8Array<ArrayBuffer>[]>;
 
 // 受け取ったHTMLから任意の宛先へ通信させないため、Webフォント（Zen Kaku Gothic New）の配信元だけを通す。
 const ALLOWED_REQUEST_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
@@ -58,11 +59,9 @@ function isAllowedRequest(url: string) {
   }
 }
 
-/** 画面に表示したレポートのHTMLを、Browser Run のヘッドレス Chrome で A4 のPDFにする。 */
-export const renderReportPdf: ReportPdfRenderer = async (env, html) => {
-  const browser = await puppeteer.launch(env.BROWSER);
+async function renderPage(browser: Awaited<ReturnType<typeof puppeteer.launch>>, html: string) {
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     // 送られてくるのは描画済みのスナップショットなので、ページ内のスクリプトは動かさない。
     await page.setJavaScriptEnabled(false);
     await page.setRequestInterception(true);
@@ -93,6 +92,19 @@ export const renderReportPdf: ReportPdfRenderer = async (env, html) => {
       timeout: RENDER_TIMEOUT_MS,
     });
     return new Uint8Array(pdf);
+  } finally {
+    await page.close();
+  }
+}
+
+/** 画面に表示したレポートのHTMLを、Browser Run のヘッドレス Chrome で A4 のPDFにする。 */
+export const renderReportPdf: ReportPdfRenderer = async (env, htmls) => {
+  const browser = await puppeteer.launch(env.BROWSER);
+  try {
+    const pdfs: Uint8Array<ArrayBuffer>[] = [];
+    // ページごとに順に作る。並べると Browser Run の同時実行の上限とメモリに当たりやすい。
+    for (const html of htmls) pdfs.push(await renderPage(browser, html));
+    return pdfs;
   } finally {
     await browser.close();
   }

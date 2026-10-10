@@ -11,105 +11,21 @@ import {
   REPORT_PDF_HTML_MAX_LENGTH,
   reportResponseSchema,
 } from '@papamo/shared';
-import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
-import { env } from 'cloudflare:workers';
-import { generateKeyPair, jwtVerify, SignJWT } from 'jose';
+import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import type { Env } from '../env';
-import { createApi } from '../index';
-import { createAuthMiddleware } from '../middleware/auth';
-import type { ReportPdfRenderer } from '../services/report-pdf';
-
-const testEnv = env as Env & { TEST_MIGRATIONS: D1Migration[] };
+import {
+  createChild,
+  createCompletedAssessment,
+  createTestClient,
+  onboard,
+  request,
+  testEnv,
+} from '../test-utils/api-client';
 
 beforeAll(async () => {
   await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 });
-
-interface TestClient {
-  api: ReturnType<typeof createApi>;
-  token: string;
-}
-
-async function createTestClient(options: { renderPdf?: ReportPdfRenderer } = {}): Promise<TestClient> {
-  const coachId = crypto.randomUUID();
-  const { privateKey, publicKey } = await generateKeyPair('ES256');
-  const token = await new SignJWT({ email: `${coachId}@example.com` })
-    .setProtectedHeader({ alg: 'ES256' })
-    .setSubject(coachId)
-    .setIssuer(testEnv.SUPABASE_JWT_ISSUER)
-    .setAudience(testEnv.SUPABASE_JWT_AUDIENCE)
-    .setExpirationTime('1h')
-    .sign(privateKey);
-  const auth = createAuthMiddleware(async (currentEnv, rawToken) => {
-    const result = await jwtVerify(rawToken, publicKey, {
-      issuer: currentEnv.SUPABASE_JWT_ISSUER,
-      audience: currentEnv.SUPABASE_JWT_AUDIENCE,
-    });
-    return result.payload;
-  });
-  return { api: createApi(auth, options), token };
-}
-
-function request(client: TestClient, path: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers);
-  headers.set('Authorization', `Bearer ${client.token}`);
-  if (init.body) headers.set('Content-Type', 'application/json');
-  return client.api.fetch(new Request(`https://example.com/api${path}`, { ...init, headers }), testEnv);
-}
-
-async function onboard(client: TestClient) {
-  const response = await request(client, '/me', {
-    method: 'PUT',
-    body: JSON.stringify({ displayName: 'テストコーチ' }),
-  });
-  expect(response.status).toBe(200);
-}
-
-async function createChild(client: TestClient, name: string) {
-  const response = await request(client, '/children', {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      honorific: 'chan',
-      gradeCode: 'k2',
-      joinedMonth: '2026-09',
-    }),
-  });
-  expect(response.status).toBe(201);
-  return childResponseSchema.parse(await response.json()).child;
-}
-
-/** 3種目と PPI を埋めて完了させ、レポートのある回を作る。 */
-async function createCompletedAssessment(client: TestClient, childId: string) {
-  const createResponse = await request(client, `/children/${childId}/assessments`, {
-    method: 'POST',
-    body: JSON.stringify({ unlockExt: false }),
-  });
-  const created = assessmentCreateResponseSchema.parse(await createResponse.json()).assessment;
-  const patchResponse = await request(client, `/assessments/${created.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      data: {
-        lv: { post: 3, eyeh: 4, hand: 5 },
-        observations: {},
-        troubles: ['転びやすい・つまずきやすい'],
-        ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-        ppiNote: '',
-        memo: '',
-      },
-      updatedAt: created.updatedAt,
-    }),
-  });
-  const saved = assessmentResponseSchema.parse(await patchResponse.json()).assessment;
-  const completeResponse = await request(client, `/assessments/${created.id}/complete`, {
-    method: 'POST',
-    body: JSON.stringify({ updatedAt: saved.updatedAt }),
-  });
-  expect(completeResponse.status).toBe(200);
-  return created;
-}
 
 describe('API ルート結合', () => {
   it('初回ログイン時は自分の情報以外を403にし、表示名登録後に進める', async () => {
@@ -450,9 +366,9 @@ describe('API ルート結合', () => {
     const pdfBytes = new Uint8Array(new TextEncoder().encode('%PDF-1.7 test'));
     const renderedHtml: string[] = [];
     const owner = await createTestClient({
-      renderPdf: async (_env, html) => {
-        renderedHtml.push(html);
-        return pdfBytes;
+      renderPdf: async (_env, htmls) => {
+        renderedHtml.push(...htmls);
+        return htmls.map(() => pdfBytes);
       },
     });
     const stranger = await createTestClient();

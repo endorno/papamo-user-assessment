@@ -351,6 +351,8 @@ export function ChildPage() {
                 <button className={styles.secondaryButton} type="button" onClick={() => void restore()} disabled={busy}>アーカイブから復元</button>
               ) : null}
               {latestCompleted?.reportAvailable ? <Link className={styles.textLink} to={`/reports/${latestCompleted.id}`}>最新のレポート</Link> : null}
+              {/* 取り込んだだけのコーチにも出す。権限がなければ Drive の画面でオーナーや管理者にアクセスをリクエストできる。 */}
+              {child.driveFolderUrl ? <a className={styles.textLink} href={child.driveFolderUrl} target="_blank" rel="noopener noreferrer">Googleドライブのフォルダ</a> : null}
             </div>
           </header>
 

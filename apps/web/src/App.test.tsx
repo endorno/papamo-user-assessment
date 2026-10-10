@@ -15,7 +15,7 @@ vi.mock('./auth/SupabaseAuthProvider', () => ({
 import { HomePage } from './pages/HomePage';
 import { renderWithProviders } from './test-utils';
 
-const profile = { id: 'coach-1', email: 'coach@example.com', displayName: 'さとう' };
+const profile = { id: 'coach-1', email: 'coach@example.com', displayName: 'さとう', driveFolderUrl: null };
 const baseChild = {
   id: 'child-1',
   name: 'そうた',
@@ -86,7 +86,7 @@ describe('担当の子ども一覧', () => {
       if (url.endsWith('/api/me')) return response(profile);
       if (url.endsWith('/api/children/import')) {
         return response({
-          child: { ...settledChild, assessments: [], latestReport: null },
+          child: { ...settledChild, assessments: [], latestReport: null, driveFolderUrl: null },
           ownershipTransferred: false,
         });
       }
@@ -111,6 +111,21 @@ describe('担当の子ども一覧', () => {
     expect(within(todo).getByText('未入力')).toBeInTheDocument();
     expect(within(settled).getByText('あおい')).toBeInTheDocument();
     expect(screen.queryByText('API 接続を確認')).not.toBeInTheDocument();
+  });
+
+  it('Googleドライブに自分のフォルダがあれば、一覧から新しいタブで開ける', async () => {
+    renderWithProviders(<HomePage />, { me: { ...profile, driveFolderUrl: 'https://drive.google.com/drive/folders/coach-folder' } });
+
+    const link = await screen.findByRole('link', { name: 'Googleドライブ' });
+    expect(link).toHaveAttribute('href', 'https://drive.google.com/drive/folders/coach-folder');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('Googleドライブのフォルダがまだ無いときはリンクを出さない', async () => {
+    renderHomePage();
+
+    expect(await screen.findByRole('region', { name: 'まずやること' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Googleドライブ' })).not.toBeInTheDocument();
   });
 
   it('アセスメント未作成の子どもを独立した最上段にまとめる', async () => {
@@ -151,7 +166,7 @@ describe('担当の子ども一覧', () => {
       const url = String(input);
       if (url.endsWith('/api/children/import')) {
         return response({
-          child: { ...settledChild, assessments: [], latestReport: null },
+          child: { ...settledChild, assessments: [], latestReport: null, driveFolderUrl: null },
           ownershipTransferred: true,
         });
       }

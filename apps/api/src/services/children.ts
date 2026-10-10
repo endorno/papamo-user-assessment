@@ -30,6 +30,7 @@ import {
   regenerateStoredReport,
 } from './assessments';
 import { gradeOf } from './child-row';
+import { driveFolderUrl } from './google-drive';
 import type { Env } from '../env';
 
 export type ChildRole = 'owner' | 'member';
@@ -271,6 +272,7 @@ export async function createChild(env: Env, coachId: string, input: ChildCreateR
       joinedMonth: input.joinedMonth,
       extUnlocked: false,
       archivedAt: null,
+      driveFolderId: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -394,6 +396,8 @@ export async function getChildForCoach(env: Env, childId: string, coachId: strin
     ...serialized,
     assessments: assessmentSummaries,
     latestReport: latestCompleted && latestReport ? await latestReportContent(env, latestCompleted.id, latestReport) : null,
+    // オーナー以外にも出す。オーナーやSVから Drive 上で共有されていれば開ける（無ければ Drive 側でアクセスをリクエストできる）。
+    driveFolderUrl: child.driveFolderId ? driveFolderUrl(child.driveFolderId) : null,
   } satisfies ChildDetail;
 }
 

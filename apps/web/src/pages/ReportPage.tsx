@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 
 import {
@@ -9,8 +9,11 @@ import {
   addMonthsClamped,
   exerciseByKey,
   firstDayOfMonth,
+  reportDriveResponseSchema,
+  reportFileTitle,
   reportResponseSchema,
-  shortChildId,
+  type ReportAudience,
+  type ReportDrive,
   type TuningKey,
 } from '@papamo/shared';
 import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
@@ -19,8 +22,8 @@ import { AppHeader } from '../components/AppHeader';
 import { COACH_MENU_ANCHOR, GoalFocus, LessonMenuPlan, hasGoalFocus } from '../components/CoachMenu';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
-import { formatJapaneseDate, honorificLabel } from '../utils/display';
-import { buildReportHtml, saveBlob, type ReportAudience } from '../utils/report-pdf';
+import { formatJapaneseDate, formatJapaneseDateTime, honorificLabel } from '../utils/display';
+import { buildReportHtml, saveBlob } from '../utils/report-pdf';
 import styles from '../styles/page.module.css';
 
 type ParsedReport = ReturnType<typeof reportResponseSchema.parse>['report'];
@@ -68,6 +71,35 @@ function ReportFooter({ page, usage = 'ご家庭説明用' }: { page: number; us
   return <footer className={styles.reportFooter}><span>へやすぽ 育ちマップ</span><span>{usage}｜Page {page}</span></footer>;
 }
 
+type DriveSaveState =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'failed'; message: string; conflict: boolean };
+
+/** Googleドライブへの保存状態。保存は画面を開いたときに自動で行うので、ここでは結果と再試行だけを示す。 */
+function DriveStatus({ drive, saveState, onRetry }: { drive: ReportDrive; saveState: DriveSaveState; onRetry: () => void }) {
+  if (saveState.kind === 'failed') {
+    return (
+      <div className={`${styles.driveStatus} ${styles.driveStatusFailed}`} role="alert" data-print-hidden>
+        <p><strong>Googleドライブに保存できませんでした。</strong>{saveState.message}</p>
+        {/* レポートが別の画面で更新されていたら、送り直しても同じ結果になるため読み込み直してもらう。 */}
+        {saveState.conflict
+          ? <button className={styles.secondaryButton} type="button" onClick={() => window.location.reload()}>読み込み直す</button>
+          : <button className={styles.secondaryButton} type="button" onClick={onRetry}>もう一度保存する</button>}
+      </div>
+    );
+  }
+  if (saveState.kind === 'saving' || !drive.upToDate) {
+    return <div className={styles.driveStatus} role="status" data-print-hidden><p>保護者向け・コーチ向けのPDFをGoogleドライブに保存しています…</p></div>;
+  }
+  return (
+    <div className={styles.driveStatus} role="status" data-print-hidden>
+      <p>保護者向け・コーチ向けのPDFをGoogleドライブに保存しました{drive.savedAt ? `（${formatJapaneseDateTime(drive.savedAt)}）` : ''}。</p>
+      {drive.folderUrl ? <a className={styles.textLink} href={drive.folderUrl} target="_blank" rel="noopener noreferrer">フォルダを開く</a> : null}
+    </div>
+  );
+}
+
 export function ReportPage() {
   const { id } = useParams();
   const { session } = useAuth();
@@ -77,6 +109,10 @@ export function ReportPage() {
   const [readOnly, setReadOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingPdf, setCreatingPdf] = useState<ReportAudience | null>(null);
+  const [drive, setDrive] = useState<ReportDrive | null>(null);
+  const [driveSave, setDriveSave] = useState<DriveSaveState>({ kind: 'idle' });
+  // 同じ版のレポートを二重に送らない（StrictMode の二重実行や再描画でも、自動保存は1回にする）。
+  const autoSavedVersionRef = useRef<string | null>(null);
   const documentRef = useRef<HTMLElement>(null);
   const { showToast } = useToast();
   const { hash } = useLocation();
@@ -91,6 +127,7 @@ export function ReportPage() {
         setChildId(parsed.data.childId);
         setHasUnreportedChanges(parsed.data.hasUnreportedChanges);
         setReadOnly(parsed.data.readOnly);
+        setDrive(parsed.data.drive);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
@@ -101,11 +138,51 @@ export function ReportPage() {
     document.getElementById(COACH_MENU_ANCHOR)?.scrollIntoView();
   }, [report, hash]);
 
+  const fileTitle = useCallback((audience: ReportAudience) => {
+    if (!report || !childId) return '';
+    return reportFileTitle({ childId, childName: report.header.childName, honorific: report.header.honorific, seqNo: report.header.seqNo }, audience);
+  }, [report, childId]);
+
+  /**
+   * 保護者向けとコーチ向けのPDFをGoogleドライブに保存する。SV や代行のコーチが Drive から見られるようにするため。
+   * PDFにする紙面はこの画面で描いたものなので、保存はサーバーの完了処理ではなくこの画面から送る。
+   */
+  const saveToDrive = useCallback(async () => {
+    if (!session || !id || !report || !documentRef.current) return;
+    setDriveSave({ kind: 'saving' });
+    try {
+      const response = await apiRequest<unknown>(`/assessments/${id}/report/drive`, session, {
+        method: 'POST',
+        body: JSON.stringify({
+          generatedAt: report.generatedAt,
+          parentHtml: buildReportHtml(documentRef.current, fileTitle('parent'), 'parent'),
+          coachHtml: buildReportHtml(documentRef.current, fileTitle('coach'), 'coach'),
+        }),
+      });
+      const parsed = reportDriveResponseSchema.safeParse(response);
+      if (!parsed.success) throw new Error('保存の結果を読み取れませんでした。');
+      setDrive(parsed.data.drive);
+      setDriveSave({ kind: 'idle' });
+    } catch (caught) {
+      setDriveSave({
+        kind: 'failed',
+        message: caught instanceof ApiClientError ? caught.message : '通信状況を確認してもう一度お試しください。',
+        conflict: caught instanceof ApiClientError && caught.code === 'conflict',
+      });
+    }
+  }, [session, id, report, fileTitle]);
+
+  // 保存した版より新しいレポートを開いたら、自動で保存し直す。「レポートを作る／更新」のあとはこの画面に来るので、実質その直後に保存される。
+  useEffect(() => {
+    if (!report || !drive || drive.upToDate) return;
+    if (autoSavedVersionRef.current === report.generatedAt) return;
+    autoSavedVersionRef.current = report.generatedAt;
+    void saveToDrive();
+  }, [report, drive, saveToDrive]);
+
   async function downloadPdf(audience: ReportAudience) {
     if (!session || !id || !report || !childId || !documentRef.current) return;
-    // 同じお名前のお子さまのPDFを同じフォルダに保存しても上書きしないよう、短縮IDを入れる。
-    const baseTitle = `育ちマップ_${report.header.childName}${honorificLabel(report.header.honorific)}_${shortChildId(childId)}_第${report.header.seqNo}回`;
-    const title = audience === 'coach' ? `${baseTitle}_コーチ用` : baseTitle;
+    const title = fileTitle(audience);
     setCreatingPdf(audience);
     try {
       const pdf = await apiRequestBlob(`/assessments/${id}/report/pdf`, session, {
@@ -157,7 +234,12 @@ export function ReportPage() {
       <main className={`${styles.page} ${styles.reportPage}`} ref={documentRef}>
         <div className={styles.reportWrap}>
           <div className={styles.reportActions} data-print-hidden>
-            <div><strong>レポート</strong><span>保護者向けPDFは1〜4枚目、コーチ向けPDFは末尾のメニュー提案までを含みます。</span></div>
+            <div>
+              <strong>レポート</strong>
+              <span>{drive
+                ? '保護者向けPDFは1〜4枚目です。コーチ向け（末尾のメニュー提案まで）は、保護者向けと一緒にGoogleドライブへ自動で保存します。'
+                : '保護者向けPDFは1〜4枚目、コーチ向けPDFは末尾のメニュー提案までを含みます。'}</span>
+            </div>
             <div>
               {/* 一覧へはロゴとパンくずで戻れる。子どもページはスマホでパンくずが隠れるため、ボタンでも置く。 */}
               {childId ? <Link className={styles.secondaryButton} to={`/children/${childId}`}>{childName}のページへ</Link> : null}
@@ -166,11 +248,17 @@ export function ReportPage() {
               <button className={styles.primaryButton} type="button" onClick={() => void downloadPdf('parent')} disabled={creatingPdf !== null} aria-busy={creatingPdf === 'parent'}>
                 {creatingPdf === 'parent' ? 'PDFを作成中…' : '保護者向けPDF'}
               </button>
-              <button className={styles.secondaryButton} type="button" onClick={() => void downloadPdf('coach')} disabled={creatingPdf !== null} aria-busy={creatingPdf === 'coach'}>
-                {creatingPdf === 'coach' ? 'PDFを作成中…' : 'コーチ向けPDF'}
-              </button>
+              {/* コーチ向けはその場で画面を見ればよいので、ダウンロードは置かずGoogleドライブで共有する。保存しない環境（ローカル）だけ紙面の確認用に残す。 */}
+              {drive ? (
+                drive.coachFileUrl ? <a className={styles.secondaryButton} href={drive.coachFileUrl} target="_blank" rel="noopener noreferrer">コーチ向けPDF（Googleドライブ）</a> : null
+              ) : (
+                <button className={styles.secondaryButton} type="button" onClick={() => void downloadPdf('coach')} disabled={creatingPdf !== null} aria-busy={creatingPdf === 'coach'}>
+                  {creatingPdf === 'coach' ? 'PDFを作成中…' : 'コーチ向けPDF'}
+                </button>
+              )}
             </div>
           </div>
+          {drive ? <DriveStatus drive={drive} saveState={driveSave} onRetry={() => void saveToDrive()} /> : null}
           {hasUnreportedChanges ? (
             <div className={styles.unreportedNotice} role="status" data-print-hidden>
               <div>

@@ -36,6 +36,7 @@ const child = {
   updatedAt: '2026-09-01T00:00:00.000Z',
   assessments: [],
   latestReport: null,
+  driveFolderUrl: null,
 };
 
 function response(body: unknown, status = 200) {
@@ -70,6 +71,24 @@ describe('子どもページ', () => {
       expect(patchCall).toBeDefined();
       expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({ name: 'ゆいな', gradeCode: 'e2', joinedMonth: '2025-04' });
     });
+  });
+
+  it('取り込んだだけのコーチにも、Googleドライブのフォルダへのリンクを出す', async () => {
+    const sharedChild = { ...child, role: 'member' as const, ownerShareCode: undefined, driveFolderUrl: 'https://drive.google.com/drive/folders/child-folder' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child: sharedChild })));
+    renderChildPage();
+
+    const link = await screen.findByRole('link', { name: 'Googleドライブのフォルダ' });
+    expect(link).toHaveAttribute('href', 'https://drive.google.com/drive/folders/child-folder');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('Googleドライブのフォルダがまだ無いときはリンクを出さない', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ child })));
+    renderChildPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'ゆいちゃん' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Googleドライブのフォルダ' })).not.toBeInTheDocument();
   });
 
   it('下書きがある場合は新規作成ではなく入力再開へ案内する', async () => {

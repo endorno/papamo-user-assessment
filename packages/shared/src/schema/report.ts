@@ -233,6 +233,19 @@ export const reportContentSchema = z.object({
   }),
 });
 
+/**
+ * Googleドライブに保存したレポートPDFの状態。保存先はオーナーのコーチフォルダの下の、お子さまのフォルダ。
+ * URL は保存したことがあるものだけ入る。開いた人に閲覧権限があるかどうかは Drive 側で決まる。
+ */
+export const reportDriveSchema = z.object({
+  folderUrl: z.string().url().nullable(),
+  parentFileUrl: z.string().url().nullable(),
+  coachFileUrl: z.string().url().nullable(),
+  savedAt: z.string().datetime().nullable(),
+  /** いまのレポート（generatedAt）を保存済みか。false ならレポート画面が開いたときに保存し直す。 */
+  upToDate: z.boolean(),
+});
+
 export const reportResponseSchema = z.object({
   // レポート画面が子どもページへ戻れるよう、本文とは別に所属を返す。
   childId: z.string(),
@@ -242,13 +255,30 @@ export const reportResponseSchema = z.object({
   hasUnreportedChanges: z.boolean(),
   /** 次の回がある・アーカイブ中などで、この回の入力を直せないか。レポート画面から入力画面へ戻るボタンの文言に使う。 */
   readOnly: z.boolean(),
+  /** Googleドライブへの保存を設定していない環境（ローカルなど）では null。 */
+  drive: reportDriveSchema.nullable(),
 });
 
 // 画面に表示したレポートをそのままPDFにするため、DOMとCSSを1つにしたHTMLを受け取る。
 export const REPORT_PDF_HTML_MAX_LENGTH = 3_000_000;
 
+const reportHtmlSchema = z.string()
+  .min(1, 'レポートの内容を読み取れませんでした。画面を再読み込みしてからもう一度お試しください。')
+  .max(REPORT_PDF_HTML_MAX_LENGTH, 'レポートが大きすぎてPDFにできませんでした。');
+
 export const reportPdfRequestSchema = z.object({
-  html: z.string()
-    .min(1, 'レポートの内容を読み取れませんでした。画面を再読み込みしてからもう一度お試しください。')
-    .max(REPORT_PDF_HTML_MAX_LENGTH, 'レポートが大きすぎてPDFにできませんでした。'),
+  html: reportHtmlSchema,
 });
+
+/** 保護者向けとコーチ向けを同時にGoogleドライブへ保存する。generatedAt は画面に表示したレポートの版。 */
+export const reportDriveRequestSchema = z.object({
+  generatedAt: z.string().datetime(),
+  parentHtml: reportHtmlSchema,
+  coachHtml: reportHtmlSchema,
+});
+
+export const reportDriveResponseSchema = z.object({
+  drive: reportDriveSchema,
+});
+
+export type ReportDrive = z.infer<typeof reportDriveSchema>;

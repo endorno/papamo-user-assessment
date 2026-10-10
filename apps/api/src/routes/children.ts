@@ -28,6 +28,7 @@ import {
   setArchiveState,
 } from '../services/children';
 import { AssessmentServiceError, createAssessment } from '../services/assessments';
+import { moveChildFolderToOwner } from '../services/report-drive';
 
 export const childrenRoutes = new Hono<{
   Bindings: Env;
@@ -84,6 +85,11 @@ childrenRoutes.post('/import', async (context) => {
   }
   if (result.kind === 'limit') {
     return jsonError(context, 'conflict', new ChildLimitError().message, 409);
+  }
+  // Googleドライブのお子さまのフォルダも、新しいオーナーのフォルダへ移す（新しいオーナーが Drive で開けるように）。
+  const drive = context.get('drive')(context.env);
+  if (result.kind === 'owner' && drive) {
+    await moveChildFolderToOwner(context.env, drive, result.childId);
   }
   const child = await getChildForCoach(context.env, result.childId, context.get('coach').id);
   if (!child) {

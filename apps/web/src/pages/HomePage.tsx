@@ -17,6 +17,7 @@ import {
   type SampleDataStatusResponse,
 } from '@papamo/shared';
 import { apiRequest } from '../api/client';
+import { useMe } from '../app/MeContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildShortId } from '../components/ChildId';
@@ -169,6 +170,7 @@ function ChildrenSection({
 
 export function HomePage() {
   const { session } = useAuth();
+  const { me } = useMe();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [children, setChildren] = useState<ChildView[]>([]);
@@ -390,6 +392,10 @@ export function HomePage() {
             <p>{formatJapaneseDate(todayInJst())}の状況です。まず必要な記録から確認しましょう。</p>
           </div>
           <div className={styles.pageActions}>
+            {/* オーナーのお子さまのレポートPDFは、Googleドライブの自分のフォルダにも保存される。 */}
+            {me?.driveFolderUrl ? (
+              <a className={styles.secondaryButton} href={me.driveFolderUrl} target="_blank" rel="noopener noreferrer">Googleドライブ</a>
+            ) : null}
             <button className={styles.secondaryButton} type="button" aria-expanded={showImport} onClick={() => setShowImport((current) => !current)}>
               共有コードで取り込む
             </button>

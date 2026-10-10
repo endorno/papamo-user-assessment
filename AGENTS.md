@@ -98,7 +98,7 @@
 
 ### 2.5 レポート
 
-- レポートは **保護者向けの4枚** と、その後ろに続く **コーチ向けのメニュー提案** で構成する（2026-10-10）。レポート画面では両方を続けて表示し、間に「ここからはコーチ向け」の切れ目を置く。PDF は保護者向け（4枚）とコーチ向け（4枚＋メニュー提案）を別々に出力する。
+- レポートは **保護者向けの4枚** と、その後ろに続く **コーチ向けのメニュー提案** で構成する（2026-10-10）。レポート画面では両方を続けて表示し、間に「ここからはコーチ向け」の切れ目を置く。PDF は保護者向け（4枚）とコーチ向け（4枚＋メニュー提案）を別々に作る（出し方は下記の Googleドライブ保存を参照）。
   - コーチ向けに足すのはメニュー提案（v2 のコーチ用レポートの「3か月・6か月に当てるメニュー」の枠）だけ。子どもページの「振り返りと計画」タブは廃止した。
   - そのため、優先テーマごとの次に狙うLv・レッスン前の注意点・見えた動作／つまずき方・所見メモ・環境調整・お困りごと×アセスメント照合の詳細は、いまはどの画面にも出していない（`ReportContent` には残している）。
 - アセスメントとレポートは何度でも編集・出力ができる。ただし、次のアセスメントを作った後は編集不可とする（アセスメントは過去のデータを参考にするので差分が生じ、混乱を生むため）
@@ -108,7 +108,13 @@
   - 未反映の変更が残っている間は次のアセスメントを始められない（次の回を作ると前の回は編集できなくなり、変更が宙に浮くため）。子どもページでは前回の入力画面へ案内する。
   - 前回との比較・子どもページ・一覧は、完了済みの回を **レポートに反映した入力** で扱う（下書きの目標を完了まで出さないのと同じ考え方）。
 - 「保護者に共有した」フラグはモックUIにはあるが、実装不要。コーチが自己責任で保護者に共有する。
-- PDF は **Cloudflare Browser Run のヘッドレス Chrome でサーバー側生成** し、レポート画面の「保護者向けPDF」「コーチ向けPDF」で保存させる。レポートを HTML（React）で組むのは維持する。ブラウザの印刷ダイアログはヘッダ・フッタが入り、余白・倍率・背景色が端末と操作で崩れ、操作も分かりにくいため切り替えた（2026-09-30）。
+- PDF は **Cloudflare Browser Run のヘッドレス Chrome でサーバー側生成** する。レポートを HTML（React）で組むのは維持する。ブラウザの印刷ダイアログはヘッダ・フッタが入り、余白・倍率・背景色が端末と操作で崩れ、操作も分かりにくいため切り替えた（2026-09-30）。
+- **保護者向け・コーチ向けのPDFを Googleドライブ（共有ドライブ）にも保存する**（2026-10-11）。コーチ向けを代行のコーチ・SV・管理者が、慣れた Drive で見られるようにするため（共有コードでの取り込みと併用できる）。
+  - 保護者向けPDFはレポート画面からそのままダウンロードできる（Drive を開いて落とす手間を省くため）。**コーチ向けPDFのダウンロードは置かない**（その場で画面を見ればよい）。代わりに Drive のコーチ向けPDFを開くリンクを置く。
+  - フォルダ構成は `保存先フォルダ / {コーチ名}（{メールの@より前}） / {子ども名}{敬称}_{短縮ID} / 育ちマップ_…_第N回.pdf・…_コーチ用.pdf`。メールアドレスはフォルダ名が共有先に見えるためドメインまで出さない（ドメイン違いで重なりうるが、lesson-admin と同じ扱いで許容する。2026-10-11）。お子さまのフォルダは **オーナーのコーチフォルダの下** に置き、オーナー移譲で新しいオーナーのフォルダへ移す。
+  - 保存のタイミングは「レポート画面を開いたとき、Drive の版がいまのレポートより古ければ自動で」。「レポートを作る／更新」の後はレポート画面に移るので、実質その直後に保存される。失敗しても次に誰かがレポートを開いたときにやり直す。レポートを更新したら同じファイルを上書きし、リンクを変えない（前の版は Drive の版の履歴に残る）。
+  - 権限は **アプリが付けるのはオーナーのコーチ → 自分のコーチフォルダの閲覧者だけ**。SV・代行のコーチへの共有は、オーナーのコーチか全体管理者が Drive 上で行う。保存先フォルダの管理者は配下をすべて見られる。
+  - お子さまのフォルダへのリンクは、取り込んだだけのコーチ（member）にも出す。Drive 上で共有されていれば開け、無ければ Drive の画面でアクセスをリクエストしてもらう。
 - 引き継ぎシートもモックUIにはあるが実装不要。子どもの共有機能（共有コード）で代替する。
 
 ---
@@ -125,6 +131,7 @@
 | 認証クライアント | @supabase/supabase-js（セッション取得のみ）                                                            |
 | JWT 検証     | jose（JWKS の取得・キャッシュ・ES256 検証）                                                               |
 | PDF 生成     | Cloudflare Browser Run（`[browser]` バインディング `BROWSER`）+ @cloudflare/puppeteer                           |
+| Googleドライブ | Drive REST API v3 を fetch で呼ぶ（googleapis SDK は使わない）。認証はサービスアカウントの鍵で署名した JWT（jose） |
 | ID 生成      | ulid                                                                                        |
 | スタイル     | 素の CSS（CSS Modules）。Tailwind は使わない。デザイントークンはモックの `:root` 変数を移植                           |
 | バリデーション  | zod（`packages/shared` に集約、API とフロントで共用）                                                     |
@@ -200,6 +207,8 @@ pnpm -r lint && pnpm -r typecheck
 | `REPORT_GENERATOR`    | `rule_v1`（既定）。将来 `llm_v1` などを追加                                          |
 | `APP_ENV`             | `local` / `staging` / `production`。開発用API（大量データ生成・一括削除）の有効判定に使う（§15.2）        |
 | `NON_PRODUCTION_TOOLS_ENABLED` | `true` かつ `APP_ENV` が `local` / `staging` のときだけ開発用APIを有効にする。本番では設定しない |
+| `DRIVE_ROOT_FOLDER_ID` | レポートPDFの保存先（共有ドライブ内のフォルダID）。`wrangler.toml` の `[vars]` に置く |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | **Secret**。Drive に書き込むサービスアカウントの鍵（JSON）。`wrangler secret put` で入れ、リポジトリに置かない。`DRIVE_ROOT_FOLDER_ID` とそろったときだけ Drive へ保存する（ローカルは既定で保存しない）。手順は `docs/google-drive.md` |
 | `TZ` 相当               | コード内で `Asia/Tokyo` 固定。環境変数にしない                                           |
 
 
@@ -240,12 +249,13 @@ VITE_SUPABASE_ANON_KEY=...   # reference/papamo-lesson-admin/.env.local の同�
 ID は ULID（文字列）。日時は ISO 8601 文字列（UTC）で保存し、表示時に Asia/Tokyo へ変換。日付のみの列（`assessed_on` など）は `YYYY-MM-DD`。
 
 ```ts
-coaches           id (= supabase sub) PK, email, display_name (名前の部分だけ。「コーチ」は持たない。null 可 → オンボーディング未完), created_at, updated_at
+coaches           id (= supabase sub) PK, email, display_name (名前の部分だけ。「コーチ」は持たない。null 可 → オンボーディング未完),
+                  drive_folder_id (null 可: Drive のコーチフォルダ), drive_shared_email (null 可: 閲覧権限を付けたメール), created_at, updated_at
 children          id PK, share_code UNIQUE, owner_share_code UNIQUE, created_by → coaches.id,
                   name, honorific ('kun'|'chan'|'san'), gender ('boy'|'girl'|'unspecified'),
                   grade_code ('k0'|'k1'|'k2'|'k3'|'e1'..'e6'|'j1'..'j3'), grade_base_year (int, 年度),
                   joined_month ('YYYY-MM'), ext_unlocked (bool, default false),
-                  archived_at (null 可 → アーカイブ済み), created_at, updated_at
+                  archived_at (null 可 → アーカイブ済み), drive_folder_id (null 可: Drive のお子さまのフォルダ), created_at, updated_at
 child_coaches     child_id, coach_id, role ('owner'|'member'), created_at   PK(child_id, coach_id)
 assessments       id PK, child_id → children.id, seq_no (1,2,3...), status ('draft'|'done'), assessed_on,
                   coach_id → coaches.id, unlock_ext (bool), prev_assessment_id (null 可), master_version,
@@ -253,6 +263,7 @@ assessments       id PK, child_id → children.id, seq_no (1,2,3...), status ('d
                   UNIQUE(child_id, seq_no) / 部分 UNIQUE INDEX で「child_id ごとに draft は1件」
 reports           id PK, assessment_id UNIQUE → assessments.id, assessment_revision (int), generator ('rule_v1'...),
                   content (JSON: ReportContent), assessment_input (JSON: レポートを作ったときの { assessedOn, unlockExt, data }。0002 より前の行だけ null 可),
+                  drive_parent_file_id, drive_coach_file_id, drive_saved_at, drive_report_updated_at (Drive に保存したPDFと、その版＝reports.updated_at。すべて null 可),
                   created_at, updated_at
 
 ```
@@ -431,12 +442,12 @@ Page 5 は design-mock-v2 の「コーチ用」レポートのうち「3か月�
 
 | Method | Path                        | 内容                                                                                                                                                        |
 | ------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）                                                                                                               |
+| GET    | `/me`                       | 自分のコーチ情報（`displayName` が null ならオンボーディング対象）。Drive の自分のフォルダ `driveFolderUrl`（まだ無ければ null）も返す                                                                                                               |
 | PUT    | `/me`                       | `{ displayName }` を更新（名前の部分だけ1〜30文字。末尾の「コーチ」は落とす）                                                                                                                             |
 | GET    | `/children`                 | 自分に紐づく子ども（作成した子ども＋取り込んだ子ども）の一覧 + 各子どもの状態（§8.3）。**アーカイブ済みは除外**、`?archived=1` でアーカイブ済みのみ。一覧の並び順はサーバーで決める                                                     |
 | POST   | `/children`                 | 作成。`{ name, honorific, gender?, gradeCode, joinedMonth }`（`gender` 省略時は `unspecified`）。`grade_base_year` は作成時の年度、`age_group` は学年から算出。`child_coaches` に owner を追加し、共有コード2本を生成。担当が上限（100名）なら 409                |
-| POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない）。既に同じ立場で紐づいていれば 409、担当が上限（100名）で新たに担当が増える場合も 409、未知のコードは 404 |
-| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` と、レポート未反映の変更の有無 `hasUnreportedChanges` を含む。完了回はレポートに反映した入力で返す）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める                                                             |
+| POST   | `/children/import`          | `{ code }`。`share_code` 一致 → member として参加。`owner_share_code` 一致 → 参加のうえオーナー移譲（旧オーナーは member に降格、`children.created_by` は変更しない。Drive のお子さまのフォルダを新しいオーナーのフォルダへ移す。移動の失敗では取り込みを止めない）。既に同じ立場で紐づいていれば 409、担当が上限（100名）で新たに担当が増える場合も 409、未知のコードは 404 |
+| GET    | `/children/:id`             | ハブ用。子ども + アセスメント一覧（summary。目標表示用に完了回の `copm[].text` から導出した `goals` と、レポート未反映の変更の有無 `hasUnreportedChanges` を含む。完了回はレポートに反映した入力で返す）+ 最新完了アセスメントの report.content。自分が owner のときだけ `ownerShareCode` を含める。Drive のお子さまのフォルダ `driveFolderUrl`（member にも返す。まだ無ければ null）                                                             |
 | PATCH  | `/children/:id`             | `{ name?, honorific?, gender?, gradeCode?, joinedMonth? }` の更新。`gradeCode` を送ると `grade_base_year` も現在の年度で更新する。`ext_unlocked` と目標は変更不可 |
 | DELETE | `/children/:id/membership`  | 自分のリンク解除。role=owner なら 403                                                                                                                               |
 | DELETE | `/children/:id`             | 子どもレコードの削除。**owner かつレポート0件のときだけ** 許可（それ以外は 409）。入力中のアセスメントと全コーチの紐づきも同じトランザクションで削除する                                                                                        |
@@ -448,8 +459,9 @@ Page 5 は design-mock-v2 の「コーチ用」レポートのうち「3か月�
 | DELETE | `/assessments/:id`          | 下書きの破棄。`status='draft'` のときだけ許可（done は 409）。誤って作った下書きを消して前の回の編集に戻るための唯一の手段                                                                               |
 | POST   | `/assessments/:id/complete` | 「レポートを作る／更新」。検証（全種目の到達が選択済み・PPI 全5設問・目標の文言が空でない）→ done → レポート生成 → 子どもの `ext_unlocked` 伝播 → `{ report }`。**完了済みの回に対する再実行も可**（レポートを再生成して上書きし、押したコーチを担当にする）。後続のアセスメントが存在する回は 409                        |
 | POST   | `/assessments/:id/revert`   | `{ updatedAt }`。完了済みの回の入力を、レポートを作ったときの内容に戻す。下書きと、後続のアセスメントが存在する回は 409 |
-| GET    | `/assessments/:id/report`   | レポート取得。レポート作成後の未反映の変更の有無 `hasUnreportedChanges` も返す                                                                                                                                                |
+| GET    | `/assessments/:id/report`   | レポート取得。レポート作成後の未反映の変更の有無 `hasUnreportedChanges` と、Drive の保存状態 `drive`（フォルダ・2つのPDFのURL、保存日時、いまの版を保存済みか `upToDate`。Drive 未設定なら null）も返す。`complete` の応答も同じ形                                                                                                                                                |
 | POST   | `/assessments/:id/report/pdf` | `{ html }`（画面に表示したレポート全体と CSS を1枚にしたHTML）を Browser Run で A4 のPDFにして `application/pdf` で返す。権限とレポートの有無はレポート取得と同じ確認（403 / 404） |
+| POST   | `/assessments/:id/report/drive` | `{ generatedAt, parentHtml, coachHtml }` を Browser Run で2つのPDFにし、Drive のお子さまのフォルダへ保存して `{ drive }` を返す。membership のあるコーチなら誰でも可（保存先はオーナーのフォルダ）。`generatedAt` がいまのレポートと違えば 409、Drive 未設定なら 404 |
 
 
 子どもスコープの全ルートで `child_coaches` **の membership を確認**する（services 層の共通関数 `requireMembership(childId, coachId)`）。アセスメント／レポートのルートは `assessment.child_id` から子どもを引いて同じ確認を通す。アーカイブ済みの子どもは **読み取りのみ許可**（復元と削除を除く書き込みは 409）、オーナー限定の操作は `role='owner'` を併せて確認する。
@@ -486,7 +498,7 @@ Page 5 は design-mock-v2 の「コーチ用」レポートのうち「3か月�
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | タブで「概要／登録・共有」に分ける（§15.1）。育ちマップ（レーダー + Lv行 + 差分）、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新のレポート」、レポート末尾のメニュー提案への導線（「次のレッスンに向けて」）、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、到達のドロップダウン（「Lv0　実施不可」＋帯ごとに区切ったLv1〜上限の課題文。前回Lvに「（前回）」表示）、見えた動作（選択＋自由記入）、取り組みの発達・環境調整、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。完了済みの回では、レポート作成後に変えたセクションを案内とジャンプナビの「未反映」で示し、下部バーは「レポートを更新」（未反映がないときは「レポートを見る」）、案内から「レポート作成時の内容に戻す」を選べる。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
-| `/reports/:id`     | レポート（保護者向け＋コーチ向け） | 保護者向け4枚 → 「ここからはコーチ向け」の切れ目 → コーチ向けのメニュー提案（§7.1.1）。初回 / 比較の2レイアウト。「保護者向けPDF」でA4 4枚、「コーチ向けPDF」でメニュー提案までのA4 5枚を保存。上部の操作は「◯◯くんのページへ」「入力を修正する」（直せる回だけ）「保護者向けPDF」「コーチ向けPDF」。`#coach-menu` 付きで開くと、読み込み後にメニュー提案まで送る。ルール未確定の箇所には「アルゴリズム調整中」を表示 |
+| `/reports/:id`     | レポート（保護者向け＋コーチ向け） | 保護者向け4枚 → 「ここからはコーチ向け」の切れ目 → コーチ向けのメニュー提案（§7.1.1）。初回 / 比較の2レイアウト。「保護者向けPDF」でA4 4枚をダウンロード。保護者向け・コーチ向け（メニュー提案までのA4 5枚）は開いたときに Drive へ自動保存し、操作バーの直下に保存状態（保存中／保存済み・フォルダを開く／失敗・再試行）を出す。上部の操作は「◯◯くんのページへ」「入力を修正する」（直せる回だけ）「保護者向けPDF」「コーチ向けPDF（Googleドライブ）」（Drive 未設定の環境だけ「コーチ向けPDF」のダウンロード）。`#coach-menu` 付きで開くと、読み込み後にメニュー提案まで送る。ルール未確定の箇所には「アルゴリズム調整中」を表示 |
 
 
 ### 9.2 実装ルール
@@ -557,7 +569,7 @@ REPORT_GENERATOR = "rule_v1"
 - D1 マイグレーションはデプロイ前に `pnpm db:migrate:production` を手動で実行する（初期は自動化しない。マイグレーションを含む PR の説明に必ず明記）。ステージングは `pnpm db:migrate:staging` を使い、実行前に対象環境のD1 IDを確認する。
 - staging 用 Worker は将来追加。`wrangler.toml` は `[env.staging]` を書けるように環境固有値を `[vars]` に寄せておく。
 - バインディングは環境に継承されないため、`[browser]` は `[env.staging.browser]` にも書く。Browser Run の利用枠は Workers Free で1日10分、Paid で月10時間（超過は従量）。PDF 1件は数秒。
-- Secrets（あれば）は `wrangler secret put`。リポジトリに置かない。
+- Secrets は `wrangler secret put`。リポジトリに置かない。いまあるのは `GOOGLE_SERVICE_ACCOUNT_KEY`（Drive 保存用。環境ごとに入れる。`docs/google-drive.md`）。
 
 ---
 
@@ -591,6 +603,7 @@ REPORT_GENERATOR = "rule_v1"
 - 完了アセスメントの削除 API、レポートの版管理（再生成は同じ行を上書き）。
 - 引き継ぎシート（PDF）と「保護者に共有した」フラグ、「SVへ引き継ぐ」チェック。モックには画面があるが実装しない（§2.3 / §2.5）。
 - 共有コードの失効・再発行（§2.2）。
+- Googleドライブの権限管理（SV・代行のコーチへの共有、共有の取り消し）をアプリで行うこと。アプリが付けるのはオーナーのコーチ → 自分のフォルダの閲覧者だけ（§2.5）。Drive の共有の通知メールも送らない。
 - 生年月日・生年月・年齢の保持。年齢は学年からの参考表示だけ（§2.4）。
 - 保護者向けのログイン・画面。レポートはコーチがPDFを保存して共有する。
 - メール送信、通知、LLM 呼び出し（初期リリース）。
@@ -663,7 +676,9 @@ REPORT_GENERATOR = "rule_v1"
   - 内容が最も多い場合（できるようになりたいこと4件・目標4件・照合2領域）でも1ページに収まるが、縮小率は約0.57（下限0.55）まで下がる。項目を足すときは2枚に分けることを検討する。
 - レポートの番号つき見出しは、そのページに2つ以上あるときだけ連番を振る（「1」だけだと続きがあるように見えるため）。
 - レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。見出しの番号の丸は `.headingNumber` で指定する（見出しの中の `TuningTag` も `span` のため、`span` 指定だと巻き込まれる）。
-- レポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプト（保護者向けは加えて `data-coach-only`）を外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は保護者向けが `育ちマップ_{名前}{敬称}_{短縮ID}_第N回.pdf`（同名のPDFを同じフォルダに保存しても上書きしないため）、コーチ向けはその末尾に `_コーチ用` を付ける。PDF生成のAPI（`POST /assessments/:id/report/pdf`）は保護者向け・コーチ向けで共通。ブラウザ印刷のボタンは置かない（2026-09-30）。
+- レポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプト（保護者向けは加えて `data-coach-only`）を外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は保護者向けが `育ちマップ_{名前}{敬称}_{短縮ID}_第N回.pdf`（同名のPDFを同じフォルダに保存しても上書きしないため）、コーチ向けはその末尾に `_コーチ用` を付ける。PDF生成のAPI（`POST /assessments/:id/report/pdf`）は保護者向け・コーチ向けで共通。ブラウザ印刷のボタンは置かない（2026-09-30）。ファイル名は `reportFileTitle`（shared）で作り、ダウンロードと Drive で同じ名前にする。
+- Googleドライブへの保存はレポート画面（`ReportPage`）が担う。応答の `drive.upToDate` が false なら、描画した紙面から保護者向け・コーチ向けのHTMLを組んで `POST /assessments/:id/report/drive` に送る。同じ版（`report.generatedAt`）を二重に送らないよう ref で1回に絞り、失敗時は保存状態の欄に理由と「もう一度保存する」（409 は「読み込み直す」）を出す。保存状態の欄は `data-print-hidden`。コーチ向けPDFのダウンロードボタンは `drive` が null（Drive 未設定）のときだけ出す（ローカルで紙面を確かめるため）。
+- Drive へのリンク（一覧の「Googleドライブ」＝自分のフォルダ、子どもページの「Googleドライブのフォルダ」、レポート画面の「フォルダを開く」「コーチ向けPDF（Googleドライブ）」）は新しいタブで開く。権限が無い人には Drive がアクセスのリクエストを案内するので、アプリ側で権限の有無は判定しない。
 - モーションは `global.css` の `--dur-fast` / `--dur` / `--ease` を使い、`prefers-reduced-motion: reduce` で遷移とスムーススクロールを止める。
 
 ### 15.2 API とデータ
@@ -690,7 +705,16 @@ REPORT_GENERATOR = "rule_v1"
 - `AssessmentServiceError` はコードに対応するHTTPステータスを自分で持つ。WorkersのBinding型は `wrangler types` で生成し、手書きしない。
 - 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。`internalError` は `describeError` を通す：Drizzle のクエリ失敗はメッセージにバインド値を含むので SQL 文と原因だけ、zod の検証エラーは項目の位置とコードだけ、JSON の解析エラーはメッセージなし、スタックは呼び出し位置の行だけを残す。
 - 401 の画面（`AuthErrorNotice`）で、ローカル Supabase・ポート番号などの開発者向けの案内は `import.meta.env.DEV` のときだけ出す。ステージング・本番のコーチには「有効期限が切れた可能性」と再試行・再ログインだけを示す。
-- PDF生成は `apps/api/src/services/report-pdf.ts` の `renderReportPdf` に集約する。受け取ったHTMLはスクリプトを止め、通信は Google Fonts の配信元（`fonts.googleapis.com` / `fonts.gstatic.com`）だけを通す（任意の宛先へアクセスさせないため）。A4・余白 上下9mm／左右8mm の刷り面と同じ幅で、印刷用スタイルを当てて採寸し、シートごとに zoom（0.55〜1.1）で1ページに収めてからPDFにする（design-mock-v2 の `fitA4` を移植）。Chrome 127 以前は zoom をかけた要素の `getBoundingClientRect` が拡縮前の大きさを返す（ローカルの Chrome は 126。2026-09-30 時点）ため、どちらの挙動かを判定してから測る。生成に失敗したら 500 と「少し待ってからもう一度」の文言を返し、Web は通知に再試行を添える。
+- PDF生成は `apps/api/src/services/report-pdf.ts` の `renderReportPdf` に集約する。受け取ったHTMLはスクリプトを止め、通信は Google Fonts の配信元（`fonts.googleapis.com` / `fonts.gstatic.com`）だけを通す（任意の宛先へアクセスさせないため）。A4・余白 上下9mm／左右8mm の刷り面と同じ幅で、印刷用スタイルを当てて採寸し、シートごとに zoom（0.55〜1.1）で1ページに収めてからPDFにする（design-mock-v2 の `fitA4` を移植）。Chrome 127 以前は zoom をかけた要素の `getBoundingClientRect` が拡縮前の大きさを返す（ローカルの Chrome は 126。2026-09-30 時点）ため、どちらの挙動かを判定してから測る。生成に失敗したら 500 と「少し待ってからもう一度」の文言を返し、Web は通知に再試行を添える。`ReportPdfRenderer` はHTMLの配列を受け取り、ブラウザの起動を1回にして順にPDFにする（Drive 保存で2つ作るため）。
+- Googleドライブは `services/google-drive.ts`（REST クライアント・接続）と `services/report-drive.ts`（フォルダ構成・保存）に分ける。`createApi(auth, { drive })` の `DriveConnector` が、`DRIVE_ROOT_FOLDER_ID` と `GOOGLE_SERVICE_ACCOUNT_KEY` がそろったときだけ接続を返す（そろわなければ Drive の機能は全部オフ）。
+  - サービスアカウントのアクセストークン（1時間）は Worker のインスタンス内で使い回す。共有ドライブを扱うため、Drive API には必ず `supportsAllDrives=true` を付ける。429・5xx・401 は1回だけ送り直す。
+  - フォルダ・ファイルの ID は D1 に持つ（名前は表示用。改名は次の保存で追いつく）。保存のたびに Drive 上の状態を確かめ、ゴミ箱に移されていたら作り直す。お子さまのフォルダを作り直したときは、その子のほかの回の保存記録も消して、次に開いたときに保存し直させる。
+  - 同時に保存したときにフォルダ・ファイルが二重にできないよう、ID の記録は「まだ前の値のままなら」の条件付き更新にし、負けた側は自分が作った方をゴミ箱へ移して先の方を使う（`adopt`）。ロックは持たない。
+  - 古い紙面で新しいレポートを上書きしないよう、保存した版は `drive_report_updated_at`（= そのときの `reports.updated_at`）で持つ。「保存済みか」は保存日時ではなく版の一致で判定する。保存前とPDF生成後の2回、版を確かめる。
+  - コーチフォルダの共有（閲覧者・通知メールなし）に失敗しても保存は続ける（記録しないので次の保存で付け直す）。オーナー移譲時のフォルダ移動の失敗も取り込みを止めず、次の保存でそろえる。どちらも `google_drive_failed` イベントで記録する。
+  - Drive API のエラーは `GoogleDriveError`（操作・ステータス・理由のコード）にし、Google 側のメッセージ（ファイル名＝子どもの名前を含みうる）はログに出さない。鍵の JSON の解析エラーも元のメッセージを使わない（鍵の一部を含むため）。
+  - レポートの upsert（`guardedReportUpsert`）は INSERT … SELECT のため、`reports` に列を足したら SELECT にも同じ順で足す。更新時の `set` に Drive の列を含めないので、レポートを更新しても保存済みのファイル（リンク）は残る。
+  - 非本番のシード・DB作り直しは Drive 上のフォルダを消さない（D1 の記録だけが消え、次の保存で新しいフォルダができる）。検証で溜まったフォルダは Drive 上で手動で消す。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
 - 非本番の作り直し（`pnpm --filter @papamo/api db:rebuild:local` / `db:rebuild:staging`）は本リポジトリのD1の全テーブルを `d1_migrations` ごと DROP し（`seeds/drop-all.sql`）、マイグレーションを最初から適用し直す。適用済みマイグレーションを書き換えたときは `db:migrate:*` では反映されない（ファイル名で適用済みと判定される）ため、これを使う。行だけ消すコマンドは作り直しで代替できるため持たない。テーブルを追加したら `drop-all.sql` にも足す（`seeds.test.ts` が消し残しを検出する）。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
@@ -706,6 +730,7 @@ REPORT_GENERATOR = "rule_v1"
 - 承認モックの6人分の子どもとアセスメントは `packages/shared/src/fixtures/children.ts` を使う。
 - Web の画面テストは `apps/web/src/test-utils.tsx` の `renderWithProviders` を使い、本番と同じ順でプロバイダを重ねる。
 - API 結合テストでは `createAuthMiddleware` にテスト鍵の検証関数を注入し、本番の JWKS 検証は差し替えない。
+- API 結合テストのクライアントは `apps/api/src/test-utils/api-client.ts` の `createTestClient` を使う。既定で Drive を切る（開発機の `.dev.vars` に本物の鍵があってもテストから書き込まないため）。Drive を使うテストは `test-utils/fake-drive.ts` の `FakeDrive` を `createApi(auth, { drive })` に渡す。
 - PDF生成は `createApi(auth, { renderPdf })` で差し替え、テストではヘッドレス Chrome を起動しない。紙面の見た目（保護者向けが4ページ・コーチ向けが5ページに収まるか、ヘッダ・フッタが無いか）は自動テストが無いので、レポートの画面やCSSを変えたら `wrangler dev` と Vite を立ててPDFを実際に作り、初回・比較・5種目開放済みのレポートで確認する。
 - 変更後は `pnpm -r lint && pnpm -r typecheck && pnpm -r test && pnpm -r build` を実行する。
 - 公式リリース前にマイグレーション履歴を再構築した場合は、空DBから最終スキーマ・インデックス・トリガーを構築できることをテストする。公式リリース後のDB変更は、既存データを保持する移行テストも追加する。

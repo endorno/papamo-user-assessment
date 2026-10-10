@@ -53,3 +53,9 @@ export async function updateCoachDisplayName(
 
   return coachRecord(env, coachId);
 }
+
+/** Googleドライブの自分のフォルダ。オーナーのお子さまのレポートを初めて保存したときに作る。 */
+export async function coachDriveFolderId(env: Env, coachId: string): Promise<string | null> {
+  const row = await dbFor(env).select({ driveFolderId: coaches.driveFolderId }).from(coaches).where(eq(coaches.id, coachId)).get();
+  return row?.driveFolderId ?? null;
+}

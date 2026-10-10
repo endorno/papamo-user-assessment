@@ -21,7 +21,7 @@ afterEach(() => {
 describe('表示名の変更', () => {
   it('名前の部分だけを入力させ、「コーチ」は欄の外とヘッダーで自動で付ける', async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(
-      JSON.stringify({ id: 'coach-1', email: 'coach@example.com', displayName: 'たなか' }),
+      JSON.stringify({ id: 'coach-1', email: 'coach@example.com', displayName: 'たなか', driveFolderUrl: null }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     ));
     vi.stubGlobal('fetch', fetchMock);

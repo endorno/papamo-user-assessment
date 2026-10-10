@@ -6,15 +6,19 @@ import {
 import { Hono } from 'hono';
 import { authMiddleware, onboardingMiddleware } from './middleware/auth';
 import { internalError, jsonError } from './http/errors';
-import type { Env, AppVariables } from './env';
-import { updateCoachDisplayName } from './services/coaches';
+import type { AppVariables, CoachRecord, Env } from './env';
+import { coachDriveFolderId, updateCoachDisplayName } from './services/coaches';
 import { childrenRoutes } from './routes/children';
 import { assessmentsRoutes } from './routes/assessments';
 import { devToolsRoutes } from './routes/dev-tools';
 import { renderReportPdf, type ReportPdfRenderer } from './services/report-pdf';
+import { connectGoogleDrive, driveFolderUrl, type DriveConnector } from './services/google-drive';
 
-// テストではヘッドレス Chrome を起動しないよう、PDF生成を差し替えられるようにする。
-export function createApi(auth = authMiddleware, { renderPdf = renderReportPdf }: { renderPdf?: ReportPdfRenderer } = {}) {
+// テストではヘッドレス Chrome と Googleドライブを使わないよう、PDF生成と Drive の接続を差し替えられるようにする。
+export function createApi(
+  auth = authMiddleware,
+  { renderPdf = renderReportPdf, drive = connectGoogleDrive }: { renderPdf?: ReportPdfRenderer; drive?: DriveConnector } = {},
+) {
   const app = new Hono<{
     Bindings: Env;
     Variables: AppVariables;
@@ -24,6 +28,7 @@ export function createApi(auth = authMiddleware, { renderPdf = renderReportPdf }
   app.use('/api/*', onboardingMiddleware);
   app.use('/api/*', async (context, next) => {
     context.set('renderPdf', renderPdf);
+    context.set('drive', drive);
     await next();
   });
 
@@ -36,13 +41,18 @@ export function createApi(auth = authMiddleware, { renderPdf = renderReportPdf }
     return context.json(response);
   });
 
-  app.get('/api/me', (context) => {
-    const coach = context.get('coach');
-    return context.json(meResponseSchema.parse({
+  async function meResponse(env: Env, coach: CoachRecord) {
+    const folderId = await coachDriveFolderId(env, coach.id);
+    return meResponseSchema.parse({
       id: coach.id,
       email: coach.email,
       displayName: coach.displayName,
-    }));
+      driveFolderUrl: folderId ? driveFolderUrl(folderId) : null,
+    });
+  }
+
+  app.get('/api/me', async (context) => {
+    return context.json(await meResponse(context.env, context.get('coach')));
   });
 
   app.put('/api/me', async (context) => {
@@ -70,7 +80,7 @@ export function createApi(auth = authMiddleware, { renderPdf = renderReportPdf }
         parsed.data.displayName,
       );
       context.set('coach', coach);
-      return context.json(meResponseSchema.parse(coach));
+      return context.json(await meResponse(context.env, coach));
     } catch (caught) {
       return internalError(context, caught, 'coach.update_display_name', '表示名を保存できませんでした。');
     }

@@ -26,6 +26,9 @@ SUPABASE_JWT_AUDIENCE = "authenticated"
 REPORT_GENERATOR = "rule_v1"
 APP_ENV = "production"
 NON_PRODUCTION_TOOLS_ENABLED = "false"
+# レポートPDFの保存先（共有ドライブ内のフォルダ）。サービスアカウントの鍵 GOOGLE_SERVICE_ACCOUNT_KEY は Secret で入れる。
+# 鍵の無い環境（ローカル）では保存しない。
+DRIVE_ROOT_FOLDER_ID = "1JmKflTCBP00vSpz3vClqaud1ObPy9KGz"
 
 [env.staging]
 name = "papamo-user-assessment-staging"
@@ -53,6 +56,7 @@ SUPABASE_JWT_AUDIENCE = "authenticated"
 REPORT_GENERATOR = "rule_v1"
 APP_ENV = "staging"
 NON_PRODUCTION_TOOLS_ENABLED = "true"
+DRIVE_ROOT_FOLDER_ID = "1JmKflTCBP00vSpz3vClqaud1ObPy9KGz"
 
 [observability]
 enabled = true

@@ -12,6 +12,7 @@ describe('D1初期マイグレーション', () => {
       '0000_initial_schema.sql',
       '0001_report_consistency_triggers.sql',
       '0002_report_assessment_input.sql',
+      '0003_google_drive.sql',
     ]);
 
     await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
@@ -24,6 +25,15 @@ describe('D1初期マイグレーション', () => {
 
     const reportColumns = await testEnv.DB.prepare('PRAGMA table_info(reports)').all<{ name: string }>();
     expect(reportColumns.results.map(({ name }) => name)).toContain('assessment_input');
+    expect(reportColumns.results.map(({ name }) => name)).toEqual(expect.arrayContaining([
+      'drive_parent_file_id',
+      'drive_coach_file_id',
+      'drive_saved_at',
+      'drive_report_updated_at',
+    ]));
+    expect(childColumns.results.map(({ name }) => name)).toContain('drive_folder_id');
+    const coachColumns = await testEnv.DB.prepare('PRAGMA table_info(coaches)').all<{ name: string }>();
+    expect(coachColumns.results.map(({ name }) => name)).toEqual(expect.arrayContaining(['drive_folder_id', 'drive_shared_email']));
 
     const triggers = await testEnv.DB.prepare(`
       SELECT name FROM sqlite_master

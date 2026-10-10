@@ -90,6 +90,8 @@ export const childAssessmentSummarySchema = z.object({
 export const childDetailSchema = childViewSchema.extend({
   assessments: z.array(childAssessmentSummarySchema),
   latestReport: reportContentSchema.nullable(),
+  /** Googleドライブのお子さまのフォルダ。最初のレポートを保存するまでは null。 */
+  driveFolderUrl: z.string().url().nullable(),
 });
 
 export const childDetailResponseSchema = z.object({

@@ -11,6 +11,7 @@ export const testCoach: MeResponse = {
   id: 'coach-1',
   email: 'coach@example.com',
   displayName: 'さとう',
+  driveFolderUrl: null,
 };
 
 /**
