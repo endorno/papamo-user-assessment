@@ -1,150 +1,95 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import {
-  COPM_MAX,
+  hasSurveyAnswers,
+  parseSurveyRow,
   PPI_QUESTIONS,
   PPI_SCORE_MAX,
-  RETIRED_WANT_IDS,
-  TEXT_LIMITS,
-  TROUBLE_ITEMS,
-  WANT_ITEMS,
+  surveyReplacedFields,
   WANT_MAX,
-  type PpiKey,
+  wantById,
+  type AssessmentData,
+  type SurveyAnswers,
+  type SurveyReplacedField,
+  type SurveyResponse,
 } from '@papamo/shared';
 import styles from '../styles/page.module.css';
 
-/** アンケート1件のなかで複数の回答を並べるときの区切り（design-mock-v2 のCSV仕様）。 */
-const MULTI_VALUE_PATTERN = /[｜|,]/;
-/** お困り度は0〜5の1桁だけを取り込む。 */
-const PPI_ANSWER_PATTERN = new RegExp(`^[0-${PPI_SCORE_MAX}]$`);
+const REPLACED_LABELS: Record<SurveyReplacedField, string> = {
+  troubles: 'お困りごと',
+  wants: 'できるようになりたいこと',
+  ppi: 'ご家庭のお困り度',
+  ppiNote: 'いま一番負担に感じている場面',
+};
 
-export interface SurveyImport {
-  troubles: string[];
-  wants: string[];
-  goals: string[];
-  ppi: Partial<Record<PpiKey, number>>;
-  ppiNote: string;
+// 回答が無かった欄は今の入力のまま残すことを、空欄ではなく言葉で示す。
+const NO_ANSWER = '回答なし（今の入力のまま）';
+
+function listOrNoAnswer(values: readonly string[]) {
+  return values.length ? values.join('、') : NO_ANSWER;
 }
 
-const PPI_COLUMNS = PPI_QUESTIONS.map(({ key }) => [`ppi_${key}`, key] as const);
-const KNOWN_COLUMNS = ['trouble', 'want', 'goal', 'ppi_note', ...PPI_COLUMNS.map(([column]) => column)];
-
-function splitCells(line: string): string[] {
-  return line.split('\t').map((cell) => cell.trim());
+function ppiSummary(answers: SurveyAnswers) {
+  const answered = PPI_QUESTIONS.filter(({ key }) => answers.ppi[key] !== undefined);
+  if (!answered.length) return NO_ANSWER;
+  const summary = answered.map(({ key, name }) => `${name} ${answers.ppi[key]}`).join('・');
+  return answered.length < PPI_QUESTIONS.length ? `${summary}（${PPI_QUESTIONS.length}問中${answered.length}問）` : summary;
 }
 
-function splitValues(cell: string): string[] {
-  return [...new Set(
-    cell
-      .split(MULTI_VALUE_PATTERN)
-      .map((value) => value.trim())
-      .filter(Boolean),
-  )];
-}
-
-/**
- * 事前アンケートの回答を貼り付けて読み取る。
- *
- * 1. 列名の行（`trouble` / `want` / `goal` / `ppi_time`… ）と回答の行を貼り付けた場合は、
- *    お困りごと・できるようになりたいこと・目標・ご家庭のお困り度をまとめて取り込む。
- * 2. 列名が見つからない場合は、これまでどおり並んだセルを目標として取り込む。
- */
-export function parseSurveyPaste(value: string): SurveyImport {
-  const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const headerIndex = lines.findIndex((line) => (
-    splitCells(line).some((cell) => KNOWN_COLUMNS.includes(cell.toLowerCase()))
-  ));
-
-  if (headerIndex < 0 || !lines[headerIndex + 1]) {
-    const goals = [...new Set(lines.flatMap(splitCells).filter(Boolean))];
-    return { troubles: [], wants: [], goals, ppi: {}, ppiNote: '' };
-  }
-
-  const header = splitCells(lines[headerIndex]!).map((cell) => cell.toLowerCase());
-  const answer = splitCells(lines[headerIndex + 1]!);
-  const cellOf = (column: string) => {
-    const index = header.indexOf(column);
-    return index < 0 ? '' : answer[index] ?? '';
-  };
-
-  const ppi: Partial<Record<PpiKey, number>> = {};
-  for (const [column, key] of PPI_COLUMNS) {
-    const raw = cellOf(column);
-    if (!PPI_ANSWER_PATTERN.test(raw)) continue;
-    ppi[key] = Number(raw);
-  }
-
-  const wantIds = new Set<string>(WANT_ITEMS.map((item) => item.id));
-  // 廃止した id（過去の回答）は統合先に読み替える。統合先と重なったら1つにまとめる。
-  const wants = [...new Set(splitValues(cellOf('want')).map((id) => RETIRED_WANT_IDS[id] ?? id))];
-  return {
-    // マスタにない文言は受け取らない（保存値が文言そのものになるため）。
-    troubles: splitValues(cellOf('trouble')).filter((trouble) => TROUBLE_ITEMS.includes(trouble)),
-    wants: wants.filter((id) => wantIds.has(id)).slice(0, WANT_MAX),
-    goals: splitValues(cellOf('goal')),
-    ppi,
-    ppiNote: cellOf('ppi_note'),
-  };
-}
-
-function summaryOf(result: SurveyImport): string[] {
-  const summary: string[] = [];
-  if (result.troubles.length) summary.push(`お困りごと ${result.troubles.length}件`);
-  if (result.wants.length) summary.push(`できるようになりたいこと ${result.wants.length}件`);
-  if (result.goals.length) summary.push(`目標 ${result.goals.length}件`);
-  if (Object.keys(result.ppi).length) summary.push(`ご家庭のお困り度 ${Object.keys(result.ppi).length}問`);
-  return summary;
+function skippedLines({ skipped }: SurveyResponse): string[] {
+  return [
+    ...(skipped.troubles.length ? [`選択肢に無いお困りごと：${skipped.troubles.join('、')}`] : []),
+    ...(skipped.wants.length ? [`選択肢に無いできるようになりたいこと：${skipped.wants.join('、')}`] : []),
+    ...(skipped.overLimit.length
+      ? [`${WANT_MAX}つを超えたできるようになりたいこと：${skipped.overLimit.join('、')}（必要なら取り込んだあとで入れ替えてください）`]
+      : []),
+    ...skipped.ppi.map(({ name, value }) => `ご家庭のお困り度「${name}」：${value}（0〜${PPI_SCORE_MAX}の数字ではありません）`),
+    ...skipped.tooLong.map(({ label }) => `${label}：長すぎて入力欄に入りません（要約して手で入力してください）`),
+  ];
 }
 
 export function SurveyImportDialog({
   open,
+  data,
+  destination,
   onCancel,
   onImport,
 }: {
   open: boolean;
+  /** いまの入力。取り込みで置き換わる欄を知らせるのに使う。 */
+  data: AssessmentData;
+  /** 取り込み先（例「ゆいちゃんの第1回アセスメント」）。回答したお子さまと見比べてもらう。 */
+  destination: string;
   onCancel: () => void;
-  onImport: (result: SurveyImport) => void;
+  onImport: (answers: SurveyAnswers) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const [pastedText, setPastedText] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
       setPastedText('');
-      setError(null);
       dialog.showModal();
       textareaRef.current?.focus();
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
-  function importSurvey(event: FormEvent<HTMLFormElement>) {
+  // 貼り付けた時点で読み取り、取り込む前に中身を見せる。
+  const result = pastedText.trim() ? parseSurveyRow(pastedText) : null;
+  const response = result?.ok ? result : null;
+  const importable = response && hasSurveyAnswers(response.answers) ? response.answers : null;
+  const replaced = importable ? surveyReplacedFields(data, importable) : [];
+  const skipped = response ? skippedLines(response) : [];
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = parseSurveyPaste(pastedText);
-    if (!summaryOf(result).length) {
-      setError('取り込める回答が見つかりませんでした。コピーする範囲を確認してください。');
-      return;
-    }
-    if (result.goals.length > COPM_MAX) {
-      setError(`目標は${COPM_MAX}件までです。貼り付けるセルを確認してください。`);
-      return;
-    }
-    // 上限を超えたまま取り込むと自動保存が通らなくなるため、ここで止める。
-    if (result.goals.some((goal) => goal.length > TEXT_LIMITS.copmText)) {
-      setError(`1件の目標は${TEXT_LIMITS.copmText}文字以内にしてください。`);
-      return;
-    }
-    if (result.ppiNote.length > TEXT_LIMITS.ppiNote) {
-      setError(`いま一番負担に感じている場面は${TEXT_LIMITS.ppiNote}文字以内にしてください。`);
-      return;
-    }
-    onImport(result);
+    if (importable) onImport(importable);
   }
 
   return (
@@ -161,33 +106,68 @@ export function SurveyImportDialog({
         if (event.target === dialogRef.current) onCancel();
       }}
     >
-      <form onSubmit={importSurvey}>
+      <form onSubmit={submit}>
         <h2 id={titleId}>事前アンケートから取り込む</h2>
         <p id={descriptionId}>
-          スプレッドシートで回答の範囲を選んでコピーし、そのまま貼り付けてください。
-          列名の行（<code>trouble</code> / <code>want</code> / <code>goal</code> / <code>ppi_time</code> など）を含めて貼ると、
-          お困りごと・目標・ご家庭のお困り度をまとめて取り込みます。
-          目標のセルだけを貼り付けた場合は、目標欄（最大{COPM_MAX}件）に入ります。
+          回答のスプレッドシートで、お子さまの行の行番号（左端の数字）をクリックして行全体を選び、コピーして下の欄に貼り付けてください。
         </p>
         <div className={styles.formField}>
-          <label htmlFor="survey-paste">コピーした回答</label>
+          <label htmlFor="survey-paste">コピーした回答の行</label>
           <textarea
             id="survey-paste"
             ref={textareaRef}
             className={styles.importTextarea}
             value={pastedText}
-            onChange={(event) => {
-              setPastedText(event.target.value);
-              setError(null);
-            }}
-            rows={7}
-            placeholder={'trouble\twant\tgoal\tppi_time\n姿勢がすぐ崩れる／机に伏せる・寝転がる｜忘れ物・なくし物が多い\tw16｜w18\t板書を写すのが間に合うようになる\t4'}
+            onChange={(event) => setPastedText(event.target.value)}
+            rows={3}
+            placeholder="ここに貼り付け（Ctrl+V）"
           />
         </div>
-        {error ? <p className={styles.formError} role="alert">{error}</p> : null}
+        {result && !result.ok ? <p className={styles.formError} role="alert">{result.error}</p> : null}
+        {response ? (
+          <section className={styles.importPreview} aria-label="取り込む内容">
+            <dl className={styles.importFields}>
+              <div>
+                <dt>回答したお子さま</dt>
+                <dd>{response.childName || '（お名前の回答なし）'}<small>{response.answeredAt} 回答</small></dd>
+              </div>
+              <div>
+                <dt>取り込み先</dt>
+                <dd>{destination}</dd>
+              </div>
+            </dl>
+            {importable ? (
+              <dl className={styles.importFields}>
+                <div><dt>お困りごと</dt><dd>{listOrNoAnswer(importable.troubles)}</dd></div>
+                <div>
+                  <dt>できるようになりたいこと</dt>
+                  <dd>{listOrNoAnswer(importable.wants.map((id) => wantById(id)?.text ?? id))}</dd>
+                </div>
+                {importable.freeWants.length ? (
+                  <div><dt>自由記載（目標欄へ）</dt><dd>{importable.freeWants.join('、')}</dd></div>
+                ) : null}
+                <div><dt>ご家庭のお困り度</dt><dd>{ppiSummary(importable)}</dd></div>
+                <div><dt>いま一番負担に感じている場面</dt><dd>{importable.ppiNote || NO_ANSWER}</dd></div>
+              </dl>
+            ) : (
+              <p className={styles.importWarning}>この行には取り込める回答がありません。</p>
+            )}
+            {replaced.length ? (
+              <p className={styles.importWarning}>
+                いま入力されている{replaced.map((field) => REPLACED_LABELS[field]).join('・')}は、この回答で置き換わります。
+              </p>
+            ) : null}
+            {skipped.length ? (
+              <div className={styles.importSkipped}>
+                <strong>取り込まない回答</strong>
+                <ul>{skipped.map((line) => <li key={line}>{line}</li>)}</ul>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
         <div className={styles.confirmActions}>
           <button className={styles.secondaryButton} type="button" onClick={onCancel}>キャンセル</button>
-          <button className={styles.primaryButton} type="submit">入力欄に取り込む</button>
+          <button className={styles.primaryButton} type="submit" disabled={!importable}>この内容で取り込む</button>
         </div>
       </form>
     </dialog>

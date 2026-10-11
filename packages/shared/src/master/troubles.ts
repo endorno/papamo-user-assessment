@@ -6,7 +6,7 @@ import { NEURO_DOMAINS, type NeuroDomain } from './domains';
  * 各項目は内部で神経ドメイン（`domain` = NEURO_DOMAINS の id）に紐づき、レポートの見立てに使う。
  * シートの「発達ピラミッド」「育てたい力」はドメインから一意に決まるため持たず、troubleProfileOf で引く。
  *
- * 文言は保存値そのもの（事前アンケートの `trouble` 列で渡す値も同じ）なので、
+ * 文言は保存値そのもの（事前アンケート（Googleフォーム）の選択肢も同じ文言にする）なので、
  * 変更＝過去データとの突き合わせ不能（AGENTS.md §6）。
  */
 export const TROUBLE_CATEGORIES = [

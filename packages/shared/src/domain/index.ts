@@ -5,3 +5,4 @@ export * from './grade';
 export * from './report-file';
 export * from './share-code';
 export * from './status';
+export * from './survey-import';

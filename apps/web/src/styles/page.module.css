@@ -1187,7 +1187,70 @@
 }
 
 .importTextarea {
-  min-height: 160px;
+  min-height: 72px;
+}
+
+/* 取り込む前の確認。どのお子さまの回答か・どの欄に何が入るかを見せる。 */
+.importPreview {
+  margin-top: 14px;
+  padding: 4px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--paper);
+  font-size: 0.84rem;
+}
+
+.importFields {
+  margin: 0;
+}
+
+.importFields > div {
+  display: grid;
+  grid-template-columns: 11em minmax(0, 1fr);
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line2);
+}
+
+.importFields dt {
+  color: var(--ink2);
+  font-weight: 700;
+}
+
+.importFields dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.importFields dd small {
+  display: block;
+  color: var(--mute);
+  font-size: 0.76rem;
+}
+
+/* .confirmDialog p より強くするため、ダイアログの中に絞って指定する。 */
+.confirmDialog .importWarning {
+  margin: 10px 0 0;
+  color: var(--orange-ink);
+  font-weight: 700;
+}
+
+.importSkipped {
+  margin-top: 10px;
+  color: var(--orange-ink);
+}
+
+.importSkipped ul {
+  margin: 4px 0 0;
+  padding-left: 1.4em;
+}
+
+@media (max-width: 520px) {
+  .importFields > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .radarWrap {

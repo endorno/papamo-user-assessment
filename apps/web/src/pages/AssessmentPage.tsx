@@ -2,18 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 import {
+  applySurveyAnswers,
   assessmentDataDraftSchema,
   assessmentResponseSchema,
   bandName,
   changedAssessmentSections,
   COPM_FIELDS,
   COPM_MAX,
-  COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
   ENVIRONMENT_SUPPORT_GROUPS,
+  emptyCopmGoal,
   EXERCISES,
   ladderLabel,
   MIN_EXERCISE_LEVEL,
@@ -33,6 +34,7 @@ import {
   type EngagementKey,
   type ExerciseDefinition,
   type PpiKey,
+  type SurveyAnswers,
 } from '@papamo/shared';
 import { apiRequest, ApiClientError } from '../api/client';
 import { GuardedLink, useUnsavedChanges } from '../app/UnsavedChangesContext';
@@ -40,7 +42,7 @@ import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildShortId } from '../components/ChildId';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { SurveyImportDialog, type SurveyImport } from '../components/SurveyImportDialog';
+import { SurveyImportDialog } from '../components/SurveyImportDialog';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
 import styles from '../styles/page.module.css';
@@ -144,16 +146,6 @@ function patchBody(form: AssessmentFormState, assessment: AssessmentDetail) {
     data: form.data,
     updatedAt: assessment.updatedAt,
   });
-}
-
-function emptyCopmGoal(text = ''): CopmGoal {
-  return {
-    text,
-    memo: '',
-    performance: COPM_SCORE_DEFAULT,
-    satisfaction: COPM_SCORE_DEFAULT,
-    importance: COPM_SCORE_DEFAULT,
-  };
 }
 
 export function AssessmentPage() {
@@ -450,24 +442,21 @@ export function AssessmentPage() {
     updateData((data) => ({ ...data, copm: data.copm.filter((_, position) => position !== index) }));
   }
 
-  // 事前アンケートの回答で、お困りごと・目標・お困り度をまとめて置き換える。
-  // 回答がなかった項目には触らず、コーチの手入力を消さない。
-  function importSurvey(result: SurveyImport) {
-    updateData((data) => ({
-      ...data,
-      ...(result.troubles.length ? { troubles: result.troubles } : {}),
-      ...(result.wants.length ? { wants: result.wants } : {}),
-      ...(result.goals.length
-        ? {
-            copm: result.goals.slice(0, COPM_MAX).map((text) => {
-              const existing = data.copm.find((goal) => goal.text === text);
-              return existing ? { ...existing } : emptyCopmGoal(text);
-            }),
-          }
-        : {}),
-      ...(Object.keys(result.ppi).length ? { ppi: { ...data.ppi, ...result.ppi } } : {}),
-      ...(result.ppiNote ? { ppiNote: result.ppiNote } : {}),
-    }));
+  // 事前アンケートの回答で、お困りごと・できるようになりたいこと（と目標）・お困り度をまとめて置き換える。
+  // 回答がなかった欄には触らず、コーチの手入力を消さない。取り込む前の入力には通知の「元に戻す」で戻せる。
+  function importSurvey(answers: SurveyAnswers) {
+    const current = formRef.current;
+    if (!current) return;
+    const before = current.data;
+    const { data, goalsNotAdded } = applySurveyAnswers(before, answers);
+    setWantLimitNotice(false);
+    updateData(() => data);
+    const notAdded = goalsNotAdded.length
+      ? `目標欄に空きがなく、${goalsNotAdded.map((text) => `「${text}」`).join('')}は入れていません。`
+      : '';
+    showToast(`事前アンケートの回答を取り込みました。${notAdded}`, {
+      action: { label: '元に戻す', onClick: () => updateData(() => before) },
+    });
   }
 
   function toggleUnlockExt(checked: boolean) {
@@ -958,9 +947,11 @@ export function AssessmentPage() {
         />
         <SurveyImportDialog
           open={showSurveyImport}
+          data={form.data}
+          destination={`${assessment.child.name}${honorificLabel(assessment.child.honorific)}の第${assessment.seqNo}回アセスメント`}
           onCancel={() => setShowSurveyImport(false)}
-          onImport={(result) => {
-            importSurvey(result);
+          onImport={(answers) => {
+            importSurvey(answers);
             setShowSurveyImport(false);
           }}
         />

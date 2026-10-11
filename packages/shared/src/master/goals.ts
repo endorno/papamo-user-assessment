@@ -4,7 +4,8 @@ import type { ExerciseKey } from './exercises';
  * できるようになりたいこと（複数選択可）。
  * お困りごと（いま困っていること）とは別に、達成したい具体的なことを聞く。
  * 「事前アンケート項目一覧」のシート②を移植した（2026-10-11）。並び順もシートどおり（id は欠番・飛び番あり）。
- * id は保存値（事前アンケートの `want` 列で渡す値も同じ）なので、振り直さない。
+ * id は保存値なので振り直さない（w10「ボールを蹴る・打つ」は w9 に統合して欠番。2026-10-11）。
+ * 文言は事前アンケート（Googleフォーム）の選択肢と同じにする（取り込みは文言で照合する）。
  * group＝区分／menu＝対応するへやすぽアシストのメニューパッケージ／axis＝主に支える種目
  */
 export const WANT_ITEMS = [
@@ -49,12 +50,6 @@ export const WANT_MAX = 4;
 export function wantById(id: string): WantItem | null {
   return WANT_ITEMS.find((item) => item.id === id) ?? null;
 }
-
-/**
- * 廃止した id → 統合先。過去の事前アンケートの回答を取り込むときに読み替える。
- * w10「ボールを蹴る・打つ」は w9「球技が上手になりたい」に統合した（2026-10-11）。
- */
-export const RETIRED_WANT_IDS: Readonly<Record<string, WantItem['id']>> = { w10: 'w9' };
 
 /**
  * 事前アンケートの「その他（自由記載）」欄（wf1 / wf2）。選択肢にない「できるようになりたいこと」を書いてもらう。

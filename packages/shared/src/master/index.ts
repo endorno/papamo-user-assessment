@@ -8,5 +8,6 @@ export * from './ladders';
 export * from './menus';
 export * from './ppi';
 export * from './report-copy';
+export * from './survey-form';
 export * from './troubles';
 export * from './version';

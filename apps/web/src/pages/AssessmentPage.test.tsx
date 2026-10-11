@@ -10,7 +10,12 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
-import { assessmentPatchRequestSchema } from '@papamo/shared';
+import {
+  assessmentPatchRequestSchema,
+  SURVEY_SHEET_COLUMNS,
+  SURVEY_SHEET_HEADER,
+  type SurveySheetHeader,
+} from '@papamo/shared';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -174,56 +179,69 @@ describe('アセスメント入力', () => {
     }, { timeout: 2000 });
   });
 
-  it('目標セルだけを貼り付けた事前アンケートをCOPM表へ入れる', async () => {
+  it('回答シートの行を貼ると取り込む内容を確かめられ、取り込むと各欄に入る', async () => {
     renderAssessmentPage();
     fireEvent.click(await screen.findByRole('button', { name: '事前アンケートから取り込む' }));
 
     const dialog = screen.getByRole('dialog', { name: '事前アンケートから取り込む' });
-    fireEvent.change(within(dialog).getByLabelText('コピーした回答'), {
-      target: { value: '姿勢を安定させたい\t着替えを自分でできるようになりたい' },
-    });
-    fireEvent.click(within(dialog).getByRole('button', { name: '入力欄に取り込む' }));
+    fireEvent.change(within(dialog).getByLabelText('コピーした回答の行'), { target: { value: surveyRow() } });
 
-    expect(screen.getByRole('textbox', { name: '目標 1' })).toHaveValue('姿勢を安定させたい');
-    expect(screen.getByRole('textbox', { name: '目標 2' })).toHaveValue('着替えを自分でできるようになりたい');
+    const preview = within(dialog).getByRole('region', { name: '取り込む内容' });
+    expect(preview).toHaveTextContent('回答したお子さまゆい2026/10/01 10:15:30 回答');
+    expect(preview).toHaveTextContent('取り込み先ゆいちゃんの第1回アセスメント');
+    expect(preview).toHaveTextContent('お困りごと姿勢がすぐ崩れる／机に伏せる・寝転がる、ボールを投げる・受けるのが苦手');
+    expect(preview).toHaveTextContent('時間の負担 5・感情の負担 4・周囲との負担 2・将来への不安 4・情報・判断の迷い 3');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この内容で取り込む' }));
+
+    const troubles = screen.getByRole('region', { name: '3.お子さまのお困りごと' });
+    expect(within(troubles).getByRole('checkbox', { name: /ボールを投げる・受けるのが苦手/ })).toBeChecked();
+    const goals = screen.getByRole('region', { name: '4.ご家族・本人の目標' });
+    expect(within(goals).getByRole('checkbox', { name: /球技が上手になりたい/ })).toBeChecked();
+    expect(within(goals).getByRole('textbox', { name: '目標 1' })).toHaveValue('球技が上手になる');
+    expect(within(goals).getByRole('textbox', { name: '目標 2' })).toHaveValue('階段をスムーズに昇り降りできるようになりたい');
+    expect(screen.getByLabelText('いま一番負担に感じている場面（任意）')).toHaveValue('朝、着替えから家を出るまで毎日40分以上かかる');
 
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
-      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { copm: { text: string }[] } };
-      expect(body.data.copm.map(({ text }) => text)).toEqual([
-        '姿勢を安定させたい',
-        '着替えを自分でできるようになりたい',
-      ]);
+      const body = assessmentPatchRequestSchema.parse(JSON.parse(String(patchCall?.[1]?.body)));
+      expect(body.data.troubles).toEqual(['姿勢がすぐ崩れる／机に伏せる・寝転がる', 'ボールを投げる・受けるのが苦手']);
+      expect(body.data.wants).toEqual(['w9']);
+      expect(body.data.ppi).toEqual({ time: 5, emo: 4, soc: 2, fut: 4, nav: 3 });
     }, { timeout: 2000 });
   });
 
-  it('列名つきの事前アンケートからお困りごと・目標・お困り度をまとめて取り込む', async () => {
+  it('取り込んだあとは、通知の「元に戻す」で取り込む前の入力に戻せる', async () => {
+    renderAssessmentPage();
+    const troubles = await screen.findByRole('region', { name: '3.お子さまのお困りごと' });
+    fireEvent.click(within(troubles).getByRole('checkbox', { name: /忘れ物・なくし物が多い/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: '事前アンケートから取り込む' }));
+    const dialog = screen.getByRole('dialog', { name: '事前アンケートから取り込む' });
+    fireEvent.change(within(dialog).getByLabelText('コピーした回答の行'), { target: { value: surveyRow() } });
+    // 手で入れた内容が置き換わることは、取り込む前に知らせる。
+    expect(within(dialog).getByRole('region', { name: '取り込む内容' })).toHaveTextContent('いま入力されているお困りごとは、この回答で置き換わります。');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'この内容で取り込む' }));
+    expect(within(troubles).getByRole('checkbox', { name: /忘れ物・なくし物が多い/ })).not.toBeChecked();
+
+    fireEvent.click(await screen.findByRole('button', { name: '元に戻す' }));
+    expect(within(troubles).getByRole('checkbox', { name: /忘れ物・なくし物が多い/ })).toBeChecked();
+    expect(within(troubles).getByRole('checkbox', { name: /ボールを投げる・受けるのが苦手/ })).not.toBeChecked();
+    expect(screen.queryByRole('textbox', { name: '目標 1' })).not.toBeInTheDocument();
+  });
+
+  it('行の一部だけのコピーは止め、選択肢に無い回答は取り込む前に示す', async () => {
     renderAssessmentPage();
     fireEvent.click(await screen.findByRole('button', { name: '事前アンケートから取り込む' }));
-
     const dialog = screen.getByRole('dialog', { name: '事前アンケートから取り込む' });
-    fireEvent.change(within(dialog).getByLabelText('コピーした回答'), {
-      target: {
-        value: [
-          'trouble\twant\tgoal\tppi_time\tppi_note',
-          // w10 は w9 に統合した廃止 id。過去の回答は統合先に読み替える。
-          'よく物にぶつかる・つまずく｜落ち着いて座っていられない\tw10｜w23\t転びにくくなる\t4\t朝の支度に時間がかかる',
-        ].join('\n'),
-      },
-    });
-    fireEvent.click(within(dialog).getByRole('button', { name: '入力欄に取り込む' }));
+    const textarea = within(dialog).getByLabelText('コピーした回答の行');
 
-    await waitFor(() => {
-      const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
-      const body = JSON.parse(String(patchCall?.[1]?.body)) as {
-        data: { troubles: string[]; wants: string[]; copm: { text: string }[]; ppi: Record<string, number>; ppiNote: string };
-      };
-      expect(body.data.troubles).toEqual(['よく物にぶつかる・つまずく', '落ち着いて座っていられない']);
-      expect(body.data.wants).toEqual(['w9', 'w23']);
-      expect(body.data.copm.map(({ text }) => text)).toEqual(['転びにくくなる']);
-      expect(body.data.ppi.time).toBe(4);
-      expect(body.data.ppiNote).toBe('朝の支度に時間がかかる');
-    }, { timeout: 2000 });
+    fireEvent.change(textarea, { target: { value: surveyRow().split('\t').slice(1).join('\t') } });
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('行全体をコピーしてください');
+    expect(within(dialog).getByRole('button', { name: 'この内容で取り込む' })).toBeDisabled();
+
+    fireEvent.change(textarea, { target: { value: surveyRow({ [SURVEY_SHEET_COLUMNS.troubles]: '姿勢を安定させたい' }) } });
+    expect(within(dialog).getByRole('region', { name: '取り込む内容' })).toHaveTextContent('選択肢に無いお困りごと：姿勢を安定させたい');
+    expect(within(dialog).getByRole('button', { name: 'この内容で取り込む' })).toBeEnabled();
   });
 
   it('できるようになりたいことを選ぶと、目標欄に仮の文言が入る', async () => {
@@ -487,6 +505,27 @@ describe('アセスメント入力：完了済みの回とレポート', () => {
     expect(screen.queryByText('レポート作成後に変更した項目があります')).not.toBeInTheDocument();
   });
 });
+
+/** 事前アンケートの回答シートから1人分の行をコピーしたときの内容（タブ区切り）。 */
+function surveyRow(overrides: Partial<Record<SurveySheetHeader, string>> = {}) {
+  const columns = SURVEY_SHEET_COLUMNS;
+  const values: Partial<Record<SurveySheetHeader, string>> = {
+    [columns.answeredAt]: '2026/10/01 10:15:30',
+    [columns.childName]: 'ゆい',
+    // Googleフォームのチェックボックスは、選んだ選択肢の文言を「, 」でつないで入れる。
+    [columns.troubles]: '姿勢がすぐ崩れる／机に伏せる・寝転がる, ボールを投げる・受けるのが苦手',
+    [columns.wants]: '球技が上手になりたい',
+    [columns.freeWants[0]]: '階段をスムーズに昇り降りできるようになりたい',
+    [columns.ppi.time]: '5',
+    [columns.ppi.emo]: '4',
+    [columns.ppi.soc]: '2',
+    [columns.ppi.fut]: '4',
+    [columns.ppi.nav]: '3',
+    [columns.ppiNote]: '朝、着替えから家を出るまで毎日40分以上かかる',
+    ...overrides,
+  };
+  return SURVEY_SHEET_HEADER.map((header) => values[header] ?? '').join('\t');
+}
 
 function renderAssessmentPage() {
   return renderWithProviders(<AssessmentPage />, { route: '/assessments/assessment-1', path: '/assessments/:id' });

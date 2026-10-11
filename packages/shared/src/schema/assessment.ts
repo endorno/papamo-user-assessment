@@ -15,6 +15,7 @@ import {
 } from '../master/engagement';
 import {
   COPM_MAX,
+  COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
   WANT_ITEMS,
@@ -295,6 +296,17 @@ export function withoutExtExerciseInput(data: AssessmentData, unlockExt: boolean
     delete observationNotes[key];
   }
   return { ...data, lv, observations, observationNotes };
+}
+
+/** 目標（COPM）の新しい行。採点は中央の値から始める。 */
+export function emptyCopmGoal(text = ''): CopmGoal {
+  return {
+    text,
+    memo: '',
+    performance: COPM_SCORE_DEFAULT,
+    satisfaction: COPM_SCORE_DEFAULT,
+    importance: COPM_SCORE_DEFAULT,
+  };
 }
 
 export function parseStoredAssessmentData(value: unknown): AssessmentData {

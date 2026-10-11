@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { EXERCISES } from './exercises';
-import { RETIRED_WANT_IDS, WANT_GROUPS, WANT_ITEMS, wantById, wantShortText, wantToGoalText } from './goals';
+import { WANT_GROUPS, WANT_ITEMS, wantById, wantShortText, wantToGoalText } from './goals';
 
 describe('できるようになりたいことマスタ', () => {
   it('事前アンケート項目一覧どおり24項目で、id が重ならない', () => {
@@ -13,11 +13,9 @@ describe('できるようになりたいことマスタ', () => {
     }
   });
 
-  it('廃止した id は統合先が残っていて、選択肢には出さない', () => {
-    for (const [retired, target] of Object.entries(RETIRED_WANT_IDS)) {
-      expect(wantById(retired)).toBeNull();
-      expect(wantById(target)).not.toBeNull();
-    }
+  it('統合して廃止した w10 は選択肢に出さない', () => {
+    expect(wantById('w10')).toBeNull();
+    expect(wantById('w9')).not.toBeNull();
   });
 
   it('目標欄の仮の文言と短い表記は、願いの言い回しを残さない', () => {
