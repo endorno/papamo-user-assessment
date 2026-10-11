@@ -16,6 +16,7 @@ import {
   ENVIRONMENT_SUPPORT_GROUPS,
   emptyCopmGoal,
   EXERCISES,
+  hasPartialCopmBaseline,
   ladderLabel,
   MIN_EXERCISE_LEVEL,
   PPI_QUESTIONS,
@@ -26,10 +27,12 @@ import {
   WANT_ITEMS,
   WANT_MAX,
   wantToGoalText,
+  withCopmBaseline,
   withoutExtExerciseInput,
   type AssessmentData,
   type AssessmentDetail,
   type AssessmentSectionKey,
+  type CopmBaselineKey,
   type CopmGoal,
   type EngagementKey,
   type ExerciseDefinition,
@@ -61,6 +64,12 @@ interface LocalDraft {
 /** ボタン・チェックはすぐ、文字入力は打ち終わるのを待ってから保存する。 */
 const SAVE_DELAY_MS = 800;
 const TEXT_SAVE_DELAY_MS = 1500;
+const COPM_SCORES = Array.from(
+  { length: COPM_SCORE_MAX - COPM_SCORE_MIN + 1 },
+  (_, index) => COPM_SCORE_MIN + index,
+);
+// 前回の点数（ツール導入前）として入れるのは遂行度と満足度だけ。重要度は前回と比べないため持たない。
+const COPM_BASELINE_FIELDS = COPM_FIELDS.flatMap((field) => (field.key === 'importance' ? [] : [field]));
 
 function readAssessment(value: unknown) {
   const parsed = assessmentResponseSchema.safeParse(value);
@@ -580,6 +589,11 @@ export function AssessmentPage() {
     ...form.data.copm.flatMap((goal, index) => (
       goal.text.trim() ? [] : [{ target: `copm-text-${index}`, label: `目標${index + 1}の文言` }]
     )),
+    ...form.data.copm.flatMap((goal, index) => {
+      if (!hasPartialCopmBaseline(goal)) return [];
+      const missingKey: CopmBaselineKey = goal.baseline?.performance === undefined ? 'performance' : 'satisfaction';
+      return [{ target: `copm-baseline-${missingKey}-${index}`, label: `目標${index + 1}の前回の点数` }];
+    }),
     ...(missingPpi.length ? [{ target: sectionId('ppi'), label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
   ];
   const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing && !reverting;
@@ -591,6 +605,8 @@ export function AssessmentPage() {
   const conflict = saveError instanceof ApiClientError && saveError.code === 'conflict';
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
   const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
+  // ツールに前回の回が無い初回だけ、ツール導入前（Excel）の採点を前回として入れられる。
+  const acceptsCopmBaseline = assessment.prevAssessmentId === null;
   const answeredEngagement = ENGAGEMENT_AXES.filter(({ key }) => form.data.engagement[key as EngagementKey] !== undefined);
   const navSections: { key: AssessmentSectionKey; label: string; complete: boolean }[] = [
     { key: 'basic', label: '基本情報', complete: true },
@@ -820,6 +836,7 @@ export function AssessmentPage() {
               </fieldset>
 
               <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
+              {acceptsCopmBaseline ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}
 
               {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。上から選ぶか、「目標を追加」で入力してください。</p> : null}
               {form.data.copm.map((goal, index) => {
@@ -834,6 +851,20 @@ export function AssessmentPage() {
                       <label htmlFor={`copm-memo-${index}`}>メモ</label>
                       <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} maxLength={TEXT_LIMITS.copmMemo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
+                    {acceptsCopmBaseline ? (
+                      <div className={styles.copmBaseline}>
+                        {COPM_BASELINE_FIELDS.map((field) => (
+                          <CopmBaselineScore
+                            key={field.key}
+                            label={`前回の${field.name}`}
+                            id={`copm-baseline-${field.key}-${index}`}
+                            value={goal.baseline?.[field.key]}
+                            disabled={assessment.readOnly}
+                            onChange={(value) => updateCopmGoal(index, (current) => withCopmBaseline(current, field.key, value))}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                     <div className={styles.copmScores}>
                       {COPM_FIELDS.map((field) => (
                         <CopmScore
@@ -1100,15 +1131,35 @@ function CopmScore({
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
-  const scores = Array.from(
-    { length: COPM_SCORE_MAX - COPM_SCORE_MIN + 1 },
-    (_, index) => COPM_SCORE_MIN + index,
-  );
   return (
     <div className={styles.formField}>
       <label htmlFor={id}>{label}{previous === undefined ? null : <small className={styles.copmPrevious}>前回 {previous}</small>}</label>
       <select id={id} value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))}>
-        {scores.map((score) => <option key={score} value={score}>{score}</option>)}
+        {COPM_SCORES.map((score) => <option key={score} value={score}>{score}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function CopmBaselineScore({
+  label,
+  id,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  id: string;
+  value: number | undefined;
+  disabled: boolean;
+  onChange: (value: number | undefined) => void;
+}) {
+  return (
+    <div className={styles.formField}>
+      <label htmlFor={id}>{label}</label>
+      <select id={id} value={value ?? ''} disabled={disabled} onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}>
+        <option value="">なし</option>
+        {COPM_SCORES.map((score) => <option key={score} value={score}>{score}</option>)}
       </select>
     </div>
   );

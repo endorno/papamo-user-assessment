@@ -353,6 +353,35 @@ describe('アセスメントサービス', () => {
     expect((await getAssessment(testEnv, assessment.id, coach.id)).data.copm[0]?.text).toBe('縄跳びを跳べる');
   });
 
+  it('初回だけツール導入前の採点を前回にでき、次の回へは引き継がない', async () => {
+    const { coach, child } = await createFixture('こはる');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const goal = { text: 'ひとりで靴をはける', memo: '', performance: 6, satisfaction: 5, importance: 8 };
+    const partial = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...goal, baseline: { performance: 4 } }] },
+      updatedAt: first.updatedAt,
+    });
+    await expect(completeAssessment(testEnv, first.id, coach, partial.updatedAt)).rejects.toMatchObject({
+      code: 'validation',
+      message: '前回の点数は遂行度と満足度の両方を選んでください。前回の採点がない目標は両方とも空欄にします。',
+    });
+
+    const filled = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...goal, baseline: { performance: 4, satisfaction: 3 } }] },
+      updatedAt: partial.updatedAt,
+    });
+    const { report } = await completeAssessment(testEnv, first.id, coach, filled.updatedAt);
+    expect(report.kind).toBe('first');
+    expect(report.copm[0]).toMatchObject({ previous: { performance: 4, satisfaction: 3 }, performanceDelta: 2, satisfactionDelta: 2 });
+
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    expect(JSON.parse(second.data).copm).toEqual([goal]);
+    await expect(patchAssessment(testEnv, second.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...goal, baseline: { performance: 4, satisfaction: 3 } }] },
+      updatedAt: second.updatedAt,
+    })).rejects.toMatchObject({ code: 'validation' });
+  });
+
   it('下書きの間は4・5種目目の開放を取り消し、入力済みのLvも落とす', async () => {
     const { coach, child } = await createFixture('かえで');
     const assessment = await createAssessment(testEnv, child.id, coach.id, true);

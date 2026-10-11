@@ -6,8 +6,11 @@ import {
   assessmentDataCompletedSchema,
   assessmentPatchRequestSchema,
   childCreateRequestSchema,
+  emptyCopmGoal,
+  hasPartialCopmBaseline,
   TEXT_LIMITS,
   parseStoredAssessmentData,
+  withCopmBaseline,
   withoutExtExerciseInput,
 } from './assessment';
 
@@ -120,6 +123,44 @@ describe('アセスメント入力スキーマ', () => {
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, text: '　' }] }).success).toBe(false);
     expect(assessmentDataCompletedSchema.parse({ ...completed, copm: [{ ...goal, text: ' 縄跳びを跳べる　' }] }).copm[0]?.text)
       .toBe('縄跳びを跳べる');
+  });
+
+  it('前回の点数（ツール導入前）は下書きでは片方だけ保存でき、完了では両方を求める', () => {
+    const goal = { text: '縄跳びを跳べる', memo: '', performance: 5, satisfaction: 5, importance: 5 };
+    const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { copm: [{ ...goal, baseline: { performance: 4 } }] } }).success).toBe(true);
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { copm: [{ ...goal, baseline: { performance: 11 } }] } }).success).toBe(false);
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { copm: [{ ...goal, baseline: { importance: 4 } }] } }).success).toBe(false);
+
+    const completed = {
+      lv: { post: 1, eyeh: 1, hand: 1 },
+      observations: {},
+      observationNotes: {},
+      engagement: {},
+      envSupports: [],
+      troubles: [],
+      wants: [],
+      ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
+      ppiNote: '',
+      memo: '',
+    };
+    expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4 } }] }).success).toBe(false);
+    expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4, satisfaction: 3 } }] }).success).toBe(true);
+  });
+
+  it('前回の点数を両方とも空にすると、前回の点数ごと外す', () => {
+    const goal = withCopmBaseline(emptyCopmGoal('縄跳びを跳べる'), 'performance', 4);
+    expect(goal.baseline).toEqual({ performance: 4 });
+    expect(hasPartialCopmBaseline(goal)).toBe(true);
+
+    const both = withCopmBaseline(goal, 'satisfaction', 3);
+    expect(both.baseline).toEqual({ performance: 4, satisfaction: 3 });
+    expect(hasPartialCopmBaseline(both)).toBe(false);
+
+    const cleared = withCopmBaseline(withCopmBaseline(both, 'performance', undefined), 'satisfaction', undefined);
+    expect(cleared).toEqual(emptyCopmGoal('縄跳びを跳べる'));
+    expect('baseline' in cleared).toBe(false);
+    expect(hasPartialCopmBaseline(cleared)).toBe(false);
   });
 
   it('自由記入欄は入力欄と同じ上限で検証する', () => {

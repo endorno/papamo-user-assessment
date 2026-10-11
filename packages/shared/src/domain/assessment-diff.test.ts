@@ -46,6 +46,12 @@ describe('レポートへ未反映の変更', () => {
     expect(changedAssessmentSections(reported, current)).toEqual(['basic', 'eyeh', 'hand', 'goals', 'ppi', 'memo']);
   });
 
+  it('目標の前回の点数（ツール導入前）を変えたら目標の差分にする', () => {
+    const current = clone(reported);
+    current.data.copm[0]!.baseline = { performance: 3, satisfaction: 2 };
+    expect(changedAssessmentSections(reported, current)).toEqual(['goals']);
+  });
+
   it('自由記入の空欄と未記入は同じとみなす', () => {
     const current = clone(reported);
     current.data.observationNotes.post = '';

@@ -47,7 +47,8 @@ const copmReportSchema = z.object({
   previous: z.object({
     performance: copmScoreSchema,
     satisfaction: copmScoreSchema,
-    importance: copmScoreSchema,
+    // ツール導入前（Excel）の採点を前回にした場合は重要度を持たない。
+    importance: copmScoreSchema.optional(),
   }).optional(),
   performanceDelta: z.number().int().optional(),
   satisfactionDelta: z.number().int().optional(),

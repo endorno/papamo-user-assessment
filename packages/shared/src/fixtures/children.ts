@@ -1,5 +1,5 @@
 import type { AgeGroup } from '../master';
-import type { AssessmentData, CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
+import type { AssessmentData, CompletedAssessmentData, Honorific } from '../schema';
 
 export interface ChildFixture {
   id: string;
@@ -52,7 +52,7 @@ function copmOf(
   childId: string,
   scores: [performance: number, satisfaction: number, importance: number][],
   memos: string[] = [],
-): CopmGoal[] {
+): CompletedAssessmentData['copm'] {
   return goalsOf(childId).map((text, index) => {
     const [performance, satisfaction, importance] = scores[index] ?? [5, 5, 5];
     return { text, memo: memos[index] ?? '', performance, satisfaction, importance };

@@ -285,17 +285,21 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     const previousCopm = new Map(
       (input.previous?.data.copm ?? []).map((goal) => [goal.text, goal]),
     );
-    const copm = data.copm.map((goal) => {
-      const previous = previousCopm.get(goal.text);
+    const copm = data.copm.map(({ baseline, ...goal }) => {
+      const previousGoal = previousCopm.get(goal.text);
+      // 前回の回が無い初回は、ツール導入前（Excel）の採点を前回として並べる（既存会員の目標の変化を見せるため）。
+      const previous = previousGoal
+        ? {
+            performance: previousGoal.performance,
+            satisfaction: previousGoal.satisfaction,
+            importance: previousGoal.importance,
+          }
+        : baseline && { ...baseline };
       return {
         ...goal,
         ...(previous
           ? {
-              previous: {
-                performance: previous.performance,
-                satisfaction: previous.satisfaction,
-                importance: previous.importance,
-              },
+              previous,
               performanceDelta: goal.performance - previous.performance,
               satisfactionDelta: goal.satisfaction - previous.satisfaction,
             }

@@ -2696,6 +2696,15 @@
   white-space: nowrap;
 }
 
+/* 前回の点数（ツール導入前）は、比べる遂行度・満足度の真上にそろえる。 */
+.copmBaseline {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 150px)) 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
 /* 「（前回 N）」を項目名に続けると折り返して高さが揃わないため別行にする。 */
 .copmPrevious {
   display: block;
@@ -2925,7 +2934,8 @@
     grid-template-columns: 1fr;
   }
 
-  .copmScores {
+  .copmScores,
+  .copmBaseline {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -3175,7 +3185,8 @@
   margin-top: 0;
 }
 
-.assessmentPage .copmScores {
+.assessmentPage .copmScores,
+.assessmentPage .copmBaseline {
   gap: 8px;
 }
 

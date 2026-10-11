@@ -112,6 +112,16 @@ const wantSchema = z.array(
 ).max(WANT_MAX).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 export const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
+// ツール導入前（Excel）の前回の採点。前回の回が無い初回だけ持てる（既存会員の目標を前回と比べるため）。
+// 下書きでは片方だけ選んだ状態も保存し、レポートを作るときに両方を求める。
+const copmBaselineDraftSchema = z.object({
+  performance: copmScoreSchema.optional(),
+  satisfaction: copmScoreSchema.optional(),
+}).strict();
+const copmBaselineSchema = z.object({
+  performance: copmScoreSchema,
+  satisfaction: copmScoreSchema,
+}).strict();
 // 下書きでは文言が空の行も保存する（「目標を追加」した直後の行で自動保存を止めないため）。
 // 空のまま残っている行は、レポートを作るときに止める。
 const copmGoalSchema = z.object({
@@ -120,11 +130,13 @@ const copmGoalSchema = z.object({
   performance: copmScoreSchema,
   satisfaction: copmScoreSchema,
   importance: copmScoreSchema,
+  baseline: copmBaselineDraftSchema.optional(),
 });
 const copmSchema = z.array(copmGoalSchema).max(COPM_MAX);
 // レポートに載せる回は、文言の前後の空白を落として1文字以上を求める（前回との突き合わせは文言の一致で行うため）。
 const completedCopmSchema = z.array(copmGoalSchema.extend({
   text: z.string().trim().min(1, '目標の文言を入力してください。').max(TEXT_LIMITS.copmText),
+  baseline: copmBaselineSchema.optional(),
 })).max(COPM_MAX);
 
 const troubleSchema = z.enum(TROUBLE_ITEMS as [string, ...string[]]);
@@ -307,6 +319,23 @@ export function emptyCopmGoal(text = ''): CopmGoal {
     satisfaction: COPM_SCORE_DEFAULT,
     importance: COPM_SCORE_DEFAULT,
   };
+}
+
+export type CopmBaselineKey = keyof NonNullable<CopmGoal['baseline']>;
+
+/** 前回の点数（ツール導入前）の片方を選び直す。両方とも空になったら前回の点数ごと外す（新しく立てた目標と同じ扱いにするため）。 */
+export function withCopmBaseline(goal: CopmGoal, key: CopmBaselineKey, value: number | undefined): CopmGoal {
+  const { baseline, ...rest } = goal;
+  const next = { ...baseline };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  return next.performance === undefined && next.satisfaction === undefined ? rest : { ...rest, baseline: next };
+}
+
+/** 前回の点数が片方だけの目標。前回と比べられないため、レポートを作る前に両方を求める。 */
+export function hasPartialCopmBaseline(goal: CopmGoal): boolean {
+  return goal.baseline !== undefined
+    && (goal.baseline.performance === undefined || goal.baseline.satisfaction === undefined);
 }
 
 export function parseStoredAssessmentData(value: unknown): AssessmentData {

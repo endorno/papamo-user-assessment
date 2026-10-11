@@ -131,8 +131,9 @@ export interface ReportContent {
     month6Changes: string[];
   };
   wants: { id: string; group: string; icon: string; text: string; short: string; menu: string }[];
-  copm: (CopmGoal & {
-    previous?: { performance: number; satisfaction: number; importance: number };
+  // ツール導入前の採点（baseline）は previous に移して返す。
+  copm: (Omit<CopmGoal, 'baseline'> & {
+    previous?: { performance: number; satisfaction: number; importance?: number };
     performanceDelta?: number;
     satisfactionDelta?: number;
   })[];

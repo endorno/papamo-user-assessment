@@ -227,6 +227,34 @@ describe('RuleBasedReportGenerator', () => {
     }]);
   });
 
+  it('初回は、ツール導入前の採点を前回として目標の差分を出す（レポートの種類は初回のまま）', async () => {
+    const current: CompletedAssessmentData = {
+      ...data,
+      copm: [
+        { text: 'ひとりで靴をはける', memo: '', performance: 6, satisfaction: 5, importance: 8, baseline: { performance: 4, satisfaction: 3 } },
+        { text: '縄跳びを跳べる', memo: '', performance: 3, satisfaction: 4, importance: 6 },
+      ],
+    };
+    const report = await new RuleBasedReportGenerator().generate(inputFor(current));
+
+    expect(report.kind).toBe('first');
+    expect(report.copm).toEqual([
+      {
+        text: 'ひとりで靴をはける',
+        memo: '',
+        performance: 6,
+        satisfaction: 5,
+        importance: 8,
+        previous: { performance: 4, satisfaction: 3 },
+        performanceDelta: 2,
+        satisfactionDelta: 2,
+      },
+      { text: '縄跳びを跳べる', memo: '', performance: 3, satisfaction: 4, importance: 6 },
+    ]);
+    expect(report.tuning.map(({ key }) => key)).toContain('copmDelta');
+    expect(reportContentSchema.parse(report)).toEqual(report);
+  });
+
   it('比較回のLv・困りごと・PPIの差分を決定的に生成する', async () => {
     const previousData: CompletedAssessmentData = {
       ...data,

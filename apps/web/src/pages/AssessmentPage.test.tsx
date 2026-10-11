@@ -432,6 +432,50 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     expect(within(goals).getByLabelText('目標 1')).toHaveAttribute('maxLength', '100');
   });
 
+  it('初回は目標ごとにツール導入前の前回の点数を選べ、片方だけならレポート作成前の不足として案内する', async () => {
+    const goal = { text: 'ひとりで靴をはける', memo: '', performance: 5, satisfaction: 5, importance: 5 };
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body)) as { data: typeof assessment.data };
+        return jsonResponse({ assessment: { ...assessment, data: body.data, updatedAt: '2026-09-12T00:01:00.000Z' } });
+      }
+      return jsonResponse({ assessment: { ...assessment, data: { ...assessment.data, copm: [goal] } } });
+    });
+
+    renderAssessmentPage();
+    const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    fireEvent.change(within(goals).getByLabelText('前回の遂行度'), { target: { value: '4' } });
+
+    expect(screen.getByRole('link', { name: '目標1の前回の点数' })).toHaveAttribute('href', '#copm-baseline-satisfaction-0');
+    await waitFor(() => {
+      const patch = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(patch).toBeDefined();
+      const body = assessmentPatchRequestSchema.parse(JSON.parse(String(patch?.[1]?.body)));
+      expect(body.data.copm?.[0]?.baseline).toEqual({ performance: 4 });
+    }, { timeout: 2000 });
+
+    fireEvent.change(within(goals).getByLabelText('前回の満足度'), { target: { value: '3' } });
+    expect(screen.queryByRole('link', { name: '目標1の前回の点数' })).not.toBeInTheDocument();
+  });
+
+  it('2回目以降は前回の点数の欄を出さず、前回の回の採点を示す', async () => {
+    const goal = { text: 'ひとりで靴をはける', memo: '', performance: 5, satisfaction: 5, importance: 5 };
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse({
+      assessment: {
+        ...assessment,
+        seqNo: 2,
+        prevAssessmentId: 'assessment-0',
+        data: { ...assessment.data, copm: [goal] },
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], ppi: {}, engagement: {}, copm: [{ ...goal, performance: 3 }] },
+      },
+    }));
+
+    renderAssessmentPage();
+    const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    expect(within(goals).queryByLabelText('前回の遂行度')).not.toBeInTheDocument();
+    expect(within(goals).getByText('前回 3')).toBeInTheDocument();
+  });
+
   it('実施日を消しても、保存できない値にはしない', async () => {
     renderAssessmentPage();
     const date = await screen.findByLabelText('実施日');

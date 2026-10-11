@@ -5,6 +5,7 @@ import {
   assessmentDataCompletedSchema,
   assessmentDataDraftSchema,
   changedAssessmentSections,
+  hasPartialCopmBaseline,
   parseStoredAssessmentData,
   parseStoredCompletedData,
   withoutExtExerciseInput,
@@ -210,7 +211,8 @@ function writableMutationCondition(
 // 前回の回から引き継ぐのは「聞き直す前の初期値」だけ。Lv・PPI・所見は毎回まっさらにする。
 function initialData(previous: CompletedAssessmentData | null): AssessmentData {
   // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
-  const copm = previous?.copm.map((goal) => ({ ...goal })) ?? [];
+  // ツール導入前の採点は初回だけのもの。2回目からはツールの前回の回と比べるので引き継がない。
+  const copm = previous?.copm.map(({ baseline: _baseline, ...goal }) => ({ ...goal })) ?? [];
   return {
     lv: {},
     observations: {},
@@ -365,6 +367,9 @@ export async function patchAssessment(
     assessmentDataDraftSchema.parse(input.data),
     nextUnlock,
   );
+  if (assessment.prevAssessmentId && data.copm.some((goal) => goal.baseline)) {
+    throw new AssessmentServiceError('validation', 'ツール導入前の採点は、ツールで初めてのアセスメントでだけ入力できます。');
+  }
   await writeAssessmentInput(env, assessment, coachId, {
     assessedOn: input.assessedOn ?? assessment.assessedOn,
     unlockExt: nextUnlock,
@@ -434,6 +439,7 @@ function assertCompletable(data: AssessmentData, unlockExt: boolean) {
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
   if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
   if (data.copm.some((goal) => !goal.text.trim())) throw new AssessmentServiceError('validation', '文言が空の目標があります。文言を入力するか、その目標を削除してください。');
+  if (data.copm.some(hasPartialCopmBaseline)) throw new AssessmentServiceError('validation', '前回の点数は遂行度と満足度の両方を選んでください。前回の採点がない目標は両方とも空欄にします。');
 }
 
 async function coachOrThrow(env: Env, coachId: string): Promise<CoachRecord> {
