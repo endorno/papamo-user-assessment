@@ -54,7 +54,6 @@ const assessment = {
     name: 'ゆい',
     honorific: 'chan' as const,
     archivedAt: null,
-    ageGroup: 'pre' as const,
     extUnlocked: false,
   },
 };
@@ -207,7 +206,8 @@ describe('アセスメント入力', () => {
       target: {
         value: [
           'trouble\twant\tgoal\tppi_time\tppi_note',
-          '転びやすい・つまずきやすい｜じっと座っていられない\tw9\t転びにくくなる\t4\t朝の支度に時間がかかる',
+          // w10 は w9 に統合した廃止 id。過去の回答は統合先に読み替える。
+          'よく物にぶつかる・つまずく｜落ち着いて座っていられない\tw10｜w23\t転びにくくなる\t4\t朝の支度に時間がかかる',
         ].join('\n'),
       },
     });
@@ -218,8 +218,8 @@ describe('アセスメント入力', () => {
       const body = JSON.parse(String(patchCall?.[1]?.body)) as {
         data: { troubles: string[]; wants: string[]; copm: { text: string }[]; ppi: Record<string, number>; ppiNote: string };
       };
-      expect(body.data.troubles).toEqual(['転びやすい・つまずきやすい', 'じっと座っていられない']);
-      expect(body.data.wants).toEqual(['w9']);
+      expect(body.data.troubles).toEqual(['よく物にぶつかる・つまずく', '落ち着いて座っていられない']);
+      expect(body.data.wants).toEqual(['w9', 'w23']);
       expect(body.data.copm.map(({ text }) => text)).toEqual(['転びにくくなる']);
       expect(body.data.ppi.time).toBe(4);
       expect(body.data.ppiNote).toBe('朝の支度に時間がかかる');
@@ -310,7 +310,7 @@ describe('アセスメント入力', () => {
   it('お困りごとだけ選んだ下書きでも、破棄の前に確認を出す', async () => {
     renderAssessmentPage();
     const troubles = await screen.findByRole('region', { name: '3.お子さまのお困りごと' });
-    fireEvent.click(within(troubles).getByRole('checkbox', { name: /転びやすい・つまずきやすい/ }));
+    fireEvent.click(within(troubles).getByRole('checkbox', { name: /よく物にぶつかる・つまずく/ }));
 
     fireEvent.click(screen.getByRole('button', { name: '下書きを破棄' }));
 
@@ -339,7 +339,7 @@ describe('アセスメント入力', () => {
 const completedData = {
   ...assessment.data,
   lv: { post: 3, eyeh: 4, hand: 5 },
-  troubles: ['転びやすい・つまずきやすい'],
+  troubles: ['よく物にぶつかる・つまずく'],
   ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
 };
 const completedAssessment = {

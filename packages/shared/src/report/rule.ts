@@ -208,9 +208,8 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       }, []);
 
     // --- お困りごと × 実測の照合 ---
-    const troubleCategories = TROUBLE_CATEGORIES[input.child.ageGroup];
     const currentTroubles = [...data.troubles];
-    const troublesByCategory = troubleCategories
+    const troublesByCategory = TROUBLE_CATEGORIES
       .map((category) => ({
         id: category.id,
         icon: category.icon,
@@ -328,7 +327,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     if (input.previous) tuningKeys.push('comparison');
     if (engagement.some((axis) => axis.prevLevel !== undefined)) tuningKeys.push('engagementDelta');
     if (copm.some((goal) => goal.previous)) tuningKeys.push('copmDelta');
-    if (input.child.ageGroup === 'pre' && domainHits.length) tuningKeys.push('troubleDomainPre');
 
     // --- コーチ向け（plan・wantPackages・copmFocus はレポート末尾のメニュー提案に使う） ---
     // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。

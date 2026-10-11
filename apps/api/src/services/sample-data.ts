@@ -10,7 +10,6 @@ import {
   EXERCISES,
   firstDayOfMonth,
   generateShareCode,
-  gradeAt,
   MASTER_VERSION,
   COPM_SCORE_DEFAULT,
   ENGAGEMENT_AXES,
@@ -22,8 +21,8 @@ import {
   PPI_SCORE_MAX,
   reportContentSchema,
   schoolYear,
-  troubleItemsOf,
   todayInJst,
+  TROUBLE_ITEMS,
   WANT_ITEMS,
   type AssessmentData,
   type CompletedAssessmentData,
@@ -121,7 +120,6 @@ function completedData(input: {
   random: Random;
   levels: Record<ExerciseKey, number>;
   activeKeys: readonly ExerciseKey[];
-  ageGroup: 'pre' | 'sch';
   goals: string[];
   sequence: number;
 }): CompletedAssessmentData {
@@ -132,7 +130,7 @@ function completedData(input: {
     const selected = selectDistinct(input.random, choices, randomInt(input.random, 0, 3));
     return selected.length > 0 ? [[key, selected]] : [];
   }));
-  const troubles = selectDistinct(input.random, troubleItemsOf(input.ageGroup), randomInt(input.random, 1, 4));
+  const troubles = selectDistinct(input.random, TROUBLE_ITEMS, randomInt(input.random, 1, 4));
   const engagement = Object.fromEntries(ENGAGEMENT_AXES.map(({ key }) => [
     key,
     randomInt(input.random, 0, ENGAGEMENT_LEVEL_COUNT),
@@ -169,7 +167,7 @@ function completedData(input: {
   });
 }
 
-function draftData(random: Random, ageGroup: 'pre' | 'sch'): AssessmentData {
+function draftData(random: Random): AssessmentData {
   const keys = selectDistinct(random, CORE_EXERCISE_KEYS, randomInt(random, 1, CORE_EXERCISE_KEYS.length + 1));
   return assessmentDataDraftSchema.parse({
     lv: Object.fromEntries(keys.map((key) => [key, randomInt(random, 1, 11)])),
@@ -177,7 +175,7 @@ function draftData(random: Random, ageGroup: 'pre' | 'sch'): AssessmentData {
     observationNotes: {},
     engagement: { dur: randomInt(random, 0, ENGAGEMENT_LEVEL_COUNT) },
     envSupports: [],
-    troubles: selectDistinct(random, troubleItemsOf(ageGroup), 1),
+    troubles: selectDistinct(random, TROUBLE_ITEMS, 1),
     wants: [],
     copm: [],
     ppi: { time: randomInt(random, 0, PPI_SCORE_MAX + 1), emo: randomInt(random, 0, PPI_SCORE_MAX + 1) },
@@ -337,8 +335,7 @@ export async function createSampleChild(
       for (const key of activeKeys) {
         if (index > 0) levels[key] = clamp(levels[key] + pick(random, [-1, 0, 0, 1, 1, 2]), 1, maxLevelOf(key));
       }
-      const ageGroup = gradeAt({ gradeCode, gradeBaseYear }, assessedOn).ageGroup;
-      const data = completedData({ random, levels, activeKeys, ageGroup, goals, sequence });
+      const data = completedData({ random, levels, activeKeys, goals, sequence });
       const assessmentCoach = pick(random, availableCoaches);
       const assessmentId = ulid();
       const completedAt = timestampFor(assessedOn, sequence);
@@ -390,7 +387,6 @@ export async function createSampleChild(
 
     if (profile === 'new' && random() < 0.5) {
       const assessmentId = ulid();
-      const ageGroup = gradeAt({ gradeCode, gradeBaseYear }, today).ageGroup;
       statements.push(db.insert(assessments).values({
         id: assessmentId,
         childId,
@@ -401,7 +397,7 @@ export async function createSampleChild(
         unlockExt: false,
         prevAssessmentId: null,
         masterVersion: MASTER_VERSION,
-        data: JSON.stringify(draftData(random, ageGroup)),
+        data: JSON.stringify(draftData(random)),
         revision: 1,
         mutationId: assessmentId,
         createdAt: timestampFor(today),

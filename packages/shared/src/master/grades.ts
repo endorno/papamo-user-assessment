@@ -15,3 +15,5 @@ export const GRADES = [
 ] as const;
 
 export type GradeCode = (typeof GRADES)[number]['code'];
+/** 就学（sch）／未就学（pre）。学年から決まる。 */
+export type AgeGroup = (typeof GRADES)[number]['ageGroup'];

@@ -20,7 +20,7 @@ import {
   WANT_ITEMS,
   WANT_MAX,
 } from '../master/goals';
-import { ALL_TROUBLE_ITEMS } from '../master/troubles';
+import { TROUBLE_ITEMS } from '../master/troubles';
 import { isValidDateString, isValidMonthString } from '../domain/date';
 
 export const exerciseKeySchema = z.enum(
@@ -126,7 +126,7 @@ const completedCopmSchema = z.array(copmGoalSchema.extend({
   text: z.string().trim().min(1, '目標の文言を入力してください。').max(TEXT_LIMITS.copmText),
 })).max(COPM_MAX);
 
-const troubleSchema = z.enum(ALL_TROUBLE_ITEMS as [string, ...string[]]);
+const troubleSchema = z.enum(TROUBLE_ITEMS as [string, ...string[]]);
 const troublesSchema = z.array(troubleSchema).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 export const assessmentDataDraftSchema = z.object({
@@ -258,7 +258,6 @@ export const assessmentDetailSchema = z.object({
     name: z.string(),
     honorific: honorificSchema,
     archivedAt: z.string().datetime().nullable(),
-    ageGroup: z.enum(['pre', 'sch']),
     extUnlocked: z.boolean(),
   }),
 });

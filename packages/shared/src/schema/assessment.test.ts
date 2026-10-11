@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_TROUBLE_ITEMS } from '../master/troubles';
+import { TROUBLE_ITEMS } from '../master/troubles';
 import { ENVIRONMENT_SUPPORT_ITEMS, EXERCISES, WANT_ITEMS } from '../master';
 
 import {
@@ -138,7 +138,7 @@ describe('アセスメント入力スキーマ', () => {
     expect(accepts({ envSupports: [envKey] })).toBe(true);
     expect(accepts({ envSupports: [envKey, envKey] })).toBe(false);
     expect(accepts({ wants: [WANT_ITEMS[0]!.id, WANT_ITEMS[0]!.id] })).toBe(false);
-    expect(accepts({ troubles: [ALL_TROUBLE_ITEMS[0]!, ALL_TROUBLE_ITEMS[0]!] })).toBe(false);
+    expect(accepts({ troubles: [TROUBLE_ITEMS[0]!, TROUBLE_ITEMS[0]!] })).toBe(false);
     const observation = EXERCISES[0]!.observations[0]!.text;
     expect(accepts({ observations: { [EXERCISES[0]!.key]: [observation, observation] } })).toBe(false);
   });

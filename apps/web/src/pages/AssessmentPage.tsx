@@ -603,8 +603,6 @@ export function AssessmentPage() {
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
   const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
   const answeredEngagement = ENGAGEMENT_AXES.filter(({ key }) => form.data.engagement[key as EngagementKey] !== undefined);
-  const troubleCategories = TROUBLE_CATEGORIES[assessment.child.ageGroup];
-  const troubleOptions = troubleCategories.flatMap((category) => category.items.map(({ text }) => text));
   const navSections: { key: AssessmentSectionKey; label: string; complete: boolean }[] = [
     { key: 'basic', label: '基本情報', complete: true },
     ...exercises.map((exercise) => ({ key: exercise.key, label: `${exercise.icon} ${exercise.name}`, complete: form.data.lv[exercise.key] !== undefined })),
@@ -796,7 +794,7 @@ export function AssessmentPage() {
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" data-assessment-section aria-labelledby="troubles-title">
               <div className={styles.sectionHeader}><div><h2 id="troubles-title">3.お子さまのお困りごと</h2><p className={styles.muted}>保護者に聞き取り・当てはまるものを選択</p></div></div>
               <div className={styles.troubleCategories}>
-                {troubleCategories.map((category) => (
+                {TROUBLE_CATEGORIES.map((category) => (
                   <fieldset className={styles.troubleCategory} key={category.id}>
                     <legend>{category.icon} {category.title}</legend>
                     {category.items.map(({ text }) => (
@@ -960,7 +958,6 @@ export function AssessmentPage() {
         />
         <SurveyImportDialog
           open={showSurveyImport}
-          troubleOptions={troubleOptions}
           onCancel={() => setShowSurveyImport(false)}
           onImport={(result) => {
             importSurvey(result);

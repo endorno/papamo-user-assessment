@@ -17,7 +17,7 @@ export function NewChildPage() {
   const [name, setName] = useState('');
   const [honorific, setHonorific] = useState<Honorific>('chan');
   const [gender, setGender] = useState<Gender>('unspecified');
-  // 就学／未就学で困りごとの設問が変わるため、既定値は置かずに必ず選ばせる。
+  // 学年はレポートに出て、4/1 に自動で進級する起点にもなるため、既定値は置かずに必ず選ばせる。
   const [gradeCode, setGradeCode] = useState<GradeCode | ''>('');
   const [joinedMonth, setJoinedMonth] = useState(() => monthOfDate(todayInJst()));
   const [submitting, setSubmitting] = useState(false);

@@ -93,7 +93,7 @@ export async function createCompletedAssessment(client: TestClient, childId: str
       data: {
         lv: { post: 3, eyeh: 4, hand: 5 },
         observations: {},
-        troubles: ['転びやすい・つまずきやすい'],
+        troubles: ['よく物にぶつかる・つまずく'],
         ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
         ppiNote: '',
         memo: '',

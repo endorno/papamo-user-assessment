@@ -1,6 +1,16 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
-import { COPM_MAX, PPI_QUESTIONS, PPI_SCORE_MAX, TEXT_LIMITS, WANT_ITEMS, WANT_MAX, type PpiKey } from '@papamo/shared';
+import {
+  COPM_MAX,
+  PPI_QUESTIONS,
+  PPI_SCORE_MAX,
+  RETIRED_WANT_IDS,
+  TEXT_LIMITS,
+  TROUBLE_ITEMS,
+  WANT_ITEMS,
+  WANT_MAX,
+  type PpiKey,
+} from '@papamo/shared';
 import styles from '../styles/page.module.css';
 
 /** アンケート1件のなかで複数の回答を並べるときの区切り（design-mock-v2 のCSV仕様）。 */
@@ -39,7 +49,7 @@ function splitValues(cell: string): string[] {
  *    お困りごと・できるようになりたいこと・目標・ご家庭のお困り度をまとめて取り込む。
  * 2. 列名が見つからない場合は、これまでどおり並んだセルを目標として取り込む。
  */
-export function parseSurveyPaste(value: string, troubleOptions: readonly string[]): SurveyImport {
+export function parseSurveyPaste(value: string): SurveyImport {
   const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const headerIndex = lines.findIndex((line) => (
     splitCells(line).some((cell) => KNOWN_COLUMNS.includes(cell.toLowerCase()))
@@ -65,10 +75,12 @@ export function parseSurveyPaste(value: string, troubleOptions: readonly string[
   }
 
   const wantIds = new Set<string>(WANT_ITEMS.map((item) => item.id));
+  // 廃止した id（過去の回答）は統合先に読み替える。統合先と重なったら1つにまとめる。
+  const wants = [...new Set(splitValues(cellOf('want')).map((id) => RETIRED_WANT_IDS[id] ?? id))];
   return {
     // マスタにない文言は受け取らない（保存値が文言そのものになるため）。
-    troubles: splitValues(cellOf('trouble')).filter((trouble) => troubleOptions.includes(trouble)),
-    wants: splitValues(cellOf('want')).filter((id) => wantIds.has(id)).slice(0, WANT_MAX),
+    troubles: splitValues(cellOf('trouble')).filter((trouble) => TROUBLE_ITEMS.includes(trouble)),
+    wants: wants.filter((id) => wantIds.has(id)).slice(0, WANT_MAX),
     goals: splitValues(cellOf('goal')),
     ppi,
     ppiNote: cellOf('ppi_note'),
@@ -86,12 +98,10 @@ function summaryOf(result: SurveyImport): string[] {
 
 export function SurveyImportDialog({
   open,
-  troubleOptions,
   onCancel,
   onImport,
 }: {
   open: boolean;
-  troubleOptions: readonly string[];
   onCancel: () => void;
   onImport: (result: SurveyImport) => void;
 }) {
@@ -116,7 +126,7 @@ export function SurveyImportDialog({
 
   function importSurvey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = parseSurveyPaste(pastedText, troubleOptions);
+    const result = parseSurveyPaste(pastedText);
     if (!summaryOf(result).length) {
       setError('取り込める回答が見つかりませんでした。コピーする範囲を確認してください。');
       return;
@@ -171,7 +181,7 @@ export function SurveyImportDialog({
               setError(null);
             }}
             rows={7}
-            placeholder={'trouble\twant\tgoal\tppi_time\n姿勢がすぐ崩れる／机に伏せる｜忘れ物・なくし物が多い\tw16｜w18\t板書を写すのが間に合うようになる\t4'}
+            placeholder={'trouble\twant\tgoal\tppi_time\n姿勢がすぐ崩れる／机に伏せる・寝転がる｜忘れ物・なくし物が多い\tw16｜w18\t板書を写すのが間に合うようになる\t4'}
           />
         </div>
         {error ? <p className={styles.formError} role="alert">{error}</p> : null}

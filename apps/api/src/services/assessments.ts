@@ -12,7 +12,6 @@ import {
   PPI_QUESTIONS,
   reportContentSchema,
   reportedInputSchema,
-  troubleItemsOf,
   todayInJst,
   type AssessmentData,
   type AssessmentInput,
@@ -25,7 +24,6 @@ import {
 import { dbFor, type Db } from '../db/client';
 import { assessments, childCoaches, children, coaches, reports } from '../db/schema';
 import { isUniqueConstraintError } from '../db/errors';
-import { gradeOf } from './child-row';
 import type { CoachRecord, Env } from '../env';
 import { generateReport } from './report';
 
@@ -210,11 +208,7 @@ function writableMutationCondition(
 }
 
 // 前回の回から引き継ぐのは「聞き直す前の初期値」だけ。Lv・PPI・所見は毎回まっさらにする。
-function initialData(
-  previous: CompletedAssessmentData | null,
-  ageGroup: 'pre' | 'sch',
-): AssessmentData {
-  const validTroubles = new Set(troubleItemsOf(ageGroup));
+function initialData(previous: CompletedAssessmentData | null): AssessmentData {
   // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
   const copm = previous?.copm.map((goal) => ({ ...goal })) ?? [];
   return {
@@ -223,7 +217,7 @@ function initialData(
     observationNotes: {},
     engagement: {},
     envSupports: [],
-    troubles: previous?.troubles.filter((trouble) => validTroubles.has(trouble)) ?? [],
+    troubles: previous?.troubles ? [...previous.troubles] : [],
     wants: previous?.wants ? [...previous.wants] : [],
     copm,
     ppi: {},
@@ -265,7 +259,6 @@ export async function createAssessment(env: Env, childId: string, coachId: strin
     masterVersion: MASTER_VERSION,
     data: JSON.stringify(initialData(
       previous ? confirmedInputOf(previous.assessment, previous.reportInput).data : null,
-      gradeOf(child, today).ageGroup,
     )),
     revision: 1,
     mutationId: id,
@@ -339,7 +332,6 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
       honorific: child.honorific as Honorific,
       archivedAt: child.archivedAt,
       extUnlocked: child.extUnlocked,
-      ageGroup: gradeOf(child, assessment.assessedOn).ageGroup,
     },
   };
 }
@@ -437,12 +429,10 @@ export async function deleteAssessment(env: Env, assessmentId: string, coachId: 
 }
 
 // 完了用スキーマで弾く前に、コーチが直せる言葉で理由を返す。
-function assertCompletable(data: AssessmentData, unlockExt: boolean, ageGroup: 'pre' | 'sch') {
+function assertCompletable(data: AssessmentData, unlockExt: boolean) {
   const missing = activeExerciseKeys(unlockExt).filter((key) => data.lv[key] === undefined);
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
   if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
-  const validTroubles = new Set(troubleItemsOf(ageGroup));
-  if (!data.troubles.every((trouble) => validTroubles.has(trouble))) throw new AssessmentServiceError('validation', '困りごとの選択内容を確認してください。');
   if (data.copm.some((goal) => !goal.text.trim())) throw new AssessmentServiceError('validation', '文言が空の目標があります。文言を入力するか、その目標を削除してください。');
 }
 
@@ -519,7 +509,7 @@ export async function completeAssessment(env: Env, assessmentId: string, coach: 
   const draftData = assessmentDataDraftSchema.safeParse(JSON.parse(assessment.data));
   if (!draftData.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
   const unlockExt = child.extUnlocked || assessment.unlockExt;
-  assertCompletable(draftData.data, unlockExt, gradeOf(child, assessment.assessedOn).ageGroup);
+  assertCompletable(draftData.data, unlockExt);
   const data = assessmentDataCompletedSchema.safeParse(draftData.data);
   if (!data.success) throw new AssessmentServiceError('validation', '入力内容を確認してください。');
 

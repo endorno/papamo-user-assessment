@@ -12,7 +12,7 @@ const data: CompletedAssessmentData = {
   observationNotes: {},
   engagement: {},
   envSupports: [],
-  troubles: ['姿勢がすぐ崩れる／机に伏せる'],
+  troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
   wants: [],
   copm: [],
   ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
@@ -22,7 +22,7 @@ const data: CompletedAssessmentData = {
 
 function inputFor(
   assessmentData: CompletedAssessmentData,
-  options: { unlockExt?: boolean; previous?: ReportInput['previous']; seqNo?: number; ageGroup?: 'pre' | 'sch' } = {},
+  options: { unlockExt?: boolean; previous?: ReportInput['previous']; seqNo?: number } = {},
 ): ReportInput {
   return {
     child: {
@@ -30,7 +30,7 @@ function inputFor(
       honorific: 'kun',
       grade: '小学1年生',
       ageHint: '6〜7歳',
-      ageGroup: options.ageGroup ?? 'sch',
+      ageGroup: 'sch',
       joinedMonth: '2026-03',
     },
     coach: { displayName: 'さとうコーチ' },
@@ -119,7 +119,7 @@ describe('RuleBasedReportGenerator', () => {
       lv: { post: 16, eyeh: 0, hand: 3 },
       observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
       observationNotes: { hand: '左右の切り替えで止まる。' },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる'],
+      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
       // w1 は post（Lv16）／w12 は hand（Lv3）／w9 は eyeh（Lv0）／w11 は未開放の sacc が支える。
       wants: ['w1', 'w12', 'w9', 'w11'],
       copm: [
@@ -164,7 +164,7 @@ describe('RuleBasedReportGenerator', () => {
       ...data,
       // post が最下位かつ Lv6 以下なので、姿勢に紐づく困りごとは「強く一致」になる。
       lv: { post: 4, eyeh: 12, hand: 11 },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる', '行を読み飛ばす／読むところを見失う'],
+      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '行を読み飛ばす／読むところを見失う（絵本・教科書）'],
     };
     const report = await new RuleBasedReportGenerator().generate(inputFor(hitData));
 
@@ -205,11 +205,11 @@ describe('RuleBasedReportGenerator', () => {
     const current: CompletedAssessmentData = {
       ...data,
       wants: ['w18'],
-      copm: [{ text: '授業中に座っていられるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
+      copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
     };
     const previous: CompletedAssessmentData = {
       ...data,
-      copm: [{ text: '授業中に座っていられるようになる', memo: '', performance: 3, satisfaction: 2, importance: 9 }],
+      copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 2, importance: 9 }],
     };
     const report = await new RuleBasedReportGenerator().generate(inputFor(current, {
       seqNo: 2,
@@ -219,10 +219,10 @@ describe('RuleBasedReportGenerator', () => {
     expect(report.copm[0]).toMatchObject({ performanceDelta: 3, satisfactionDelta: 3 });
     expect(report.wants).toEqual([{
       id: 'w18',
-      group: '学習',
+      group: '生活',
       icon: '🪑',
-      text: '授業中に座っていられるようになりたい',
-      short: '授業中に座っていられる',
+      text: '姿勢よく座れるようになりたい',
+      short: '姿勢よく座れる',
       menu: '体幹・全身／低緊張パッケージ',
     }]);
   });
@@ -231,13 +231,13 @@ describe('RuleBasedReportGenerator', () => {
     const previousData: CompletedAssessmentData = {
       ...data,
       lv: { post: 2, eyeh: 5, hand: 7 },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる', '忘れ物・なくし物が多い'],
+      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
       ppi: { time: 5, emo: 4, soc: 3, fut: 2, nav: 1 },
     };
     const currentData: CompletedAssessmentData = {
       ...data,
       lv: { post: 5, eyeh: 6, hand: 7 },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる', '朝の支度や着替えに時間がかかる'],
+      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '朝の支度や着替えに時間がかかる'],
       ppi: { time: 3, emo: 2, soc: 1, fut: 2, nav: 0 },
     };
     const report = await new RuleBasedReportGenerator().generate(inputFor(currentData, {
@@ -306,7 +306,7 @@ describe('RuleBasedReportGenerator', () => {
               "icon": "🧍",
               "id": "C",
               "items": [
-                "姿勢がすぐ崩れる／机に伏せる",
+                "姿勢がすぐ崩れる／机に伏せる・寝転がる",
               ],
               "title": "姿勢・身体の使い方",
             },
@@ -320,14 +320,14 @@ describe('RuleBasedReportGenerator', () => {
             },
           ],
           "current": [
-            "姿勢がすぐ崩れる／机に伏せる",
+            "姿勢がすぐ崩れる／机に伏せる・寝転がる",
             "朝の支度や着替えに時間がかかる",
           ],
           "gone": [
             "忘れ物・なくし物が多い",
           ],
           "stayed": [
-            "姿勢がすぐ崩れる／机に伏せる",
+            "姿勢がすぐ崩れる／机に伏せる・寝転がる",
           ],
         },
       }

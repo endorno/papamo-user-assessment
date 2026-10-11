@@ -355,7 +355,7 @@ export function ReportPage() {
 
             {report.domainHits.length ? (
               <>
-                <NumberedHeading number={2}>困りごとの背景にありそうな力<TuningTag report={report} section="troubleDomainPre" /></NumberedHeading>
+                <NumberedHeading number={2}>困りごとの背景にありそうな力</NumberedHeading>
                 <div className={styles.levelTableWrap}>
                   <table className={styles.levelTable}>
                     <thead><tr><th>表面に見える困りごと</th><th>背景にありそうな力</th><th>優先して見る土台</th></tr></thead>

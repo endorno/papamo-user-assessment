@@ -48,7 +48,7 @@ function completedInput(unlockExt = false) {
       ...(unlockExt ? { sacc: 6, inhi: 7 } : {}),
     },
     observations: {},
-    troubles: ['転びやすい・つまずきやすい'],
+    troubles: ['よく物にぶつかる・つまずく'],
     ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
     ppiNote: '',
     memo: '',
@@ -90,7 +90,7 @@ describe('アセスメントサービス', () => {
     };
     draft.lv = { post: 3, eyeh: 4, hand: 5 };
     draft.ppi = { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 };
-    draft.troubles = ['転びやすい・つまずきやすい'];
+    draft.troubles = ['よく物にぶつかる・つまずく'];
     const saved = await patchAssessment(testEnv, created.id, coach.id, {
       data: draft,
       updatedAt: created.updatedAt,
@@ -302,7 +302,7 @@ describe('アセスメントサービス', () => {
 
     expect(reverted).toMatchObject({
       assessedOn: completed.assessedOn,
-      data: { memo: '', troubles: ['転びやすい・つまずきやすい'] },
+      data: { memo: '', troubles: ['よく物にぶつかる・つまずく'] },
     });
     expect((await getReport(testEnv, assessment.id, coach.id)).hasUnreportedChanges).toBe(false);
   });

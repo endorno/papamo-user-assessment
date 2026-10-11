@@ -58,7 +58,7 @@ describe('一覧の状態判定', () => {
       ...base,
       unlockExt: true,
       lv: { post: 3, eyeh: 0, hand: -1, sacc: 2, inhi: 1 },
-      troubles: ['転びやすい・つまずきやすい'],
+      troubles: ['よく物にぶつかる・つまずく'],
     })).toEqual({ filled: 6, total: 7 });
   });
 

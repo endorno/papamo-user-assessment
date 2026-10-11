@@ -10,7 +10,7 @@ const reported = {
     lv: { post: 3, eyeh: 4, hand: 5 },
     observations: { post: ['体が左右や前後に大きく揺れる'] },
     envSupports: ['e-vis', 'e-cnt'],
-    troubles: ['姿勢がすぐ崩れる／机に伏せる', '忘れ物・なくし物が多い'],
+    troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
     wants: ['w18'],
     copm: [{ text: '授業中に座っていられる', memo: '', performance: 5, satisfaction: 5, importance: 8 }],
     ppi: { time: 1, emo: 2, soc: 3, fut: 4, nav: 5 },
