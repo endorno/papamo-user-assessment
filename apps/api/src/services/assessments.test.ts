@@ -230,6 +230,27 @@ describe('アセスメントサービス', () => {
     });
   });
 
+  it('次の回は保護者と確認する入力を前回から引き継ぎ、観察の入力は空から始める', async () => {
+    const { coach, child } = await createFixture('みお');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), wants: ['w9'], engagement: { dur: 2 }, ppiNote: '朝の支度に時間がかかる', memo: '所見' },
+      updatedAt: first.updatedAt,
+    });
+    await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
+
+    const next = await createAssessment(testEnv, child.id, coach.id, false);
+    expect(JSON.parse(next.data)).toMatchObject({
+      lv: {},
+      engagement: {},
+      troubles: ['よく物にぶつかる・つまずく'],
+      wants: ['w9'],
+      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
+      ppiNote: '朝の支度に時間がかかる',
+      memo: '',
+    });
+  });
+
   it('完了後の自動保存は入力だけを記録し、レポートは更新ボタンまで変えない', async () => {
     const { coach, child } = await createFixture('りお');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);

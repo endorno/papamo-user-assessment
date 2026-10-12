@@ -244,6 +244,21 @@ describe('アセスメント入力', () => {
     expect(within(dialog).getByRole('button', { name: 'この内容で取り込む' })).toBeEnabled();
   });
 
+  it('2回目以降は事前アンケートの取り込みを出さない', async () => {
+    vi.mocked(fetch).mockImplementation(async () => jsonResponse({
+      assessment: {
+        ...assessment,
+        seqNo: 2,
+        prevAssessmentId: 'assessment-0',
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], ppi: {}, engagement: {}, copm: [] },
+      },
+    }));
+
+    renderAssessmentPage();
+    await screen.findByRole('region', { name: '3.お子さまのお困りごと' });
+    expect(screen.queryByRole('button', { name: '事前アンケートから取り込む' })).not.toBeInTheDocument();
+  });
+
   it('できるようになりたいことを選ぶと、目標欄に仮の文言が入る', async () => {
     renderAssessmentPage();
     const goalsSection = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });

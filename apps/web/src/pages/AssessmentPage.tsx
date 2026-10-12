@@ -605,8 +605,9 @@ export function AssessmentPage() {
   const conflict = saveError instanceof ApiClientError && saveError.code === 'conflict';
   const readOnlyMessage = assessment.child.archivedAt ? 'アーカイブ中のため閲覧のみです。' : '次のアセスメントがあるため、この回は閲覧のみです。';
   const canToggleUnlock = !assessment.child.extUnlocked && assessment.status === 'draft' && !assessment.readOnly;
-  // ツールに前回の回が無い初回だけ、ツール導入前（Excel）の採点を前回として入れられる。
-  const acceptsCopmBaseline = assessment.prevAssessmentId === null;
+  // ツールに前回の回が無い初回だけ、事前アンケートの取り込みと、ツール導入前（Excel）の採点を前回として入れることを受け付ける。
+  // 2回目以降は前回の回から引き継いだ入力を直していくため。
+  const firstInTool = assessment.prevAssessmentId === null;
   const answeredEngagement = ENGAGEMENT_AXES.filter(({ key }) => form.data.engagement[key as EngagementKey] !== undefined);
   const navSections: { key: AssessmentSectionKey; label: string; complete: boolean }[] = [
     { key: 'basic', label: '基本情報', complete: true },
@@ -791,9 +792,9 @@ export function AssessmentPage() {
               <p className={styles.inputAreaHead}>
                 <strong>保護者と確認して記入</strong>
                 <small>その場で聞いても、あとから相談しても構いません</small>
-                {assessment.readOnly ? null : (
+                {firstInTool && !assessment.readOnly ? (
                   <button className={styles.compactButton} type="button" onClick={() => setShowSurveyImport(true)}>事前アンケートから取り込む</button>
-                )}
+                ) : null}
               </p>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-troubles" data-assessment-section aria-labelledby="troubles-title">
@@ -836,7 +837,7 @@ export function AssessmentPage() {
               </fieldset>
 
               <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
-              {acceptsCopmBaseline ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}
+              {firstInTool ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}
 
               {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。上から選ぶか、「目標を追加」で入力してください。</p> : null}
               {form.data.copm.map((goal, index) => {
@@ -851,7 +852,7 @@ export function AssessmentPage() {
                       <label htmlFor={`copm-memo-${index}`}>メモ</label>
                       <textarea id={`copm-memo-${index}`} rows={2} value={goal.memo} maxLength={TEXT_LIMITS.copmMemo} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, memo: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
-                    {acceptsCopmBaseline ? (
+                    {firstInTool ? (
                       <div className={styles.copmBaseline}>
                         {COPM_BASELINE_FIELDS.map((field) => (
                           <CopmBaselineScore

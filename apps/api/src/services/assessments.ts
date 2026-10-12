@@ -208,7 +208,8 @@ function writableMutationCondition(
   );
 }
 
-// 前回の回から引き継ぐのは「聞き直す前の初期値」だけ。Lv・PPI・所見は毎回まっさらにする。
+// 保護者と確認する入力（お困りごと・できるようになりたいこと・目標・お困り度）は前回の回から引き継ぎ、変わったところだけ直してもらう。
+// その場で観察する入力（Lv・見えた動作・取り組みの発達・環境調整）と所見は毎回まっさらにする。
 function initialData(previous: CompletedAssessmentData | null): AssessmentData {
   // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
   // ツール導入前の採点は初回だけのもの。2回目からはツールの前回の回と比べるので引き継がない。
@@ -222,8 +223,8 @@ function initialData(previous: CompletedAssessmentData | null): AssessmentData {
     troubles: previous?.troubles ? [...previous.troubles] : [],
     wants: previous?.wants ? [...previous.wants] : [],
     copm,
-    ppi: {},
-    ppiNote: '',
+    ppi: previous?.ppi ? { ...previous.ppi } : {},
+    ppiNote: previous?.ppiNote ?? '',
     memo: '',
   };
 }
