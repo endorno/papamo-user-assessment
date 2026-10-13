@@ -106,7 +106,6 @@ export const reportContentSchema = z.object({
     prevLevel: z.number().int().min(0).max(ENGAGEMENT_LEVEL_COUNT - 1).optional(),
     delta: z.number().int().optional(),
   })),
-  envSupports: z.array(z.object({ group: z.string(), items: z.array(z.string()) })),
   changes3m: z.array(z.string()).optional(),
   troubles: z.object({
     current: z.array(z.string()),

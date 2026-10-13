@@ -11,7 +11,6 @@ const data: CompletedAssessmentData = {
   observations: { post: [], eyeh: [], hand: [] },
   observationNotes: {},
   engagement: {},
-  envSupports: [],
   troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
   wants: [],
   copm: [],
@@ -178,11 +177,10 @@ describe('RuleBasedReportGenerator', () => {
     expect(report.pyramid.highlighted).toContain('ボディイメージ');
   });
 
-  it('取り組みの発達と環境調整を前回と並べて返す', async () => {
+  it('取り組みの発達を前回と並べて返す', async () => {
     const current: CompletedAssessmentData = {
       ...data,
       engagement: { dur: 3, sup: 2 },
-      envSupports: ['e-vis', 'e-cnt'],
     };
     const previous: CompletedAssessmentData = { ...data, engagement: { dur: 1, sup: 2 } };
     const report = await new RuleBasedReportGenerator().generate(inputFor(current, {
@@ -193,10 +191,6 @@ describe('RuleBasedReportGenerator', () => {
     expect(report.engagement).toEqual([
       { key: 'dur', title: '参加の持続', subtitle: 'どれくらい取り組めたか', level: 3, levelCount: 5, label: '複数の課題を続けて取り組める', prevLevel: 1, delta: 2 },
       { key: 'sup', title: '必要な支援', subtitle: 'どれくらい支えると取り組めるか', level: 2, levelCount: 5, label: '手本を見せると取り組める', prevLevel: 2, delta: 0 },
-    ]);
-    expect(report.envSupports).toEqual([
-      { group: '情報の入り方', items: ['視覚（手本・図・写真を見せる）'] },
-      { group: '見通しの立て方', items: ['回数（「あと3回」と数で示す）'] },
     ]);
     expect(report.tuning.map(({ key }) => key)).toContain('engagementDelta');
   });

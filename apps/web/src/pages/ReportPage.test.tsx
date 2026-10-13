@@ -31,7 +31,6 @@ beforeAll(async () => {
       observations: { post: [], eyeh: [], hand: [] },
       observationNotes: {},
       engagement: { dur: 1, sup: 2 },
-      envSupports: ['e-vis'],
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
       wants: ['w18'],
       copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 }],
@@ -58,7 +57,6 @@ beforeAll(async () => {
         observations: { post: [], eyeh: [], hand: [] },
         observationNotes: {},
         engagement: { dur: 3, sup: 3 },
-        envSupports: ['e-vis', 'e-cnt'],
         troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
         wants: ['w18'],
         copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
@@ -125,8 +123,6 @@ describe('レポート', () => {
     ]);
     expect(roadmapSheet).toHaveTextContent('4・5種目目を追加');
     expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
-    // 環境調整はコーチ向けの引き継ぎ情報なので、保護者向けには出さない。
-    expect(screen.queryByText(/取り組みやすくなった条件/)).not.toBeInTheDocument();
   });
 
   it('保護者向けの4枚のあとに、コーチ向けの切れ目とメニュー提案を置く', async () => {

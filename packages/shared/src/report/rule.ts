@@ -7,7 +7,6 @@ import {
   DOMAIN_MENUS,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
-  ENVIRONMENT_SUPPORT_ITEMS,
   EXERCISE_MENUS,
   EXERCISES,
   EXT_EXERCISE_KEYS,
@@ -183,7 +182,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       };
     });
 
-    // --- 取り組みの発達と環境調整 ---
+    // --- 取り組みの発達 ---
     const engagement = ENGAGEMENT_AXES.flatMap((axis) => {
       const level = data.engagement[axis.key as EngagementKey];
       if (level === undefined) return [];
@@ -198,14 +197,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         ...(prevLevel === undefined ? {} : { prevLevel, delta: level - prevLevel }),
       }];
     });
-    const envSupports = ENVIRONMENT_SUPPORT_ITEMS
-      .filter((item) => data.envSupports.includes(item.key))
-      .reduce<ReportContent['envSupports']>((groups, item) => {
-        const group = groups.find((candidate) => candidate.group === item.group);
-        if (group) group.items.push(item.text);
-        else groups.push({ group: item.group, items: [item.text] });
-        return groups;
-      }, []);
 
     // --- お困りごと × 実測の照合 ---
     const currentTroubles = [...data.troubles];
@@ -376,7 +367,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       priorities,
       strengths,
       engagement,
-      envSupports,
       ...(changes3m ? { changes3m } : {}),
       troubles: {
         current: currentTroubles,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TROUBLE_ITEMS } from '../master/troubles';
-import { ENVIRONMENT_SUPPORT_ITEMS, EXERCISES, WANT_ITEMS } from '../master';
+import { EXERCISES, WANT_ITEMS } from '../master';
 
 import {
   assessmentDataCompletedSchema,
@@ -113,7 +113,6 @@ describe('アセスメント入力スキーマ', () => {
       observations: {},
       observationNotes: {},
       engagement: {},
-      envSupports: [],
       troubles: [],
       wants: [],
       ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
@@ -137,7 +136,6 @@ describe('アセスメント入力スキーマ', () => {
       observations: {},
       observationNotes: {},
       engagement: {},
-      envSupports: [],
       troubles: [],
       wants: [],
       ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
@@ -175,9 +173,6 @@ describe('アセスメント入力スキーマ', () => {
   it('選択式の配列に同じ値が重複していると拒否する', () => {
     const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
     const accepts = (data: Record<string, unknown>) => assessmentPatchRequestSchema.safeParse({ ...base, data }).success;
-    const envKey = ENVIRONMENT_SUPPORT_ITEMS[0]!.key;
-    expect(accepts({ envSupports: [envKey] })).toBe(true);
-    expect(accepts({ envSupports: [envKey, envKey] })).toBe(false);
     expect(accepts({ wants: [WANT_ITEMS[0]!.id, WANT_ITEMS[0]!.id] })).toBe(false);
     expect(accepts({ troubles: [TROUBLE_ITEMS[0]!, TROUBLE_ITEMS[0]!] })).toBe(false);
     const observation = EXERCISES[0]!.observations[0]!.text;

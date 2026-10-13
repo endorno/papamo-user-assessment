@@ -219,7 +219,6 @@ describe('子どもページ', () => {
           observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
           observationNotes: { hand: '左右の切り替えで止まる。' },
           engagement: { dur: 2, sup: 1 },
-          envSupports: ['e-vis', 'e-tim'],
           troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
           wants: ['w12'],
           copm: [],

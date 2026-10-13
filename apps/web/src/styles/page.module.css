@@ -2632,7 +2632,13 @@
   margin-top: 0;
 }
 
-.envSupports,
+/* セクションの最後の行。枠の下端と区切り線が二重にならないようにする。 */
+.engagementRow:last-child {
+  border-bottom: 0;
+}
+
+/* --- できるようになりたいこと（入力） --- */
+
 .wantBox {
   min-width: 0;
   margin: 16px 0 0;
@@ -2641,14 +2647,13 @@
   border-radius: var(--r);
 }
 
-.envSupports > legend,
 .wantBox > legend {
   padding: 0 6px;
   color: var(--ink2);
   font-weight: 700;
 }
 
-.envGroups {
+.wantGroups {
   display: grid;
   gap: 14px;
   margin-top: 10px;
@@ -2657,7 +2662,7 @@
   column-gap: 20px;
 }
 
-.envGroup > strong {
+.wantGroup > strong {
   display: block;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line2);
@@ -3126,7 +3131,7 @@
   padding: 5px 12px;
 }
 
-/* --- 取り組みの発達・環境調整 --- */
+/* --- 取り組みの発達・できるようになりたいこと --- */
 
 .assessmentPage .engagementRow {
   gap: 12px;
@@ -3137,13 +3142,12 @@
   font-size: 0.74rem;
 }
 
-.assessmentPage .envSupports,
 .assessmentPage .wantBox {
   margin-top: 12px;
   padding: 10px 14px 6px;
 }
 
-.assessmentPage .envGroups {
+.assessmentPage .wantGroups {
   row-gap: 8px;
   margin-top: 6px;
 }

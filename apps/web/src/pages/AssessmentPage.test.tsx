@@ -40,7 +40,6 @@ const assessment = {
     observations: {},
     observationNotes: {},
     engagement: {},
-    envSupports: [],
     troubles: [],
     wants: [],
     copm: [],
@@ -267,17 +266,18 @@ describe('アセスメント入力', () => {
     expect(within(goalsSection).getByRole('textbox', { name: '目標 1' })).toHaveValue('縄跳びが跳べるようになる');
   });
 
-  it('取り組みの発達と環境調整を記録できる', async () => {
+  it('取り組みの発達を記録できる', async () => {
     renderAssessmentPage();
     const section = await screen.findByRole('region', { name: '2.取り組みの発達' });
+    // 環境調整（今回きいた条件）は廃止した（2026-10-14）。
+    expect(within(section).queryByRole('checkbox')).not.toBeInTheDocument();
     fireEvent.change(within(section).getByLabelText(/参加の持続/), { target: { value: '3' } });
-    fireEvent.click(within(section).getByRole('checkbox', { name: /視覚（手本・図・写真を見せる）/ }));
 
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
-      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { engagement: Record<string, number>; envSupports: string[] } };
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: Record<string, unknown> & { engagement: Record<string, number> } };
       expect(body.data.engagement.dur).toBe(3);
-      expect(body.data.envSupports).toEqual(['e-vis']);
+      expect(body.data).not.toHaveProperty('envSupports');
     }, { timeout: 2000 });
   });
 

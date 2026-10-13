@@ -13,7 +13,6 @@ import {
   COPM_SCORE_MIN,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
-  ENVIRONMENT_SUPPORT_GROUPS,
   emptyCopmGoal,
   EXERCISES,
   hasPartialCopmBaseline,
@@ -129,14 +128,13 @@ function sectionId(key: AssessmentSectionKey) {
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
 function hasAnyInput(form: AssessmentFormState) {
   const {
-    lv, ppi, observations, observationNotes, engagement, envSupports,
+    lv, ppi, observations, observationNotes, engagement,
     troubles, wants, copm, memo, ppiNote,
   } = form.data;
   return Boolean(
     Object.keys(lv).length
     || Object.keys(ppi).length
     || Object.keys(engagement).length
-    || envSupports.length
     || troubles.length
     || wants.length
     || copm.length
@@ -402,15 +400,6 @@ export function AssessmentPage() {
     updateText((current) => ({
       ...current,
       observationNotes: { ...current.observationNotes, [exercise.key]: note },
-    }));
-  }
-
-  function toggleEnvSupport(key: string, checked: boolean) {
-    updateData((current) => ({
-      ...current,
-      envSupports: checked
-        ? [...current.envSupports, key]
-        : current.envSupports.filter((item) => item !== key),
     }));
   }
 
@@ -767,23 +756,6 @@ export function AssessmentPage() {
                   </div>
                 );
               })}
-              <fieldset className={styles.envSupports}>
-                <legend>環境調整（今回きいた条件・複数選択可）</legend>
-                <p className={styles.muted}>高い低いではなく、この子が取り組みやすくなる条件の記録です。次のレッスンで何を用意するかの引き継ぎに使います。</p>
-                <div className={styles.envGroups}>
-                  {ENVIRONMENT_SUPPORT_GROUPS.map((group) => (
-                    <div className={styles.envGroup} key={group.group}>
-                      <strong>{group.group}</strong>
-                      {group.items.map((item) => (
-                        <label className={`${styles.troubleOption} ${form.data.envSupports.includes(item.key) ? styles.optionSelected : ''}`} key={item.key}>
-                          <input type="checkbox" checked={form.data.envSupports.includes(item.key)} disabled={assessment.readOnly} onChange={(event) => toggleEnvSupport(item.key, event.target.checked)} />
-                          <span>{item.text}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </fieldset>
             </section>
 
             </div>
@@ -821,9 +793,9 @@ export function AssessmentPage() {
                 <legend>できるようになりたいこと（{form.data.wants.length}/{WANT_MAX}）</legend>
                 <p className={styles.muted}>お困りごと（いま困っていること）とは別に、達成したい具体的なことを選びます。選ぶと下の目標欄に仮の文言が入るので、ご家族の言葉に書き換えてください。</p>
                 {wantLimitNotice ? <p className={styles.formError} role="alert">できるようになりたいことは最大{WANT_MAX}つまでです。</p> : null}
-                <div className={styles.envGroups}>
+                <div className={styles.wantGroups}>
                   {WANT_GROUPS.map((group) => (
-                    <div className={styles.envGroup} key={group}>
+                    <div className={styles.wantGroup} key={group}>
                       <strong>{group}</strong>
                       {WANT_ITEMS.filter((item) => item.group === group).map((item) => (
                         <label className={`${styles.troubleOption} ${form.data.wants.includes(item.id) ? styles.optionSelected : ''}`} key={item.id}>

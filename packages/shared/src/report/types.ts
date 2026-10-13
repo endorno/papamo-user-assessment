@@ -100,7 +100,6 @@ export interface ReportContent {
     prevLevel?: number;
     delta?: number;
   }[];
-  envSupports: { group: string; items: string[] }[];
   changes3m?: string[];
   troubles: {
     current: string[];

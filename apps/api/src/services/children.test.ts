@@ -194,7 +194,6 @@ describe('子ども管理サービス', () => {
           observations: {},
           observationNotes: {},
           engagement: {},
-          envSupports: [],
           troubles: [],
           wants: [],
           copm: [],

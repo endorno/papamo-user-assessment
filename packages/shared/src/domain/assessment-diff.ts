@@ -64,10 +64,7 @@ export function changedAssessmentSections(
       changed.push(key);
     }
   }
-  if (
-    ENGAGEMENT_AXES.some(({ key }) => before.engagement[key] !== after.engagement[key])
-    || !sameSet(before.envSupports, after.envSupports)
-  ) {
+  if (ENGAGEMENT_AXES.some(({ key }) => before.engagement[key] !== after.engagement[key])) {
     changed.push('engagement');
   }
   if (!sameSet(before.troubles, after.troubles)) changed.push('troubles');

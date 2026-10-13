@@ -8,11 +8,7 @@ import {
   MIN_EXERCISE_LEVEL,
   type ExerciseKey,
 } from '../master/exercises';
-import {
-  ENGAGEMENT_AXES,
-  ENGAGEMENT_LEVEL_COUNT,
-  ENVIRONMENT_SUPPORT_ITEMS,
-} from '../master/engagement';
+import { ENGAGEMENT_AXES, ENGAGEMENT_LEVEL_COUNT } from '../master/engagement';
 import {
   COPM_MAX,
   COPM_SCORE_DEFAULT,
@@ -103,9 +99,6 @@ const engagementSchema = z.object(
     z.number().int().min(0).max(ENGAGEMENT_LEVEL_COUNT - 1).optional(),
   ])),
 ).strict();
-const envSupportSchema = z.array(
-  z.enum(ENVIRONMENT_SUPPORT_ITEMS.map((item) => item.key) as [string, ...string[]]),
-).max(ENVIRONMENT_SUPPORT_ITEMS.length).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
 
 const wantSchema = z.array(
   z.enum(WANT_ITEMS.map((item) => item.id) as [string, ...string[]]),
@@ -147,7 +140,6 @@ export const assessmentDataDraftSchema = z.object({
   observations: observationsSchema.default({}),
   observationNotes: observationNotesSchema.default({}),
   engagement: engagementSchema.default({}),
-  envSupports: envSupportSchema.default([]),
   troubles: troublesSchema.default([]),
   wants: wantSchema.default([]),
   copm: copmSchema.default([]),
@@ -161,7 +153,6 @@ export const assessmentDataPatchSchema = z.object({
   observations: observationsSchema.optional(),
   observationNotes: observationNotesSchema.optional(),
   engagement: engagementSchema.optional(),
-  envSupports: envSupportSchema.optional(),
   troubles: troublesSchema.optional(),
   wants: wantSchema.optional(),
   copm: copmSchema.optional(),
@@ -175,7 +166,6 @@ export const assessmentDataCompletedSchema = z.object({
   observations: observationsSchema,
   observationNotes: observationNotesSchema,
   engagement: engagementSchema,
-  envSupports: envSupportSchema,
   troubles: troublesSchema,
   wants: wantSchema,
   copm: completedCopmSchema,

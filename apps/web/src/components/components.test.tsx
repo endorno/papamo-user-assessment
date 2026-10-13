@@ -96,7 +96,6 @@ describe('共通UI', () => {
       observations: {},
       observationNotes: {},
       engagement: {},
-      envSupports: [],
       troubles: [],
       wants: [],
       copm: [],

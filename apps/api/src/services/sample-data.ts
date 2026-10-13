@@ -14,7 +14,6 @@ import {
   COPM_SCORE_DEFAULT,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
-  ENVIRONMENT_SUPPORT_ITEMS,
   maxLevelOf,
   monthOfDate,
   PPI_QUESTIONS,
@@ -135,11 +134,6 @@ function completedData(input: {
     key,
     randomInt(input.random, 0, ENGAGEMENT_LEVEL_COUNT),
   ]));
-  const envSupports = selectDistinct(
-    input.random,
-    ENVIRONMENT_SUPPORT_ITEMS.map((item) => item.key),
-    randomInt(input.random, 0, 4),
-  );
   const wants = selectDistinct(input.random, WANT_ITEMS.map((item) => item.id), randomInt(input.random, 1, 3));
   const copm = input.goals.map((text) => ({
     text,
@@ -154,7 +148,6 @@ function completedData(input: {
     observations,
     observationNotes: {},
     engagement,
-    envSupports,
     troubles,
     wants,
     copm,
@@ -174,7 +167,6 @@ function draftData(random: Random): AssessmentData {
     observations: {},
     observationNotes: {},
     engagement: { dur: randomInt(random, 0, ENGAGEMENT_LEVEL_COUNT) },
-    envSupports: [],
     troubles: selectDistinct(random, TROUBLE_ITEMS, 1),
     wants: [],
     copm: [],
