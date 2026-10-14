@@ -1784,6 +1784,12 @@
   font-size: 0.94rem !important;
 }
 
+/* 図の読み方（初回は記録の趣旨、比較は線の見方）。本文（育てたい力の説明）より目立たせない。 */
+.reportHero .reportHeroAside {
+  color: var(--mute);
+  font-size: 0.76rem;
+}
+
 .levelTableWrap {
   overflow-x: auto;
   margin-top: 12px;

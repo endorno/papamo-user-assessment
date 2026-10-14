@@ -280,8 +280,8 @@ export function ReportPage() {
                 今の到達 <strong>{levelTotal}</strong> /{levelMax}
                 <small>（実施した{report.levels.length}種目の合計）</small>
               </p>
-              <p className={styles.reportLead}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : <>できた・できなかったの採点ではなく、<strong>いまどの段にいるか</strong>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。</>}</p>
               <p>{growNote}</p>
+              <p className={styles.reportHeroAside}>{report.kind === 'comparison' ? '色の濃い線が今回、点線が3か月前です。5つの力の育ち方を重ねて見ることで、変化を確認できます。' : <>できた・できなかったの採点ではなく、<strong>いまどの段にいるか</strong>を確かめた記録です。ここから3か月ごとに同じ課題で測り直します。</>}</p>
             </section>
             {report.upcomingExercises.length ? (
               <p className={styles.reportNote}>
