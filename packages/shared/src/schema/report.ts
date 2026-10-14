@@ -277,8 +277,30 @@ export const reportDriveRequestSchema = z.object({
   coachHtml: reportHtmlSchema,
 });
 
-export const reportDriveResponseSchema = z.object({
-  drive: reportDriveSchema,
-});
+/**
+ * Googleドライブへの保存の段階。保存は十数秒かかるため、サーバーは段階に入るたびに知らせ、画面は進み具合として示す。
+ * PDFの作成（ヘッドレス Chrome の起動を含む）も Drive への送信も途中経過を返さないため、段階より細かくは知らせない。
+ */
+export const REPORT_DRIVE_STEPS = ['renderParent', 'renderCoach', 'upload'] as const;
+
+export const reportDriveStepSchema = z.enum(REPORT_DRIVE_STEPS);
+
+/**
+ * 保存APIが1行ずつ返す途中経過（NDJSON）。最後の行は done か error。
+ * 返し始めた後のエラーは HTTP のステータスにできないため error の行で知らせる（返し始める前のエラーは通常の JSON）。
+ */
+export const reportDriveEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('step'), step: reportDriveStepSchema }),
+  z.object({ type: z.literal('done'), drive: reportDriveSchema }),
+  z.object({
+    type: z.literal('error'),
+    error: z.object({
+      code: z.enum(['forbidden', 'not_found', 'validation', 'conflict', 'internal']),
+      message: z.string(),
+    }),
+  }),
+]);
 
 export type ReportDrive = z.infer<typeof reportDriveSchema>;
+export type ReportDriveStep = z.infer<typeof reportDriveStepSchema>;
+export type ReportDriveEvent = z.infer<typeof reportDriveEventSchema>;

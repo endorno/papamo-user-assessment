@@ -2215,13 +2215,12 @@
   white-space: nowrap;
 }
 
-/* Googleドライブへの保存状態。レポートの操作バーの直下に1行で出す（印刷しない）。 */
+/* Googleドライブへの保存状態。レポートの操作バーの直下に、印・文言・操作の1行で出す（印刷しない）。 */
 .driveStatus {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px 16px;
+  gap: 6px 10px;
   margin: -6px 0 14px;
   padding: 8px 12px;
   border: 1px solid var(--line);
@@ -2233,14 +2232,56 @@
 
 .driveStatus p {
   min-width: 0;
-  flex: 1 1 320px;
   margin: 0;
+}
+
+.driveStatusSaving {
+  align-items: start;
+  border-color: #bfdcd3;
+  background: var(--green-soft);
+}
+
+/* 文言の1行目にそろえる（帯が2〜3行になってもアイコンが中ほどに浮かないように）。 */
+.driveStatusSaving > :first-child {
+  margin-top: 1px;
+}
+
+.driveStatusBody {
+  display: grid;
+  grid-column: 2 / -1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.driveStatusBody p {
+  color: var(--green-ink);
+  font-weight: 700;
+}
+
+.driveStatusBody small {
+  margin-left: 8px;
+  color: var(--ink2);
+  font-size: 0.78rem;
+  font-weight: 400;
 }
 
 .driveStatusFailed {
   border-color: #efcfae;
   background: var(--orange-soft);
   color: var(--orange-ink);
+}
+
+@media (max-width: 640px) {
+  /* 操作は文言の下に回し、文言の幅を確保する。 */
+  .driveStatus > :nth-child(3) {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .driveStatusBody small {
+    display: block;
+    margin-left: 0;
+  }
 }
 
 .unreportedNotice {

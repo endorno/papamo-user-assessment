@@ -341,3 +341,273 @@
   color: var(--mute);
   font-size: 0.82rem;
 }
+
+/* --- Googleドライブへの保存（進み具合・完了の印・画面をまたぐパネル） --- */
+
+.driveSpinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  /* 白地でも淡い緑の帯の上でも輪が見えるよう、緑を透かした色にする。 */
+  border: 2.5px solid rgb(47 125 110 / 22%);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: drive-spin 0.8s linear infinite;
+}
+
+@keyframes drive-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.driveMark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.driveMarkDone {
+  background: var(--green);
+  color: #fff;
+}
+
+.driveMarkDone svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+/* 保存を見届けたときだけ、丸が弾んでからチェックを描き足す。 */
+.driveMarkDone[data-animate] {
+  animation: drive-mark-pop 320ms var(--ease);
+}
+
+.driveMarkDone[data-animate] path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  animation: drive-mark-draw 280ms var(--ease) 160ms forwards;
+}
+
+@keyframes drive-mark-pop {
+  from {
+    transform: scale(0.4);
+  }
+
+  70% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes drive-mark-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.driveMarkFailed {
+  background: var(--orange);
+  color: #fff;
+}
+
+.driveProgress {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.driveProgressLabel {
+  color: var(--ink2);
+  font-size: 0.8rem;
+}
+
+.driveProgressTrack {
+  position: relative;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line2);
+}
+
+/* 段階ごとに伸ばす。見込みの時間で段階の終わりの手前まで伸び、次の段階に入ったらその始まりから伸び直す。 */
+.driveProgressFill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--green);
+  transform: scaleX(var(--progress-from));
+  transform-origin: left center;
+  animation: drive-progress var(--progress-duration) cubic-bezier(0.25, 0.6, 0.35, 1) var(--progress-delay) forwards;
+}
+
+/* 進んでいることが分かるよう、伸びている部分に光を流す。 */
+.driveProgressFill::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 45%), transparent);
+  content: '';
+  animation: drive-shimmer 1.4s linear infinite;
+}
+
+@keyframes drive-progress {
+  from {
+    transform: scaleX(var(--progress-from));
+  }
+
+  to {
+    transform: scaleX(var(--progress-to));
+  }
+}
+
+@keyframes drive-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* 動きを減らす設定では、見込みで伸ばさず段階に入るたびにその段階の分まで一度に進める（文字の段階表示でも分かる）。 */
+@media (prefers-reduced-motion: reduce) {
+  .driveProgressFill {
+    transform: scaleX(var(--progress-to));
+  }
+
+  .driveProgressFill::after {
+    display: none;
+  }
+
+  .driveProgressFill,
+  .driveMarkDone[data-animate],
+  .driveMarkDone[data-animate] path {
+    animation: none;
+  }
+
+  .driveMarkDone[data-animate] path {
+    stroke-dashoffset: 0;
+  }
+
+  .driveSpinner {
+    animation: none;
+  }
+}
+
+/* 下中央の通知・入力画面の下部バーと重ならないよう、ヘッダーの下の右上に置く。 */
+.drivePanel {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  z-index: 30;
+  display: grid;
+  width: min(340px, calc(100vw - 32px));
+  gap: 8px;
+  pointer-events: none;
+}
+
+.drivePanelItem {
+  display: grid;
+  gap: 6px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: 0 10px 28px rgb(30 43 39 / 16%);
+  pointer-events: auto;
+  animation: drive-panel-in var(--dur) var(--ease);
+}
+
+.drivePanelItem[data-status='failed'] {
+  border-color: #efcfae;
+  background: var(--orange-soft);
+}
+
+@keyframes drive-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.drivePanelHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drivePanelHead strong {
+  min-width: 0;
+  flex: 1;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.drivePanelItem[data-status='failed'] .drivePanelHead strong {
+  color: var(--orange-ink);
+}
+
+.drivePanelClose {
+  display: inline-grid;
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin: -6px -4px -6px 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink2);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.drivePanelClose:hover {
+  background: var(--line2);
+}
+
+.drivePanelClose:focus-visible,
+.drivePanelAction:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.drivePanelLabel,
+.drivePanelMessage {
+  margin: 0;
+  color: var(--ink2);
+  font-size: 0.82rem;
+}
+
+.drivePanelMessage {
+  color: var(--orange-ink);
+}
+
+.drivePanelAction {
+  justify-self: start;
+  color: var(--green-ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+@media (pointer: coarse) {
+  .drivePanelClose {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

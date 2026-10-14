@@ -68,12 +68,8 @@ export function describeError(caught: unknown, depth = 0): LoggedError {
   return { ...base, message: caught.message, ...cause };
 }
 
-export function internalError(
-  context: AppContext,
-  caught: unknown,
-  operation: string,
-  userMessage = '処理中にエラーが発生しました。もう一度お試しください。',
-) {
+/** 内部エラーを個人情報を含めずに記録する。途中経過を返し始めた後（ステータスを変えられない）の失敗もここで記録する。 */
+export function logInternalError(context: AppContext, caught: unknown, operation: string) {
   let coachId: string | undefined;
   try {
     coachId = context.get('coach')?.id;
@@ -91,6 +87,14 @@ export function internalError(
     ...(coachId ? { coachId } : {}),
     error,
   }));
+}
 
+export function internalError(
+  context: AppContext,
+  caught: unknown,
+  operation: string,
+  userMessage = '処理中にエラーが発生しました。もう一度お試しください。',
+) {
+  logInternalError(context, caught, operation);
   return jsonError(context, 'internal', userMessage, 500);
 }

@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigat
 import type { MeResponse } from '@papamo/shared';
 
 import { apiRequest, ApiClientError, setUnauthorizedHandler } from './api/client';
+import { DriveSaveProvider } from './app/DriveSaveContext';
 import { MeProvider, useMe } from './app/MeContext';
 import { UnsavedChangesProvider } from './app/UnsavedChangesContext';
 import { SupabaseAuthProvider, useAuth } from './auth/SupabaseAuthProvider';
@@ -130,20 +131,22 @@ function AuthenticatedLayout() {
     <MeProvider me={me} setMe={setMe}>
       <ToastProvider>
         <UnsavedChangesProvider>
-          <ScrollToTop />
-          {authError ? (
-            <AuthErrorNotice
-              error={authError}
-              onRetry={() => {
-                setAuthError(null);
-                setMeRetryKey((current) => current + 1);
-              }}
-              onLoginAgain={loginAgain}
-            />
-          ) : null}
-          <Suspense fallback={<PageSkeleton />}>
-            <Outlet />
-          </Suspense>
+          <DriveSaveProvider>
+            <ScrollToTop />
+            {authError ? (
+              <AuthErrorNotice
+                error={authError}
+                onRetry={() => {
+                  setAuthError(null);
+                  setMeRetryKey((current) => current + 1);
+                }}
+                onLoginAgain={loginAgain}
+              />
+            ) : null}
+            <Suspense fallback={<PageSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </DriveSaveProvider>
         </UnsavedChangesProvider>
       </ToastProvider>
     </MeProvider>

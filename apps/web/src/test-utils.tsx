@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
 import type { MeResponse } from '@papamo/shared';
+import { DriveSaveProvider } from './app/DriveSaveContext';
 import { MeProvider } from './app/MeContext';
 import { UnsavedChangesProvider } from './app/UnsavedChangesContext';
 import { ToastProvider } from './components/Toast';
@@ -28,7 +29,9 @@ export function renderWithProviders(
       <MeProvider me={me} setMe={() => undefined}>
         <ToastProvider>
           <UnsavedChangesProvider>
-            {path ? <Routes><Route path={path} element={ui} /></Routes> : ui}
+            <DriveSaveProvider>
+              {path ? <Routes><Route path={path} element={ui} /></Routes> : ui}
+            </DriveSaveProvider>
           </UnsavedChangesProvider>
         </ToastProvider>
       </MeProvider>

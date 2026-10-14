@@ -245,11 +245,13 @@ async function savedFileIds(env: Env, reportId: string): Promise<Record<ReportAu
 /**
  * 保護者向けとコーチ向けのPDFを、お子さまのフォルダに保存する。2回目以降は同じファイルを上書きしてリンクを変えない
  * （Drive の版の履歴に前の版が残る）。保存した版（generatedAt）を記録し、レポートが更新されたら保存し直せるようにする。
+ * onUploadStart はフォルダをそろえた後、各ファイルを送り始めるときに呼ぶ（所要時間をフォルダ確認と送信に分けて記録するため）。
  */
 export async function saveReportPdfs(
   env: Env,
   drive: DriveConnection,
   input: { assessmentId: string; generatedAt: string; pdfs: Record<ReportAudience, Uint8Array<ArrayBuffer>> },
+  onUploadStart?: (audience: ReportAudience) => void,
 ): Promise<ReportDrive> {
   const db = dbFor(env);
   const row = await reportRow(env, input.assessmentId);
@@ -269,6 +271,7 @@ export async function saveReportPdfs(
     }, audience)}.pdf`;
     const pdf = input.pdfs[audience];
     const existingId = fileIds[audience];
+    onUploadStart?.(audience);
     if (existingId && await drive.client.replacePdf(existingId, name, pdf)) continue;
 
     const created = await drive.client.createPdf(name, folderId, pdf);

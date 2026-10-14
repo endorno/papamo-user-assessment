@@ -70,3 +70,37 @@ export async function apiRequestBlob(
   const response = await send(path, session, init);
   return response.blob();
 }
+
+/**
+ * 途中経過を1行ずつ返すAPI（NDJSON）を読み、届いた行から順に onLine へ渡す。
+ * 返し始める前のエラーは通常のAPIと同じく ApiClientError になる。行の中身の検証は呼び出し側で行う。
+ */
+export async function apiRequestLines(
+  path: string,
+  session: Session,
+  init: RequestInit,
+  onLine: (line: unknown) => void,
+): Promise<void> {
+  const response = await send(path, session, init);
+  if (!response.body) throw new ApiClientError('通信に失敗しました。もう一度お試しください。', response.status);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const flushLines = () => {
+    let newline = buffer.indexOf('\n');
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) onLine(JSON.parse(line));
+      newline = buffer.indexOf('\n');
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    flushLines();
+  }
+  buffer += `${decoder.decode()}\n`;
+  flushLines();
+}

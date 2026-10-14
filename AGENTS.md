@@ -115,6 +115,7 @@
   - 保護者向けPDFはレポート画面からそのままダウンロードできる（Drive を開いて落とす手間を省くため）。**コーチ向けPDFのダウンロードは置かない**（その場で画面を見ればよい）。代わりに Drive のコーチ向けPDFを開くリンクを置く。
   - フォルダ構成は `保存先フォルダ / {コーチ名}（{メールの@より前}） / {子ども名}{敬称}_{短縮ID} / 育ちマップ_…_第N回.pdf・…_コーチ用.pdf`。メールアドレスはフォルダ名が共有先に見えるためドメインまで出さない（ドメイン違いで重なりうるが、lesson-admin と同じ扱いで許容する。2026-10-11）。お子さまのフォルダは **オーナーのコーチフォルダの下** に置き、オーナー移譲で新しいオーナーのフォルダへ移す。
   - 保存のタイミングは「レポート画面を開いたとき、Drive の版がいまのレポートより古ければ自動で」。「レポートを作る／更新」の後はレポート画面に移るので、実質その直後に保存される。失敗しても次に誰かがレポートを開いたときにやり直す。レポートを更新したら同じファイルを上書きし、リンクを変えない（前の版は Drive の版の履歴に残る）。
+  - 保存は十数秒かかるため、待たせずに裏で続ける（2026-10-14）。レポート画面では紙面の上の帯で、ほかの画面へ移ったら画面右上のパネルで、段階（保護者向けPDF → コーチ向けPDF → Driveへ保存）と進み具合のバー・結果を示す。保存中に画面を閉じようとしたら確かめ、閉じて通信が切れてもサーバーは保存を最後まで行う。
   - 権限は **アプリが付けるのはオーナーのコーチ → 自分のコーチフォルダの閲覧者だけ**。SV・代行のコーチへの共有は、オーナーのコーチか全体管理者が Drive 上で行う。保存先フォルダの管理者は配下をすべて見られる。
   - お子さまのフォルダへのリンクは、取り込んだだけのコーチ（member）にも出す。Drive 上で共有されていれば開け、無ければ Drive の画面でアクセスをリクエストしてもらう。
 - 引き継ぎシートもモックUIにはあるが実装不要。子どもの共有機能（共有コード）で代替する。
@@ -470,7 +471,7 @@ Page 5 は design-mock-v2 の「コーチ用」レポートのうち「3か月�
 | POST   | `/assessments/:id/revert`   | `{ updatedAt }`。完了済みの回の入力を、レポートを作ったときの内容に戻す。下書きと、後続のアセスメントが存在する回は 409 |
 | GET    | `/assessments/:id/report`   | レポート取得。レポート作成後の未反映の変更の有無 `hasUnreportedChanges` と、Drive の保存状態 `drive`（フォルダ・2つのPDFのURL、保存日時、いまの版を保存済みか `upToDate`。Drive 未設定なら null）も返す。`complete` の応答も同じ形                                                                                                                                                |
 | POST   | `/assessments/:id/report/pdf` | `{ html }`（画面に表示したレポート全体と CSS を1枚にしたHTML）を Browser Run で A4 のPDFにして `application/pdf` で返す。権限とレポートの有無はレポート取得と同じ確認（403 / 404） |
-| POST   | `/assessments/:id/report/drive` | `{ generatedAt, parentHtml, coachHtml }` を Browser Run で2つのPDFにし、Drive のお子さまのフォルダへ保存して `{ drive }` を返す。membership のあるコーチなら誰でも可（保存先はオーナーのフォルダ）。`generatedAt` がいまのレポートと違えば 409、Drive 未設定なら 404 |
+| POST   | `/assessments/:id/report/drive` | `{ generatedAt, parentHtml, coachHtml }` を Browser Run で2つのPDFにし、Drive のお子さまのフォルダへ保存する。membership のあるコーチなら誰でも可（保存先はオーナーのフォルダ）。確認（`generatedAt` がいまのレポートと違えば 409、Drive 未設定なら 404 など）を済ませたら、途中経過を NDJSON（`application/x-ndjson`）で1行ずつ返す：段階に入るたびに `{ type: 'step', step }`（`REPORT_DRIVE_STEPS`）、最後に `{ type: 'done', drive }` か `{ type: 'error', error }`。返し始めた後の失敗（PDF生成・Drive・PDF作成中のレポート更新）はステータスにできないので `error` の行で返す |
 
 
 子どもスコープの全ルートで `child_coaches` **の membership を確認**する（services 層の共通関数 `requireMembership(childId, coachId)`）。アセスメント／レポートのルートは `assessment.child_id` から子どもを引いて同じ確認を通す。アーカイブ済みの子どもは **読み取りのみ許可**（復元と削除を除く書き込みは 409）、オーナー限定の操作は `role='owner'` を併せて確認する。
@@ -507,7 +508,7 @@ Page 5 は design-mock-v2 の「コーチ用」レポートのうち「3か月�
 | `/children/new`    | 子ども登録        | モーダルでも可。入力は 名前・敬称・性別・**学年**・入会月（年齢・目標は入力させない）。登録後は完了画面を挟まず一覧へ戻り、共有コードはここでは表示しない                                                              |
 | `/children/:id`    | 子どもページ（ハブ）   | タブで「概要／登録・共有」に分ける（§15.1）。育ちマップ（レーダー + Lv行 + 差分）、困りごと・負担度、タイムライン、記録一覧、「アセスメントを始める／入力を続ける」「最新のレポート」、レポート末尾のメニュー提案への導線（「次のレッスンに向けて」）、共有コード、**直近の完了アセスメントで確認した目標**の表示。目標はここでは編集せず、アセスメントの COPM で変更する。4・5種目目の開放操作は置かない。オーナーなら「退会（アーカイブ）」、最初のレポート作成前なら「削除」。取り込んだ子どもなら「一覧から削除」 |
 | `/assessments/:id` | アセスメント（1ビュー） | 左ジャンプナビ、到達のドロップダウン（「Lv0　実施不可」＋帯ごとに区切ったLv1〜上限の課題文。前回Lvに「（前回）」表示）、見えた動作（選択＋自由記入）、取り組みの発達、ご家族・本人の目標（できるようになりたいこと＋COPM表）、ご家庭のお困り度、下部固定バー（未決定の種目名 / レポートを作る）。入力は「その場で観察して記入」（種目・取り組みの発達）と「保護者と確認して記入」（お困りごと・目標・お困り度）の2エリアに**ゆるく**分け、枠線と淡い地色だけで示す（実際は順不同で行き来するため、操作は分けない）。後者の頭に「事前アンケートから取り込む」を置く（前回の回が無い初回だけ。§2.3）。未開放時は4・5種目目の開放操作を表示。完了済みの回を開いた場合も同じ画面で編集（後続の回があれば読み取り専用）。完了済みの回では、レポート作成後に変えたセクションを案内とジャンプナビの「未反映」で示し、下部バーは「レポートを更新」（未反映がないときは「レポートを見る」）、案内から「レポート作成時の内容に戻す」を選べる。モック最下部の「SVへ引き継ぐ」チェックは作らない（§2.3） |
-| `/reports/:id`     | レポート（保護者向け＋コーチ向け） | 保護者向け4枚 → 「ここからはコーチ向け」の切れ目 → コーチ向けのメニュー提案（§7.1.1）。初回 / 比較の2レイアウト。「保護者向けPDF」でA4 4枚をダウンロード。保護者向け・コーチ向け（メニュー提案までのA4 5枚）は開いたときに Drive へ自動保存し、操作バーの直下に保存状態（保存中／保存済み・フォルダを開く／失敗・再試行）を出す。上部の操作は「◯◯くんのページへ」「入力を修正する」（直せる回だけ）「保護者向けPDF」「コーチ向けPDF（Googleドライブ）」（Drive 未設定の環境だけ「コーチ向けPDF」のダウンロード）。`#coach-menu` 付きで開くと、読み込み後にメニュー提案まで送る。ルール未確定の箇所には「アルゴリズム調整中」を表示 |
+| `/reports/:id`     | レポート（保護者向け＋コーチ向け） | 保護者向け4枚 → 「ここからはコーチ向け」の切れ目 → コーチ向けのメニュー提案（§7.1.1）。初回 / 比較の2レイアウト。「保護者向けPDF」でA4 4枚をダウンロード。保護者向け・コーチ向け（メニュー提案までのA4 5枚）は開いたときに Drive へ自動保存し、操作バーの直下に保存状態（保存中の段階と進み具合／保存済み・フォルダを開く／失敗・再試行）を出す。保存中にほかの画面へ移っても保存は続き、画面右上のパネルに進み具合と結果を出す。上部の操作は「◯◯くんのページへ」「入力を修正する」（直せる回だけ）「保護者向けPDF」「コーチ向けPDF（Googleドライブ）」（Drive 未設定の環境だけ「コーチ向けPDF」のダウンロード）。`#coach-menu` 付きで開くと、読み込み後にメニュー提案まで送る。ルール未確定の箇所には「アルゴリズム調整中」を表示 |
 
 
 ### 9.2 実装ルール
@@ -691,7 +692,11 @@ REPORT_GENERATOR = "rule_v1"
 - レポートの番号つき見出しは、そのページに2つ以上あるときだけ連番を振る（「1」だけだと続きがあるように見えるため）。
 - レポートのルール未確定箇所は `ReportContent.tuning` にサーバーが載せ、Web は `TuningTag` で描く。決定後に `TUNING_NOTES` から外す。見出しの番号の丸は `.headingNumber` で指定する（見出しの中の `TuningTag` も `span` のため、`span` 指定だと巻き込まれる）。
 - レポートのPDFは、Web が表示中のレポート全体（`<main>`）を複製し、`data-print-hidden` とスクリプト（保護者向けは加えて `data-coach-only`）を外して、読めるCSSを `<style>` に、別オリジンのCSS（Google Fonts）を `<link>` にまとめた1枚のHTMLを送る（`apps/web/src/utils/report-pdf.ts`）。CSS Modules のクラスは祖先のクラスに依存するため、シートだけを切り出さない。ファイル名は保護者向けが `育ちマップ_{名前}{敬称}_{短縮ID}_第N回.pdf`（同名のPDFを同じフォルダに保存しても上書きしないため）、コーチ向けはその末尾に `_コーチ用` を付ける。PDF生成のAPI（`POST /assessments/:id/report/pdf`）は保護者向け・コーチ向けで共通。ブラウザ印刷のボタンは置かない（2026-09-30）。ファイル名は `reportFileTitle`（shared）で作り、ダウンロードと Drive で同じ名前にする。
-- Googleドライブへの保存はレポート画面（`ReportPage`）が担う。応答の `drive.upToDate` が false なら、描画した紙面から保護者向け・コーチ向けのHTMLを組んで `POST /assessments/:id/report/drive` に送る。同じ版（`report.generatedAt`）を二重に送らないよう ref で1回に絞り、失敗時は保存状態の欄に理由と「もう一度保存する」（409 は「読み込み直す」）を出す。保存状態の欄は `data-print-hidden`。コーチ向けPDFのダウンロードボタンは `drive` が null（Drive 未設定）のときだけ出す（ローカルで紙面を確かめるため）。
+- Googleドライブへの保存は、レポート画面（`ReportPage`）が始め、レイアウトの `DriveSaveProvider`（`app/DriveSaveContext.tsx`）が持つ（2026-10-14）。保存は十数秒かかり、画面を移っても通信は切れないので、状態を画面ではなくレイアウトに置いて結果を見届けられるようにする。
+  - レポート画面は、応答の `drive.upToDate` が false なら開くたびに1回 `startSave` を呼ぶ。紙面のHTMLは保存を実際に始めるときだけ組む（`buildHtml`）。プロバイダは同じ版（`report.generatedAt`）を保存中・保存済みなら何もしない（開き直しや StrictMode で二重に送らない）。失敗した版は、次に開いたときと「もう一度保存する」で始め直す。
+  - 進み具合は API の途中経過（`apiRequestLines` で NDJSON を読む）の段階と、段階ごとの所要時間の見込み `DRIVE_STEP_EXPECTED_MS`（`components/DriveSaveProgress.tsx`）で描く。段階の中では見込みの時間で段階の終わりの9割まで伸ばし、次の段階に入ったらその始まりから伸び直す（PDF生成も Drive への送信も途中経過を返さないため）。見込みは API の `report_drive_timing` ログの実測で直す。動きを減らす設定では、段階に入るたびにその段階の分まで一度に進め、回転・光・チェックの動きを止める。
+  - 表示は、そのレポートの画面では操作バーの直下の帯、ほかの画面では `DriveSavePanel`（画面右上・ヘッダーの下。下中央の通知と入力画面の下部バーに重ねないため）。パネルは保存できた知らせを8秒で畳み、失敗は閉じるまで残して「レポートを開いて保存し直す」を出す（紙面はレポート画面でしか組めないため）。閉じるボタンで隠しても保存は続く。保存中は `beforeunload` で画面を閉じる前に確かめる。
+  - 失敗時は理由と「もう一度保存する」（`conflict` は「読み込み直す」）を出す。保存状態の欄とパネルは `data-print-hidden`。コーチ向けPDFのダウンロードボタンは `drive` が null（Drive 未設定）のときだけ出す（ローカルで紙面を確かめるため）。
 - Drive へのリンク（一覧の「Googleドライブ」＝自分のフォルダ、子どもページの「Googleドライブのフォルダ」、レポート画面の「フォルダを開く」「コーチ向けPDF（Googleドライブ）」）は新しいタブで開く。権限が無い人には Drive がアクセスのリクエストを案内するので、アプリ側で権限の有無は判定しない。
 - モーションは `global.css` の `--dur-fast` / `--dur` / `--ease` を使い、`prefers-reduced-motion: reduce` で遷移とスムーススクロールを止める。
 
@@ -719,7 +724,7 @@ REPORT_GENERATOR = "rule_v1"
 - `AssessmentServiceError` はコードに対応するHTTPステータスを自分で持つ。WorkersのBinding型は `wrangler types` で生成し、手書きしない。
 - 内部エラーは構造化JSONで記録し、ログに入力本文や子どもの名前などの個人情報を含めない。`internalError` は `describeError` を通す：Drizzle のクエリ失敗はメッセージにバインド値を含むので SQL 文と原因だけ、zod の検証エラーは項目の位置とコードだけ、JSON の解析エラーはメッセージなし、スタックは呼び出し位置の行だけを残す。
 - 401 の画面（`AuthErrorNotice`）で、ローカル Supabase・ポート番号などの開発者向けの案内は `import.meta.env.DEV` のときだけ出す。ステージング・本番のコーチには「有効期限が切れた可能性」と再試行・再ログインだけを示す。
-- PDF生成は `apps/api/src/services/report-pdf.ts` の `renderReportPdf` に集約する。受け取ったHTMLはスクリプトを止め、通信は Google Fonts の配信元（`fonts.googleapis.com` / `fonts.gstatic.com`）だけを通す（任意の宛先へアクセスさせないため）。A4・余白 上下9mm／左右8mm の刷り面と同じ幅で、印刷用スタイルを当てて採寸し、シートごとに zoom（0.55〜1.1）で1ページに収めてからPDFにする（design-mock-v2 の `fitA4` を移植）。Chrome 127 以前は zoom をかけた要素の `getBoundingClientRect` が拡縮前の大きさを返す（ローカルの Chrome は 126。2026-09-30 時点）ため、どちらの挙動かを判定してから測る。生成に失敗したら 500 と「少し待ってからもう一度」の文言を返し、Web は通知に再試行を添える。`ReportPdfRenderer` はHTMLの配列を受け取り、ブラウザの起動を1回にして順にPDFにする（Drive 保存で2つ作るため）。
+- PDF生成は `apps/api/src/services/report-pdf.ts` の `renderReportPdf` に集約する。受け取ったHTMLはスクリプトを止め、通信は Google Fonts の配信元（`fonts.googleapis.com` / `fonts.gstatic.com`）だけを通す（任意の宛先へアクセスさせないため）。A4・余白 上下9mm／左右8mm の刷り面と同じ幅で、印刷用スタイルを当てて採寸し、シートごとに zoom（0.55〜1.1）で1ページに収めてからPDFにする（design-mock-v2 の `fitA4` を移植）。Chrome 127 以前は zoom をかけた要素の `getBoundingClientRect` が拡縮前の大きさを返す（ローカルの Chrome は 126。2026-09-30 時点）ため、どちらの挙動かを判定してから測る。生成に失敗したら 500 と「少し待ってからもう一度」の文言を返し、Web は通知に再試行を添える。`ReportPdfRenderer` はHTMLの配列を受け取り、ブラウザの起動を1回にして順にPDFにする（Drive 保存で2つ作るため）。各ページを作り始めるときに `onPageStart(index)` を呼ぶ（Drive 保存の途中経過に使う）。
 - Googleドライブは `services/google-drive.ts`（REST クライアント・接続）と `services/report-drive.ts`（フォルダ構成・保存）に分ける。`createApi(auth, { drive })` の `DriveConnector` が、`DRIVE_ROOT_FOLDER_ID` と `GOOGLE_SERVICE_ACCOUNT_KEY` がそろったときだけ接続を返す（そろわなければ Drive の機能は全部オフ）。
   - サービスアカウントのアクセストークン（1時間）は Worker のインスタンス内で使い回す。共有ドライブを扱うため、Drive API には必ず `supportsAllDrives=true` を付ける。429・5xx・401 は1回だけ送り直す。
   - フォルダ・ファイルの ID は D1 に持つ（名前は表示用。改名は次の保存で追いつく）。保存のたびに Drive 上の状態を確かめ、ゴミ箱に移されていたら作り直す。お子さまのフォルダを作り直したときは、その子のほかの回の保存記録も消して、次に開いたときに保存し直させる。
@@ -729,6 +734,8 @@ REPORT_GENERATOR = "rule_v1"
   - Drive API のエラーは `GoogleDriveError`（操作・ステータス・理由のコード）にし、Google 側のメッセージ（ファイル名＝子どもの名前を含みうる）はログに出さない。鍵の JSON の解析エラーも元のメッセージを使わない（鍵の一部を含むため）。
   - レポートの upsert（`guardedReportUpsert`）は INSERT … SELECT のため、`reports` に列を足したら SELECT にも同じ順で足す。更新時の `set` に Drive の列を含めないので、レポートを更新しても保存済みのファイル（リンク）は残る。
   - 非本番のシード・DB作り直しは Drive 上のフォルダを消さない（D1 の記録だけが消え、次の保存で新しいフォルダができる）。検証で溜まったフォルダは Drive 上で手動で消す。
+  - 保存APIは確認を済ませたら `streamJsonLines`（`http/stream.ts`）で途中経過を返す。`Cache-Control: no-transform` で Cloudflare に圧縮させない（途中経過がまとめて届かないように）。保存の処理は `waitUntil` に渡し、画面を閉じて通信が切れても続ける（切断から30秒まで。途中で打ち切られると Drive に記録のないファイルが残りうるため）。
+  - 段階ごとの所要時間（`launch` / `renderParent` / `renderCoach` / `folder` / `uploadParent` / `uploadCoach` / `total`、ミリ秒）を `report_drive_timing` イベントで記録する（ID と結果だけ。Web の進み具合の見込みを直すため）。返し始めた後の内部エラーは `logInternalError` で記録し、`error` の行で返す。
 - 大量データ生成は `APP_ENV` が `local` / `staging` かつ `NON_PRODUCTION_TOOLS_ENABLED=true` のときだけ有効にする。本番では開発用APIを404にし、WebはAPIの機能情報を取得できたときだけ操作パネルを描画する。
 - 非本番シードは子ども・担当紐づき・アセスメント・レポートを全削除する一方、実ログイン由来のコーチ行と表示名を残す。`seed-coach-*@example.invalid` の背景コーチ15名だけを作り直す。`prev_assessment_id` は `RESTRICT` なので、先に `NULL` にしてから回を消す。
 - 非本番の作り直し（`pnpm --filter @papamo/api db:rebuild:local` / `db:rebuild:staging`）は本リポジトリのD1の全テーブルを `d1_migrations` ごと DROP し（`seeds/drop-all.sql`）、マイグレーションを最初から適用し直す。適用済みマイグレーションを書き換えたときは `db:migrate:*` では反映されない（ファイル名で適用済みと判定される）ため、これを使う。行だけ消すコマンドは作り直しで代替できるため持たない。テーブルを追加したら `drop-all.sql` にも足す（`seeds.test.ts` が消し残しを検出する）。対象は `local` / `staging` だけを受け付け、本番D1へ向かう引数は組み立てない。実行前にD1名を表示して y/N で確認し、stagingは `--confirm papamo-user-assessment-staging` も必須とする。確認のない非対話実行は中止する。
@@ -744,7 +751,7 @@ REPORT_GENERATOR = "rule_v1"
 - 承認モックの6人分の子どもとアセスメントは `packages/shared/src/fixtures/children.ts` を使う。
 - Web の画面テストは `apps/web/src/test-utils.tsx` の `renderWithProviders` を使い、本番と同じ順でプロバイダを重ねる。
 - API 結合テストでは `createAuthMiddleware` にテスト鍵の検証関数を注入し、本番の JWKS 検証は差し替えない。
-- API 結合テストのクライアントは `apps/api/src/test-utils/api-client.ts` の `createTestClient` を使う。既定で Drive を切る（開発機の `.dev.vars` に本物の鍵があってもテストから書き込まないため）。Drive を使うテストは `test-utils/fake-drive.ts` の `FakeDrive` を `createApi(auth, { drive })` に渡す。
+- API 結合テストのクライアントは `apps/api/src/test-utils/api-client.ts` の `createTestClient` を使う。既定で Drive を切る（開発機の `.dev.vars` に本物の鍵があってもテストから書き込まないため）。Drive を使うテストは `test-utils/fake-drive.ts` の `FakeDrive` を `createApi(auth, { drive })` に渡す。`waitUntil` で応答の後まで続く処理は、`request` に `cloudflare:test` の `createExecutionContext()` を渡し、`waitOnExecutionContext` で待って確かめる。
 - PDF生成は `createApi(auth, { renderPdf })` で差し替え、テストではヘッドレス Chrome を起動しない。紙面の見た目（保護者向けが4ページ・コーチ向けが5ページに収まるか、ヘッダ・フッタが無いか）は自動テストが無いので、レポートの画面やCSSを変えたら `wrangler dev` と Vite を立ててPDFを実際に作り、初回・比較・5種目開放済みのレポートで確認する。
 - 変更後は `pnpm -r lint && pnpm -r typecheck && pnpm -r test && pnpm -r build` を実行する。
 - 公式リリース前にマイグレーション履歴を再構築した場合は、空DBから最終スキーマ・インデックス・トリガーを構築できることをテストする。公式リリース後のDB変更は、既存データを保持する移行テストも追加する。

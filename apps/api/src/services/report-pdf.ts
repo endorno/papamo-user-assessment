@@ -2,8 +2,15 @@ import puppeteer from '@cloudflare/puppeteer';
 
 import type { Env } from '../env';
 
-/** 渡したHTMLの順にPDFを返す。保護者向けとコーチ向けを同時に作るとき、ブラウザの起動を1回で済ませる。 */
-export type ReportPdfRenderer = (env: Env, htmls: string[]) => Promise<Uint8Array<ArrayBuffer>[]>;
+/**
+ * 渡したHTMLの順にPDFを返す。保護者向けとコーチ向けを同時に作るとき、ブラウザの起動を1回で済ませる。
+ * onPageStart は各ページを作り始めるときに呼ぶ（Drive 保存の進み具合を画面に知らせるため）。
+ */
+export type ReportPdfRenderer = (
+  env: Env,
+  htmls: string[],
+  onPageStart?: (index: number) => void,
+) => Promise<Uint8Array<ArrayBuffer>[]>;
 
 // 受け取ったHTMLから任意の宛先へ通信させないため、Webフォント（Zen Kaku Gothic New）の配信元だけを通す。
 const ALLOWED_REQUEST_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
@@ -98,12 +105,15 @@ async function renderPage(browser: Awaited<ReturnType<typeof puppeteer.launch>>,
 }
 
 /** 画面に表示したレポートのHTMLを、Browser Run のヘッドレス Chrome で A4 のPDFにする。 */
-export const renderReportPdf: ReportPdfRenderer = async (env, htmls) => {
+export const renderReportPdf: ReportPdfRenderer = async (env, htmls, onPageStart) => {
   const browser = await puppeteer.launch(env.BROWSER);
   try {
     const pdfs: Uint8Array<ArrayBuffer>[] = [];
     // ページごとに順に作る。並べると Browser Run の同時実行の上限とメモリに当たりやすい。
-    for (const html of htmls) pdfs.push(await renderPage(browser, html));
+    for (const [index, html] of htmls.entries()) {
+      onPageStart?.(index);
+      pdfs.push(await renderPage(browser, html));
+    }
     return pdfs;
   } finally {
     await browser.close();

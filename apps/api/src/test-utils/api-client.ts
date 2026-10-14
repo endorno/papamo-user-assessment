@@ -51,11 +51,12 @@ export async function createTestClient(
   return { api: createApi(auth, { drive: driveDisabled, ...options }), token, coachId, email };
 }
 
-export function request(client: TestClient, path: string, init: RequestInit = {}) {
+/** executionContext は waitUntil で応答の後まで続く処理を確かめるときに渡す（cloudflare:test の createExecutionContext）。 */
+export function request(client: TestClient, path: string, init: RequestInit = {}, executionContext?: ExecutionContext) {
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${client.token}`);
   if (init.body) headers.set('Content-Type', 'application/json');
-  return client.api.fetch(new Request(`https://example.com/api${path}`, { ...init, headers }), testEnv);
+  return client.api.fetch(new Request(`https://example.com/api${path}`, { ...init, headers }), testEnv, executionContext);
 }
 
 export async function onboard(client: TestClient, displayName = 'テストコーチ') {

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { Link, Route, Routes } from 'react-router';
 import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 
@@ -248,16 +249,130 @@ describe('レポート', () => {
     expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/report/drive'))).toHaveLength(1);
   });
 
-  it('Googleドライブに保存済みの版なら、開いても送り直さない', async () => {
-    const { driveRequests } = stubDrive({ upToDate: true });
+  it('保存の途中経過を、段階の文字と進み具合のバーで示す', async () => {
+    const stream = controlledDriveStream();
+    stubDrive({ upToDate: false, replies: [stream.reply] });
     renderReportPage();
 
+    const progress = await screen.findByRole('progressbar', { name: 'Googleドライブへの保存' });
+    expect(progress).toHaveAttribute('aria-valuetext', '保護者向けのPDFを作っています（1/3）');
+    expect(screen.getByText('ほかの画面に移っても保存は続きます。')).toBeInTheDocument();
+
+    await act(async () => stream.send({ type: 'step', step: 'renderParent' }));
+    await act(async () => stream.send({ type: 'step', step: 'renderCoach' }));
+    expect(screen.getByText('コーチ向けのPDFを作っています（2/3）')).toBeInTheDocument();
+    await act(async () => stream.send({ type: 'step', step: 'upload' }));
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+    expect(screen.getByText('Googleドライブに保存しています（3/3）')).toBeInTheDocument();
+
+    await act(async () => {
+      stream.send({ type: 'done', drive: SAVED_DRIVE });
+      stream.close();
+    });
     expect(await screen.findByText(/Googleドライブに保存しました/)).toBeInTheDocument();
-    expect(driveRequests).toHaveLength(0);
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('保存中にほかの画面へ移っても保存は続き、右上のパネルで進み具合と結果を示す', async () => {
+    const stream = controlledDriveStream();
+    const { driveRequests } = stubDrive({ upToDate: false, replies: [stream.reply] });
+    renderWithProviders(
+      <Routes>
+        <Route path="/reports/:id" element={<ReportPage />} />
+        <Route path="/children/:id" element={<Link to="/reports/assessment-1">レポートに戻る</Link>} />
+      </Routes>,
+      { route: '/reports/assessment-1' },
+    );
+    await screen.findByRole('progressbar');
+    // そのレポートの画面では帯で示すので、パネルには出さない。
+    expect(screen.queryByRole('region', { name: 'はるとくん 第2回のレポートの保存' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'はるとくんのページへ' }));
+    const panel = await screen.findByRole('region', { name: 'はるとくん 第2回のレポートの保存' });
+    expect(panel).toHaveTextContent('Googleドライブに保存中');
+    await act(async () => stream.send({ type: 'step', step: 'upload' }));
+    expect(within(panel).getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Googleドライブに保存しています（3/3）');
+    // 保存中は画面を閉じる前に確かめる（結果を見届けられないため）。
+    const leaving = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+
+    await act(async () => {
+      stream.send({ type: 'done', drive: SAVED_DRIVE });
+      stream.close();
+    });
+    expect(await within(panel).findByText('Googleドライブに保存しました')).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'フォルダを開く' })).toHaveAttribute('href', 'https://drive.google.com/drive/folders/child-folder');
+    const afterSaved = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(afterSaved);
+    expect(afterSaved.defaultPrevented).toBe(false);
+
+    // 戻ってきても送り直さない。
+    fireEvent.click(screen.getByRole('link', { name: 'レポートに戻る' }));
+    expect(await screen.findByText(/Googleドライブに保存しました/)).toBeInTheDocument();
+    expect(driveRequests).toHaveLength(1);
+  });
+
+  it('保存中にパネルを閉じても保存は続き、失敗したらパネルで知らせ直す', async () => {
+    const stream = controlledDriveStream();
+    stubDrive({ upToDate: false, replies: [stream.reply] });
+    renderWithProviders(
+      <Routes>
+        <Route path="/reports/:id" element={<ReportPage />} />
+        <Route path="/children/:id" element={<p>子どもページ</p>} />
+      </Routes>,
+      { route: '/reports/assessment-1' },
+    );
+    await screen.findByRole('progressbar');
+    fireEvent.click(screen.getByRole('link', { name: 'はるとくんのページへ' }));
+    const panel = await screen.findByRole('region', { name: 'はるとくん 第2回のレポートの保存' });
+    fireEvent.click(within(panel).getByRole('button', { name: '閉じる（保存は続きます）' }));
+    expect(screen.queryByRole('region', { name: 'はるとくん 第2回のレポートの保存' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      stream.send({ type: 'error', error: { code: 'internal', message: 'PDFを作成できませんでした。少し待ってからもう一度お試しください。' } });
+      stream.close();
+    });
+    const failed = await screen.findByRole('region', { name: 'はるとくん 第2回のレポートの保存' });
+    expect(failed).toHaveTextContent('Googleドライブに保存できませんでした');
+    expect(within(failed).getByRole('link', { name: 'レポートを開いて保存し直す' })).toHaveAttribute('href', '/reports/assessment-1');
+  });
+
+  it('保存中にレポートを開き直しても、保存をもう1本始めない', async () => {
+    const stream = controlledDriveStream();
+    const { driveRequests } = stubDrive({ upToDate: false, replies: [stream.reply] });
+    renderWithProviders(
+      <Routes>
+        <Route path="/reports/:id" element={<ReportPage />} />
+        <Route path="/children/:id" element={<Link to="/reports/assessment-1">レポートに戻る</Link>} />
+      </Routes>,
+      { route: '/reports/assessment-1' },
+    );
+    await screen.findByRole('progressbar');
+    await act(async () => stream.send({ type: 'step', step: 'renderCoach' }));
+    fireEvent.click(screen.getByRole('link', { name: 'はるとくんのページへ' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'レポートに戻る' }));
+
+    const progress = await screen.findByRole('progressbar');
+    expect(progress).toHaveAttribute('aria-valuetext', 'コーチ向けのPDFを作っています（2/3）');
+    expect(driveRequests).toHaveLength(1);
+    await act(async () => {
+      stream.send({ type: 'done', drive: SAVED_DRIVE });
+      stream.close();
+    });
+    expect(await screen.findByText(/Googleドライブに保存しました/)).toBeInTheDocument();
   });
 
   it('Googleドライブに保存できなかったときは理由を示し、もう一度保存できる', async () => {
-    const { driveRequests } = stubDrive({ upToDate: false, failures: [{ status: 500, code: 'internal', message: 'Googleドライブに保存できませんでした。少し待ってからもう一度お試しください。' }] });
+    const { driveRequests } = stubDrive({
+      upToDate: false,
+      replies: [{ lines: [
+        { type: 'step', step: 'renderParent' },
+        { type: 'step', step: 'renderCoach' },
+        { type: 'step', step: 'upload' },
+        { type: 'error', error: { code: 'internal', message: 'Googleドライブに保存できませんでした。少し待ってからもう一度お試しください。' } },
+      ] }],
+    });
     renderReportPage();
 
     const alert = await screen.findByRole('alert');
@@ -268,8 +383,17 @@ describe('レポート', () => {
     expect(driveRequests).toHaveLength(2);
   });
 
+  it('最後の行が届かずに通信が切れたら、保存できなかったことを示す', async () => {
+    stubDrive({ upToDate: false, replies: [{ lines: [{ type: 'step', step: 'renderParent' }] }] });
+    renderReportPage();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('通信が途中で切れました。');
+    expect(within(alert).getByRole('button', { name: 'もう一度保存する' })).toBeInTheDocument();
+  });
+
   it('別の画面でレポートが更新されていたら、送り直さず読み込み直しを促す', async () => {
-    stubDrive({ upToDate: false, failures: [{ status: 409, code: 'conflict', message: 'レポートが更新されたため、保存を取りやめました。画面を読み込み直してください。' }] });
+    stubDrive({ upToDate: false, replies: [{ status: 409, code: 'conflict', message: 'レポートが更新されたため、保存を取りやめました。画面を読み込み直してください。' }] });
     renderReportPage();
 
     const alert = await screen.findByRole('alert');
@@ -320,26 +444,59 @@ interface DriveRequestBody {
   coachHtml: string;
 }
 
-/** Googleドライブへの保存APIを差し替える。failures に並べた応答を先に返し、尽きたら保存に成功させる。 */
-function stubDrive({ upToDate, failures = [] }: { upToDate: boolean; failures?: { status: number; code: string; message: string }[] }) {
-  const saved = {
-    folderUrl: 'https://drive.google.com/drive/folders/child-folder',
-    parentFileUrl: 'https://drive.google.com/file/d/parent-file/view',
-    coachFileUrl: 'https://drive.google.com/file/d/coach-file/view',
-    savedAt: '2026-10-11T05:32:00.000Z',
-    upToDate: true,
+const SAVED_DRIVE = {
+  folderUrl: 'https://drive.google.com/drive/folders/child-folder',
+  parentFileUrl: 'https://drive.google.com/file/d/parent-file/view',
+  coachFileUrl: 'https://drive.google.com/file/d/coach-file/view',
+  savedAt: '2026-10-11T05:32:00.000Z',
+  upToDate: true,
+};
+
+/** 保存APIの応答。返し始める前の失敗（JSON）、まとめて返す途中経過（NDJSON）、テストから1行ずつ流す途中経過のどれか。 */
+type DriveReply =
+  | { status: number; code: string; message: string }
+  | { lines: object[] }
+  | { response: () => Response };
+
+const SUCCESS_LINES = [
+  { type: 'step', step: 'renderParent' },
+  { type: 'step', step: 'renderCoach' },
+  { type: 'step', step: 'upload' },
+  { type: 'done', drive: SAVED_DRIVE },
+];
+
+function ndjsonResponse(body: BodyInit) {
+  return new Response(body, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } });
+}
+
+/** テストから1行ずつ流せる保存APIの応答。 */
+function controlledDriveStream() {
+  const encoder = new TextEncoder();
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const body = new ReadableStream<Uint8Array>({
+    start(current) {
+      controller = current;
+    },
+  });
+  return {
+    reply: { response: () => ndjsonResponse(body) } satisfies DriveReply,
+    send: (event: object) => controller!.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)),
+    close: () => controller!.close(),
   };
-  const initial = upToDate ? saved : { folderUrl: null, parentFileUrl: null, coachFileUrl: null, savedAt: null, upToDate: false };
+}
+
+/** Googleドライブへの保存APIを差し替える。replies に並べた応答を先に返し、尽きたら保存に成功させる。 */
+function stubDrive({ upToDate, replies = [] }: { upToDate: boolean; replies?: DriveReply[] }) {
+  const initial = upToDate ? SAVED_DRIVE : { folderUrl: null, parentFileUrl: null, coachFileUrl: null, savedAt: null, upToDate: false };
   const driveRequests: DriveRequestBody[] = [];
-  const pending = [...failures];
+  const pending = [...replies];
   const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (input, init) => {
     if (String(input).endsWith('/report/drive')) {
       driveRequests.push(JSON.parse(String(init?.body)) as DriveRequestBody);
-      const failure = pending.shift();
-      if (failure) {
-        return new Response(JSON.stringify({ error: { code: failure.code, message: failure.message } }), { status: failure.status, headers: { 'Content-Type': 'application/json' } });
-      }
-      return new Response(JSON.stringify({ drive: saved }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const reply = pending.shift() ?? { lines: SUCCESS_LINES };
+      if ('response' in reply) return reply.response();
+      if ('lines' in reply) return ndjsonResponse(reply.lines.map((line) => `${JSON.stringify(line)}\n`).join(''));
+      return new Response(JSON.stringify({ error: { code: reply.code, message: reply.message } }), { status: reply.status, headers: { 'Content-Type': 'application/json' } });
     }
     return new Response(JSON.stringify({ report, childId: '01K7A3B4C5D6E7F8G9HJKM7K3Q', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: initial }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });

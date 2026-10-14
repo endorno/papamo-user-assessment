@@ -4,11 +4,12 @@ import {
   childDetailResponseSchema,
   childImportResponseSchema,
   meResponseSchema,
-  reportDriveResponseSchema,
+  reportDriveEventSchema,
   reportResponseSchema,
   shortChildId,
+  type ReportDriveEvent,
 } from '@papamo/shared';
-import { applyD1Migrations } from 'cloudflare:test';
+import { applyD1Migrations, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { GoogleDriveError, type DriveConnector } from '../services/google-drive';
@@ -33,7 +34,10 @@ const PARENT_HTML = '<!doctype html><html><body><section class="sheet">保護者
 const COACH_HTML = '<!doctype html><html><body><section class="sheet">コーチ向け</section></body></html>';
 
 /** HTML の中身をそのまま PDF の中身にして、どちらのPDFがどこに保存されたかを見分ける。 */
-const echoPdf: ReportPdfRenderer = async (_env, htmls) => htmls.map((html) => new Uint8Array(new TextEncoder().encode(html)));
+const echoPdf: ReportPdfRenderer = async (_env, htmls, onPageStart) => htmls.map((html, index) => {
+  onPageStart?.(index);
+  return new Uint8Array(new TextEncoder().encode(html));
+});
 
 function driveClient(drive: FakeDrive, options: { renderPdf?: ReportPdfRenderer } = {}) {
   const connector: DriveConnector = () => drive.connection();
@@ -46,11 +50,27 @@ async function fetchReport(client: TestClient, assessmentId: string) {
   return reportResponseSchema.parse(await response.json());
 }
 
-function saveToDrive(client: TestClient, assessmentId: string, generatedAt: string) {
+function saveToDrive(client: TestClient, assessmentId: string, generatedAt: string, executionContext?: ExecutionContext) {
   return request(client, `/assessments/${assessmentId}/report/drive`, {
     method: 'POST',
     body: JSON.stringify({ generatedAt, parentHtml: PARENT_HTML, coachHtml: COACH_HTML }),
-  });
+  }, executionContext);
+}
+
+/** 保存APIが1行ずつ返す途中経過を読む。確認を済ませた後は 200 で返し始める。 */
+async function driveEvents(response: Response): Promise<ReportDriveEvent[]> {
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Content-Type')).toContain('application/x-ndjson');
+  // workerd は text/* 以外の本文を .text() で読むと警告するため、バイト列から読む。
+  const text = new TextDecoder().decode(await response.arrayBuffer());
+  return text.trim().split('\n').map((line) => reportDriveEventSchema.parse(JSON.parse(line)));
+}
+
+/** 保存して、最後の行（done）の保存状態を返す。 */
+async function savedDrive(response: Response | Promise<Response>) {
+  const last = (await driveEvents(await response)).at(-1);
+  if (last?.type !== 'done') throw new Error(`保存に失敗しました: ${JSON.stringify(last)}`);
+  return last.drive;
 }
 
 /** 完了済みの回の入力を少し変えて、レポートを更新する。 */
@@ -83,9 +103,12 @@ describe('Googleドライブへのレポート保存', () => {
     const before = await fetchReport(owner, assessment.id);
     expect(before.drive).toEqual({ folderUrl: null, parentFileUrl: null, coachFileUrl: null, savedAt: null, upToDate: false });
 
-    const response = await saveToDrive(owner, assessment.id, before.report.generatedAt);
-    expect(response.status).toBe(200);
-    const saved = reportDriveResponseSchema.parse(await response.json()).drive;
+    const events = await driveEvents(await saveToDrive(owner, assessment.id, before.report.generatedAt));
+    // 段階に入るたびに知らせ、最後に保存状態を返す。
+    expect(events.map((event) => (event.type === 'step' ? event.step : event.type))).toEqual(['renderParent', 'renderCoach', 'upload', 'done']);
+    const last = events.at(-1);
+    if (last?.type !== 'done') throw new Error('保存が終わっていません。');
+    const saved = last.drive;
     expect(saved.upToDate).toBe(true);
 
     const [coachFolder] = drive.live(drive.rootFolderId, 'folder');
@@ -116,7 +139,7 @@ describe('Googleドライブへのレポート保存', () => {
     const child = await createChild(owner, 'そら');
     const assessment = await createCompletedAssessment(owner, child.id);
     const first = await fetchReport(owner, assessment.id);
-    const saved = reportDriveResponseSchema.parse(await (await saveToDrive(owner, assessment.id, first.report.generatedAt)).json()).drive;
+    const saved = await savedDrive(saveToDrive(owner, assessment.id, first.report.generatedAt));
 
     await updateReport(owner, assessment.id);
     const updated = await fetchReport(owner, assessment.id);
@@ -127,7 +150,7 @@ describe('Googleドライブへのレポート保存', () => {
     const stale = await saveToDrive(owner, assessment.id, first.report.generatedAt);
     expect(stale.status).toBe(409);
 
-    const resaved = reportDriveResponseSchema.parse(await (await saveToDrive(owner, assessment.id, updated.report.generatedAt)).json()).drive;
+    const resaved = await savedDrive(saveToDrive(owner, assessment.id, updated.report.generatedAt));
     expect(resaved).toMatchObject({ upToDate: true, coachFileUrl: saved.coachFileUrl, parentFileUrl: saved.parentFileUrl });
     expect([...drive.items.values()].filter((item) => item.kind === 'pdf')).toHaveLength(2);
     expect([...drive.items.values()].filter((item) => item.kind === 'folder')).toHaveLength(3);
@@ -147,7 +170,7 @@ describe('Googleドライブへのレポート保存', () => {
 
     expect((await request(member, '/children/import', { method: 'POST', body: JSON.stringify({ code: child.shareCode }) })).status).toBe(200);
     const report = await fetchReport(member, assessment.id);
-    const saved = reportDriveResponseSchema.parse(await (await saveToDrive(member, assessment.id, report.report.generatedAt)).json()).drive;
+    const saved = await savedDrive(saveToDrive(member, assessment.id, report.report.generatedAt));
     const [ownerFolder] = drive.live(drive.rootFolderId, 'folder');
     expect(ownerFolder?.name).toBe(`さとうコーチ（${owner.coachId}）`);
     expect(drive.shares.map((share) => share.email)).toEqual([owner.email]);
@@ -172,10 +195,10 @@ describe('Googleドライブへのレポート保存', () => {
     const child = await createChild(owner, 'ゆい');
     const assessment = await createCompletedAssessment(owner, child.id);
     const report = await fetchReport(owner, assessment.id);
-    const first = reportDriveResponseSchema.parse(await (await saveToDrive(owner, assessment.id, report.report.generatedAt)).json()).drive;
+    const first = await savedDrive(saveToDrive(owner, assessment.id, report.report.generatedAt));
     drive.items.get(idFromUrl(first.folderUrl)!)!.trashed = true;
 
-    const second = reportDriveResponseSchema.parse(await (await saveToDrive(owner, assessment.id, report.report.generatedAt)).json()).drive;
+    const second = await savedDrive(saveToDrive(owner, assessment.id, report.report.generatedAt));
     expect(second.folderUrl).not.toBe(first.folderUrl);
     expect(second.coachFileUrl).not.toBe(first.coachFileUrl);
     expect(drive.live(idFromUrl(second.folderUrl)!, 'pdf')).toHaveLength(2);
@@ -242,18 +265,73 @@ describe('Googleドライブへのレポート保存', () => {
     const failingChild = await createChild(failingPdf, 'まお');
     const failingAssessment = await createCompletedAssessment(failingPdf, failingChild.id);
     const failingReport = await fetchReport(failingPdf, failingAssessment.id);
-    const pdfFailed = await saveToDrive(failingPdf, failingAssessment.id, failingReport.report.generatedAt);
-    expect(pdfFailed.status).toBe(500);
-    await expect(pdfFailed.json()).resolves.toEqual({
+    // 返し始めた後の失敗はステータスにできないため、最後の行で知らせる。
+    const pdfFailed = await driveEvents(await saveToDrive(failingPdf, failingAssessment.id, failingReport.report.generatedAt));
+    expect(pdfFailed.at(-1)).toEqual({
+      type: 'error',
       error: { code: 'internal', message: 'PDFを作成できませんでした。少し待ってからもう一度お試しください。' },
     });
 
     drive.failWith = new GoogleDriveError('create_folder', 403, 'insufficientFilePermissions');
-    const driveFailed = await saveToDrive(owner, assessment.id, report.generatedAt);
-    expect(driveFailed.status).toBe(500);
-    await expect(driveFailed.json()).resolves.toEqual({
+    const driveFailed = await driveEvents(await saveToDrive(owner, assessment.id, report.generatedAt));
+    expect(driveFailed.at(-1)).toEqual({
+      type: 'error',
       error: { code: 'internal', message: 'Googleドライブの保存先に書き込めませんでした。管理者に共有ドライブの設定を確認してもらってください。' },
     });
     expect((await fetchReport(owner, assessment.id)).drive?.upToDate).toBe(false);
+  });
+
+  it('PDFを作っている間にレポートが更新されたら、古い紙面で上書きせず最後の行で知らせる', async () => {
+    const drive = new FakeDrive();
+    const target: { client?: TestClient; assessmentId?: string } = {};
+    // PDFを作り終える前に、別の画面でレポートを更新したことにする。
+    const updateWhileRendering: ReportPdfRenderer = async (env, htmls, onPageStart) => {
+      await updateReport(target.client!, target.assessmentId!);
+      return echoPdf(env, htmls, onPageStart);
+    };
+    const owner = await driveClient(drive, { renderPdf: updateWhileRendering });
+    await onboard(owner);
+    const child = await createChild(owner, 'いと');
+    const assessmentId = (await createCompletedAssessment(owner, child.id)).id;
+    Object.assign(target, { client: owner, assessmentId });
+    const { report } = await fetchReport(owner, assessmentId);
+
+    const events = await driveEvents(await saveToDrive(owner, assessmentId, report.generatedAt));
+    expect(events.at(-1)).toEqual({
+      type: 'error',
+      error: { code: 'conflict', message: 'レポートが更新されたため、保存を取りやめました。画面を読み込み直してください。' },
+    });
+    expect(drive.live(drive.rootFolderId, 'folder')).toHaveLength(0);
+  });
+
+  it('PDFを作り終える前に、始まった段階を先に返し、画面を閉じて通信が切れても保存は最後まで行う', async () => {
+    const drive = new FakeDrive();
+    let releaseRender: () => void = () => undefined;
+    const rendering = new Promise<void>((resolve) => {
+      releaseRender = resolve;
+    });
+    const owner = await driveClient(drive, {
+      renderPdf: async (env, htmls, onPageStart) => {
+        await rendering;
+        return echoPdf(env, htmls, onPageStart);
+      },
+    });
+    await onboard(owner);
+    const child = await createChild(owner, 'つむぎ');
+    const assessment = await createCompletedAssessment(owner, child.id);
+    const { report } = await fetchReport(owner, assessment.id);
+
+    const executionContext = createExecutionContext();
+    const response = await saveToDrive(owner, assessment.id, report.generatedAt, executionContext);
+    expect(response.status).toBe(200);
+    // PDFを作っている途中でも、最初の段階はもう届いている（まとめて返していない）。
+    const reader = response.body!.getReader();
+    const { value } = await reader.read();
+    expect(JSON.parse(new TextDecoder().decode(value).trim())).toEqual({ type: 'step', step: 'renderParent' });
+    await reader.cancel();
+    releaseRender();
+    await waitOnExecutionContext(executionContext);
+
+    expect((await fetchReport(owner, assessment.id)).drive?.upToDate).toBe(true);
   });
 });
