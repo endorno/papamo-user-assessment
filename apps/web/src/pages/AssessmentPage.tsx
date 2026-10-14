@@ -829,7 +829,7 @@ export function AssessmentPage() {
                         {COPM_BASELINE_FIELDS.map((field) => (
                           <CopmBaselineScore
                             key={field.key}
-                            label={`前回の${field.name}`}
+                            fieldName={field.name}
                             id={`copm-baseline-${field.key}-${index}`}
                             value={goal.baseline?.[field.key]}
                             disabled={assessment.readOnly}
@@ -1115,13 +1115,13 @@ function CopmScore({
 }
 
 function CopmBaselineScore({
-  label,
+  fieldName,
   id,
   value,
   disabled,
   onChange,
 }: {
-  label: string;
+  fieldName: string;
   id: string;
   value: number | undefined;
   disabled: boolean;
@@ -1129,7 +1129,8 @@ function CopmBaselineScore({
 }) {
   return (
     <div className={styles.formField}>
-      <label htmlFor={id}>{label}</label>
+      {/* 欄が狭いときは「前回の」の後ろでだけ折り返し、「遂行/度」と切らない */}
+      <label className={styles.copmBaselineLabel} htmlFor={id}>前回の<wbr />{fieldName}</label>
       <select id={id} value={value ?? ''} disabled={disabled} onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}>
         <option value="">なし</option>
         {COPM_SCORES.map((score) => <option key={score} value={score}>{score}</option>)}

@@ -2757,6 +2757,12 @@
   align-items: end;
 }
 
+/* 折り返しは <wbr> の位置だけにする。それでも入らない幅では文字の途中で折る。 */
+.copmBaselineLabel {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 /* 「（前回 N）」を項目名に続けると折り返して高さが揃わないため別行にする。 */
 .copmPrevious {
   display: block;
@@ -3226,19 +3232,62 @@
 
 /* --- 目標（COPM） --- */
 
+/* 4件が1画面に収まるよう、ほかの入力欄より一段詰める（2026-10-14 PdM）。 */
 .assessmentPage .copmRow {
-  gap: 10px;
-  margin-top: 10px;
-  padding: 10px 12px;
+  gap: 6px 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
 }
 
 .assessmentPage .copmRow .formField {
+  gap: 2px;
   margin-top: 0;
+}
+
+.assessmentPage .copmRow .formField label {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.assessmentPage .copmRow textarea,
+.assessmentPage .copmRow select {
+  min-height: 32px;
+  margin-top: 0;
+  padding: 4px 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .assessmentPage .copmScores,
 .assessmentPage .copmBaseline {
-  gap: 8px;
+  gap: 6px 8px;
+}
+
+.assessmentPage .copmScores > button {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
+.assessmentPage .copmPrevious {
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+/* 採点は項目名を選択欄の左に置き、項目名の行のぶん低くする。スマホ幅は列が狭いため縦積みのまま。 */
+@media (min-width: 721px) {
+  /* 4列目に削除ボタンの幅（7文字＋左右の余白）を両段で確保し、前回の点数を遂行度・満足度の真上にそろえたままにする。 */
+  .assessmentPage .copmScores,
+  .assessmentPage .copmBaseline {
+    grid-template-columns: repeat(3, minmax(0, 150px)) minmax(7rem, 1fr);
+    align-items: center;
+  }
+
+  .assessmentPage .copmScores .formField,
+  .assessmentPage .copmBaseline .formField {
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: center;
+    column-gap: 6px;
+  }
 }
 
 /* --- ご家庭のお困り度 --- */
@@ -3263,7 +3312,9 @@
   .assessmentPage .errorChipSelected,
   .assessmentPage .troubleOption,
   .assessmentPage .ppiButtons .lvButton,
-  .assessmentPage .ppiButtons .lvButtonSelected {
+  .assessmentPage .ppiButtons .lvButtonSelected,
+  .assessmentPage .copmRow select,
+  .assessmentPage .copmScores > button {
     min-height: 44px;
   }
 }
