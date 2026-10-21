@@ -2871,37 +2871,82 @@
   border-bottom: 0;
 }
 
-/* --- できるようになりたいこと（入力） --- */
+/* --- 目標を追加（候補のダイアログ） --- */
 
-.wantBox {
-  min-width: 0;
-  margin: 16px 0 0;
-  padding: 14px 16px 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--r);
+.goalCandidateDialog {
+  width: min(640px, 100%);
 }
 
-.wantBox > legend {
-  padding: 0 6px;
-  color: var(--ink2);
-  font-weight: 700;
+/* 候補は縦に長いので、キャンセルを下端に固定してスクロールしなくても閉じられるようにする。 */
+.goalCandidateDialog .confirmActions {
+  position: sticky;
+  bottom: -22px;
+  margin: 18px -22px -22px;
+  padding: 12px 22px 22px;
+  border-top: 1px solid var(--line2);
+  background: var(--card);
 }
 
-.wantGroups {
-  display: grid;
-  gap: 14px;
-  margin-top: 10px;
-  /* 3列以上は見づらいため2列までにし、1列が300pxを切る幅では1列に落とす。 */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(300px, calc((100% - 20px) / 2))), 1fr));
-  column-gap: 20px;
+.goalFreeButton {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 14px;
+  padding: 7px 14px;
 }
 
-.wantGroup > strong {
-  display: block;
+.goalCandidateGroup {
+  margin-top: 14px;
+}
+
+.goalCandidateGroup h3 {
+  margin: 0 0 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line2);
   color: var(--green-ink);
   font-size: 0.84rem;
+}
+
+.goalCandidateList {
+  display: grid;
+  /* 2列までにし、1列が260pxを切る幅では1列に落とす。 */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 6px) / 2))), 1fr));
+  gap: 6px;
+}
+
+.goalCandidate {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.goalCandidate:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.goalCandidate:focus-visible {
+  outline: 3px solid #9ccfc2;
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .goalFreeButton,
+  .goalCandidate {
+    min-height: 44px;
+  }
 }
 
 /* --- ご家族・本人の目標（COPM） --- */
@@ -3288,16 +3333,6 @@
 
 .assessmentPage .engagementRow label small {
   font-size: 0.74rem;
-}
-
-.assessmentPage .wantBox {
-  margin-top: 12px;
-  padding: 10px 14px 6px;
-}
-
-.assessmentPage .wantGroups {
-  row-gap: 8px;
-  margin-top: 6px;
 }
 
 .assessmentPage .troubleOption {

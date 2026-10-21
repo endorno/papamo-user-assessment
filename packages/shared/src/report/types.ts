@@ -175,7 +175,6 @@ export interface ReportContent {
     month6Links: string[];
     month6Changes: string[];
   };
-  wants: { id: string; group: string; icon: string; text: string; short: string; menu: string }[];
   // ツール導入前の採点（baseline）は previous に移して返す。
   copm: (Omit<CopmGoal, 'baseline'> & {
     /** 目標の達成のために優先する領域（ピラミッドの要素）。結びつけられない目標は空。 */
@@ -221,16 +220,6 @@ export interface ReportContent {
       note: string;
     }[];
     cautions: { key: CoachCautionKey; title: string; text: string; exercises: ExerciseKey[] }[];
-    wantPackages: {
-      id: string;
-      icon: string;
-      short: string;
-      menu: string;
-      axisKey: ExerciseKey;
-      axisLv: number;
-      axisMaxLv: number;
-      status: WantPackageStatus;
-    }[];
     copmFocus: {
       mostImportant: { text: string; importance: number } | null;
       lowSatisfaction: string[];
@@ -250,9 +239,6 @@ export interface ReportContent {
 }
 
 export type CoachFocusRole = 'main' | 'next' | 'keep';
-
-/** ready＝着手可／foundationFirst＝土台が届いていない／unmeasured＝支える種目が未開放で記録がない。 */
-export type WantPackageStatus = 'ready' | 'foundationFirst' | 'unmeasured';
 
 export interface ReportGenerator {
   readonly id: string;

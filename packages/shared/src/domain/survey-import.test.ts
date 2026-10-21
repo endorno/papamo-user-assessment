@@ -101,7 +101,7 @@ describe('parseSurveyRow', () => {
     expect(skipped.tooLong.map(({ label }) => label)).toEqual(['できるようになりたいこと（自由記載）']);
   });
 
-  it('できるようになりたいことは自由記載と合わせて4つまで取り込み、超えた分を返す', () => {
+  it('できるようになりたいことは自由記載と合わせて目標の上限（4つ）まで取り込み、超えた分を返す', () => {
     const { answers, skipped } = parsed(sheetRow({
       ...answeredRow,
       [columns.wants]: '縄跳びが跳べるようになりたい, 鉄棒ができるようになりたい, 跳び箱が跳べるようになりたい',
@@ -134,7 +134,6 @@ describe('applySurveyAnswers', () => {
     const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, troubles: [BALL], engagement: { dur: 2 } }, answers);
 
     expect(data.troubles).toEqual([POSTURE]);
-    expect(data.wants).toEqual(['w9']);
     expect(data.copm.map(({ text }) => text)).toEqual(['球技が上手になる', '階段を昇り降りできるようになりたい']);
     // 取り込みの対象でない欄はコーチの入力のまま残す。
     expect(data.engagement).toEqual({ dur: 2 });
@@ -142,13 +141,14 @@ describe('applySurveyAnswers', () => {
   });
 
   it('回答の無い欄には触らない', () => {
+    const manual = [emptyCopmGoal('縄跳びを跳べる')];
     const { data } = applySurveyAnswers(
-      { ...empty, troubles: [BALL], wants: ['w1'] },
-      { troubles: [], wants: [], freeWants: ['開脚したい'] },
+      { ...empty, troubles: [BALL], copm: manual },
+      { troubles: [], wants: [], freeWants: [] },
     );
 
     expect(data.troubles).toEqual([BALL]);
-    expect(data.wants).toEqual(['w1']);
+    expect(data.copm).toEqual(manual);
   });
 
   it('同じ文言の目標は重ねず、目標欄に空きが無ければ入れずに返す', () => {
@@ -161,7 +161,9 @@ describe('applySurveyAnswers', () => {
 
   it('置き換わる手入力があるときだけ知らせる', () => {
     expect(surveyReplacedFields(empty, answers)).toEqual([]);
-    expect(surveyReplacedFields({ ...empty, troubles: [POSTURE], wants: ['w9'] }, answers)).toEqual([]);
-    expect(surveyReplacedFields({ ...empty, troubles: [BALL], wants: ['w1'] }, answers)).toEqual(['troubles', 'wants']);
+    expect(surveyReplacedFields({ ...empty, troubles: [POSTURE] }, answers)).toEqual([]);
+    expect(surveyReplacedFields({ ...empty, troubles: [BALL] }, answers)).toEqual(['troubles']);
+    // 目標は空き行に足すだけで、コーチが入れた目標を置き換えない。
+    expect(surveyReplacedFields({ ...empty, copm: [emptyCopmGoal('縄跳びを跳べる')] }, answers)).toEqual([]);
   });
 });

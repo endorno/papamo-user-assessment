@@ -13,8 +13,6 @@ import {
   COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
-  WANT_ITEMS,
-  WANT_MAX,
 } from '../master/goals';
 import { TROUBLE_ITEMS } from '../master/troubles';
 import { isValidDateString, isValidMonthString } from '../domain/date';
@@ -95,10 +93,6 @@ const engagementSchema = z.object(
   ])),
 ).strict();
 
-const wantSchema = z.array(
-  z.enum(WANT_ITEMS.map((item) => item.id) as [string, ...string[]]),
-).max(WANT_MAX).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
-
 export const copmScoreSchema = z.number().int().min(COPM_SCORE_MIN).max(COPM_SCORE_MAX);
 // ツール導入前（Excel）の前回の採点。前回の回が無い初回だけ持てる（既存会員の目標を前回と比べるため）。
 // 下書きでは片方だけ選んだ状態も保存し、レポートを作るときに両方を求める。
@@ -136,7 +130,6 @@ export const assessmentDataDraftSchema = z.object({
   observationNotes: observationNotesSchema.default({}),
   engagement: engagementSchema.default({}),
   troubles: troublesSchema.default([]),
-  wants: wantSchema.default([]),
   copm: copmSchema.default([]),
 }).strict();
 
@@ -146,7 +139,6 @@ export const assessmentDataPatchSchema = z.object({
   observationNotes: observationNotesSchema.optional(),
   engagement: engagementSchema.optional(),
   troubles: troublesSchema.optional(),
-  wants: wantSchema.optional(),
   copm: copmSchema.optional(),
 }).strict();
 
@@ -156,7 +148,6 @@ export const assessmentDataCompletedSchema = z.object({
   observationNotes: observationNotesSchema,
   engagement: engagementSchema,
   troubles: troublesSchema,
-  wants: wantSchema,
   copm: completedCopmSchema,
 }).strict();
 

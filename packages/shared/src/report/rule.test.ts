@@ -12,7 +12,6 @@ const data: CompletedAssessmentData = {
   observationNotes: {},
   engagement: {},
   troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
-  wants: [],
   copm: [],
 };
 
@@ -117,8 +116,6 @@ describe('RuleBasedReportGenerator', () => {
       observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
       observationNotes: { hand: '左右の切り替えで止まる。' },
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
-      // w1 は post（Lv16）／w12 は hand（Lv3）／w9 は eyeh（Lv0）／w11 は未開放の sacc が支える。
-      wants: ['w1', 'w12', 'w9', 'w11'],
       copm: [
         { text: '縄跳びが跳べる', memo: '', performance: 7, satisfaction: 3, importance: 6 },
         { text: '字をきれいに書ける', memo: '', performance: 3, satisfaction: 3, importance: 9 },
@@ -142,12 +139,6 @@ describe('RuleBasedReportGenerator', () => {
       { key: 'condition', exercises: ['eyeh'] },
       { key: 'postVor', exercises: ['post'] },
       { key: 'parentBelief', exercises: [] },
-    ]);
-    expect(coach.wantPackages.map(({ id, status }) => ({ id, status }))).toEqual([
-      { id: 'w1', status: 'ready' },
-      { id: 'w12', status: 'foundationFirst' },
-      { id: 'w9', status: 'foundationFirst' },
-      { id: 'w11', status: 'unmeasured' },
     ]);
     expect(coach.copmFocus).toEqual({
       mostImportant: { text: '字をきれいに書ける', importance: 9 },
@@ -196,7 +187,6 @@ describe('RuleBasedReportGenerator', () => {
   it('COPMの目標は同じ文言どうしを突き合わせて差分を出す', async () => {
     const current: CompletedAssessmentData = {
       ...data,
-      wants: ['w18'],
       copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
     };
     const previous: CompletedAssessmentData = {
@@ -209,14 +199,6 @@ describe('RuleBasedReportGenerator', () => {
     }));
 
     expect(report.copm[0]).toMatchObject({ performanceDelta: 3, satisfactionDelta: 3 });
-    expect(report.wants).toEqual([{
-      id: 'w18',
-      group: '生活',
-      icon: '🪑',
-      text: '姿勢よく座れるようになりたい',
-      short: '姿勢よく座れる',
-      menu: '体幹・全身／低緊張パッケージ',
-    }]);
   });
 
   it('初回は、ツール導入前の採点を前回として目標の差分を出す（レポートの種類は初回のまま）', async () => {
@@ -351,13 +333,12 @@ describe('RuleBasedReportGenerator', () => {
       expect(report.tuning.map(({ key }) => key)).toEqual(expect.arrayContaining(['abilityCopy', 'focusAreas', 'pyramidSources']));
     });
 
-    it('目標は「できるようになりたいこと」の文言と一致したときだけ優先する領域を持ち、ピラミッドの目標由来になる', async () => {
+    it('目標は候補（できるようになりたいこと）の仮の文言と一致したときだけ優先する領域を持ち、ピラミッドの目標由来になる', async () => {
       const goalData: CompletedAssessmentData = {
         ...data,
         lv: { post: 12, eyeh: 3, hand: 9 },
         troubles: [],
-        // w12「字をきれいに書けるようになりたい」は hand が主に支える。
-        wants: ['w12'],
+        // w12「字をきれいに書けるようになりたい」の仮の文言。hand が主に支える。
         copm: [
           { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
           { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
@@ -386,7 +367,6 @@ describe('RuleBasedReportGenerator', () => {
       const goalData: CompletedAssessmentData = {
         ...data,
         lv: { post: 12, eyeh: 3, hand: 9 },
-        wants: ['w12'],
         copm: [
           { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
           { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
@@ -409,8 +389,9 @@ describe('RuleBasedReportGenerator', () => {
       expect(reportContentSchema.parse(report)).toEqual(report);
     });
 
-    it('目標が無ければ、領域ごとのメニューは空にする', async () => {
-      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, wants: ['w12'], copm: [] }));
+    it('目標が無ければ、ピラミッドの目標由来と領域ごとのメニューは空にする', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, copm: [] }));
+      expect(report.pyramid.goalItems).toEqual([]);
       expect(report.coach.areaMenus).toEqual([]);
     });
 

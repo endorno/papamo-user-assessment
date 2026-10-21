@@ -97,7 +97,6 @@ describe('共通UI', () => {
       observationNotes: {},
       engagement: {},
       troubles: [],
-      wants: [],
       copm: [],
     };
     const report = reportContentSchema.parse(await new RuleBasedReportGenerator().generate({

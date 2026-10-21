@@ -41,7 +41,6 @@ const assessment = {
     observationNotes: {},
     engagement: {},
     troubles: [],
-    wants: [],
     copm: [],
   },
   createdAt: '2026-09-12T00:00:00.000Z',
@@ -183,12 +182,12 @@ describe('アセスメント入力', () => {
     expect(preview).toHaveTextContent('回答したお子さまゆい2026/10/01 10:15:30 回答');
     expect(preview).toHaveTextContent('取り込み先ゆいちゃんの第1回アセスメント');
     expect(preview).toHaveTextContent('お困りごと姿勢がすぐ崩れる／机に伏せる・寝転がる、ボールを投げる・受けるのが苦手');
+    expect(preview).toHaveTextContent('目標に追加球技が上手になる、階段をスムーズに昇り降りできるようになりたい');
     fireEvent.click(within(dialog).getByRole('button', { name: 'この内容で取り込む' }));
 
     const troubles = screen.getByRole('region', { name: '3.お子さまのお困りごと' });
     expect(within(troubles).getByRole('checkbox', { name: /ボールを投げる・受けるのが苦手/ })).toBeChecked();
     const goals = screen.getByRole('region', { name: '4.ご家族・本人の目標' });
-    expect(within(goals).getByRole('checkbox', { name: /球技が上手になりたい/ })).toBeChecked();
     expect(within(goals).getByRole('textbox', { name: '目標 1' })).toHaveValue('球技が上手になる');
     expect(within(goals).getByRole('textbox', { name: '目標 2' })).toHaveValue('階段をスムーズに昇り降りできるようになりたい');
 
@@ -196,7 +195,8 @@ describe('アセスメント入力', () => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       const body = assessmentPatchRequestSchema.parse(JSON.parse(String(patchCall?.[1]?.body)));
       expect(body.data.troubles).toEqual(['姿勢がすぐ崩れる／机に伏せる・寝転がる', 'ボールを投げる・受けるのが苦手']);
-      expect(body.data.wants).toEqual(['w9']);
+      expect(body.data.copm?.map(({ text }) => text)).toEqual(['球技が上手になる', '階段をスムーズに昇り降りできるようになりたい']);
+      expect(body.data).not.toHaveProperty('wants');
     }, { timeout: 2000 });
   });
 
@@ -249,12 +249,35 @@ describe('アセスメント入力', () => {
     expect(screen.queryByRole('button', { name: '事前アンケートから取り込む' })).not.toBeInTheDocument();
   });
 
-  it('できるようになりたいことを選ぶと、目標欄に仮の文言が入る', async () => {
+  it('「目標を追加」で候補を選ぶと、仮の文言の目標が増えて文言欄から書き換えられる', async () => {
     renderAssessmentPage();
     const goalsSection = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
-    fireEvent.click(within(goalsSection).getByRole('checkbox', { name: /縄跳びが跳べるようになりたい/ }));
+    // 候補は常に並べず、選んだ状態も持たない。
+    expect(within(goalsSection).queryByRole('checkbox')).not.toBeInTheDocument();
 
-    expect(within(goalsSection).getByRole('textbox', { name: '目標 1' })).toHaveValue('縄跳びが跳べるようになる');
+    fireEvent.click(within(goalsSection).getByRole('button', { name: '目標を追加' }));
+    const dialog = screen.getByRole('dialog', { name: '目標を追加' });
+    fireEvent.click(within(dialog).getByRole('button', { name: /縄跳びが跳べるようになる/ }));
+
+    expect(screen.queryByRole('dialog', { name: '目標を追加' })).not.toBeInTheDocument();
+    const goal = within(goalsSection).getByRole('textbox', { name: '目標 1' });
+    expect(goal).toHaveValue('縄跳びが跳べるようになる');
+    expect(goal).toHaveFocus();
+
+    // 同じ候補をもう一度選んでも、そのまま目標が増えるだけ。
+    fireEvent.click(within(goalsSection).getByRole('button', { name: '目標を追加' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: '目標を追加' })).getByRole('button', { name: /縄跳びが跳べるようになる/ }));
+    expect(within(goalsSection).getByRole('textbox', { name: '目標 2' })).toHaveValue('縄跳びが跳べるようになる');
+  });
+
+  it('「目標を追加」でキャンセルすると目標は増えない', async () => {
+    renderAssessmentPage();
+    const goalsSection = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    fireEvent.click(within(goalsSection).getByRole('button', { name: '目標を追加' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: '目標を追加' })).getByRole('button', { name: 'キャンセル' }));
+
+    expect(screen.queryByRole('dialog', { name: '目標を追加' })).not.toBeInTheDocument();
+    expect(within(goalsSection).queryByRole('textbox', { name: '目標 1' })).not.toBeInTheDocument();
   });
 
   it('取り組みの発達を記録できる', async () => {
@@ -427,6 +450,8 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     renderAssessmentPage();
     const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
     fireEvent.click(within(goals).getByRole('button', { name: '目標を追加' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: '目標を追加' })).getByRole('button', { name: '候補を使わずに書く' }));
+    expect(within(goals).getByRole('textbox', { name: '目標 1' })).toHaveValue('');
 
     await waitFor(() => {
       expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true);

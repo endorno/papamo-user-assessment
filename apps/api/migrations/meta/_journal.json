@@ -43,6 +43,13 @@
       "when": 1792575679065,
       "tag": "0005_remove_ppi_memo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792587018666,
+      "tag": "0006_remove_wants",
+      "breakpoints": true
     }
   ]
 }

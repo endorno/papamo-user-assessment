@@ -94,9 +94,9 @@ describe('承認モックのフィクスチャ', () => {
           ],
           "focusAreas": [
             {
-              "goalText": "姿勢よく座れるようになる",
+              "goalText": null,
               "item": "前庭覚",
-              "source": "both",
+              "source": "measured",
             },
             {
               "goalText": "板書を写すのが間に合うようになる",
@@ -113,9 +113,6 @@ describe('承認モックのフィクスチャ', () => {
             "視覚",
             "眼球運動",
             "目と手の連携",
-            "前庭覚",
-            "姿勢",
-            "バランス",
           ],
           "gradeOutlook": [
             "小6ごろ・約5学年先",
@@ -197,9 +194,6 @@ describe('承認モックのフィクスチャ', () => {
             "視覚",
             "眼球運動",
             "目と手の連携",
-            "前庭覚",
-            "姿勢",
-            "バランス",
           ],
           "gradeOutlook": [
             "小6ごろ・約5学年先",
@@ -254,29 +248,22 @@ describe('承認モックのフィクスチャ', () => {
           ],
           "focusAreas": [
             {
-              "goalText": "朝の支度を自分で進められるようになる",
+              "goalText": null,
               "item": "前庭覚",
-              "source": "both",
+              "source": "measured",
             },
             {
-              "goalText": "板書を写すのが間に合うようになる",
+              "goalText": null,
+              "item": "身体の位置",
+              "source": "measured",
+            },
+            {
+              "goalText": null,
               "item": "眼球運動",
-              "source": "both",
-            },
-            {
-              "goalText": "朝の支度を自分で進められるようになる",
-              "item": "運動のコントロール",
-              "source": "both",
+              "source": "measured",
             },
           ],
-          "goalItems": [
-            "視覚",
-            "眼球運動",
-            "目と手の連携",
-            "前庭覚",
-            "運動のコントロール",
-            "学習・情緒／複合運動",
-          ],
+          "goalItems": [],
           "gradeOutlook": [
             "小6ごろ・約2学年先",
             "高校ごろ・約6学年先",

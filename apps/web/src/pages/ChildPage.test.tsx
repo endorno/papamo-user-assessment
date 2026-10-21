@@ -220,7 +220,6 @@ describe('子どもページ', () => {
           observationNotes: { hand: '左右の切り替えで止まる。' },
           engagement: { dur: 2, sup: 1 },
           troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
-          wants: ['w12'],
           copm: [],
         },
       },

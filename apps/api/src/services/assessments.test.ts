@@ -218,7 +218,12 @@ describe('アセスメントサービス', () => {
     const { coach, child } = await createFixture('みお');
     const first = await createAssessment(testEnv, child.id, coach.id, false);
     const saved = await patchAssessment(testEnv, first.id, coach.id, {
-      data: { ...completedInput(), wants: ['w9'], engagement: { dur: 2 }, observationNotes: { post: '後進で振り返る' } },
+      data: {
+        ...completedInput(),
+        copm: [{ text: '球技が上手になる', memo: '', performance: 3, satisfaction: 3, importance: 8 }],
+        engagement: { dur: 2 },
+        observationNotes: { post: '後進で振り返る' },
+      },
       updatedAt: first.updatedAt,
     });
     await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
@@ -228,7 +233,7 @@ describe('アセスメントサービス', () => {
       lv: {},
       engagement: {},
       troubles: ['よく物にぶつかる・つまずく'],
-      wants: ['w9'],
+      copm: [{ text: '球技が上手になる', memo: '', performance: 3, satisfaction: 3, importance: 8 }],
       observationNotes: {},
     });
   });

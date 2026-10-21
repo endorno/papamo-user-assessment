@@ -28,8 +28,6 @@ import {
   troubleDomainOf,
   TUNING_NOTES,
   WANT_ITEMS,
-  wantById,
-  wantShortText,
   wantToGoalText,
   type CoachCautionKey,
   type EngagementKey,
@@ -48,7 +46,6 @@ import type {
   ReportDomainHit,
   ReportGenerator,
   ReportInput,
-  WantPackageStatus,
 } from './types';
 
 /** 種目の定義順。同 Lv のタイブレークに使う（AGENTS.md §7.2）。 */
@@ -64,9 +61,6 @@ const FOCUS_MENU_COUNT: Record<CoachFocusRole, { month3: number; month6: number 
   next: { month3: 2, month6: 2 },
   keep: { month3: 1, month6: 2 },
 };
-
-/** 支える種目が上限のこの割合以下なら「土台が届いていない」とみなす。 */
-const WANT_FOUNDATION_RATIO = 0.3;
 
 /** 種目ごとの基盤（①②③）と「最重要にすべき領域」、コーチ向けの領域ごとのメニューに出す数。 */
 const FOUNDATION_COUNT = 3;
@@ -87,9 +81,9 @@ function foundationsOf(key: ExerciseKey): string[] {
 }
 
 /**
- * 目標の達成のために優先する領域。
- * 【暫定】目標は自由記述で領域との対応を持たないため、「できるようになりたいこと」から入れた仮の文言と一致したときだけ、
- * その項目を主に支える種目の基盤を返す。
+ * 目標の達成のために優先する領域。ピラミッドの目標由来も、目標欄の文言からだけ決める。
+ * 【暫定】目標の文言のキーワードで判定する方式に差し替えるまで、候補（できるようになりたいこと）から入れた仮の文言と
+ * 一致したときだけ、その項目を主に支える種目の基盤を返す。
  */
 function goalAreasOf(text: string): string[] {
   const want = WANT_ITEMS.find((item) => wantToGoalText(item.text) === text.trim());
@@ -311,20 +305,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       ...domainHits.map((hit) => hit.pyramid),
     ]);
 
-    // --- 目標（できるようになりたいこと・COPM） ---
-    const wants = data.wants.flatMap((id) => {
-      const want = wantById(id);
-      return want
-        ? [{
-            id: want.id,
-            group: want.group,
-            icon: want.icon,
-            text: want.text,
-            short: wantShortText(want.text),
-            menu: want.menu,
-          }]
-        : [];
-    });
+    // --- 目標（COPM） ---
     const previousCopm = new Map(
       (input.previous?.data.copm ?? []).map((goal) => [goal.text, goal]),
     );
@@ -354,15 +335,8 @@ export class RuleBasedReportGenerator implements ReportGenerator {
 
     // --- ピラミッドの2系統と、最重要にすべき領域 ---
     // 【暫定】測定・お困りごと由来＝いちばん低い種目の要素と照合した領域（highlighted）。
-    // 目標由来＝選んだ「できるようになりたいこと」と目標を主に支える種目の要素。
-    const selectedWants = data.wants.flatMap((id) => {
-      const want = wantById(id);
-      return want ? [{ goalText: wantToGoalText(want.text), areas: foundationsOf(want.axis) }] : [];
-    });
-    const goalItems = unique([
-      ...selectedWants.flatMap((want) => want.areas),
-      ...copm.flatMap((goal) => goal.areas),
-    ]);
+    // 目標由来＝目標の「優先する領域」（目標欄の文言だけから決める）。
+    const goalItems = unique(copm.flatMap((goal) => goal.areas));
     const sourceOf = (item: string): PyramidSource | null => {
       const goal = goalItems.includes(item);
       const measured = highlighted.includes(item);
@@ -390,17 +364,13 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         tier,
         source,
         ...PYRAMID_ELEMENT_COPY[item as PyramidItem],
-        // 結びつく目標（COPM）が無ければ、選んだ「できるようになりたいこと」の文言で代える。
-        goalText: copmByImportance.find((goal) => goal.areas.includes(item))?.text
-          ?? selectedWants.find((want) => want.areas.includes(item))?.goalText
-          ?? null,
+        goalText: copmByImportance.find((goal) => goal.areas.includes(item))?.text ?? null,
       }));
 
     // コーチ向けの領域ごとのメニュー。【暫定】目標の「優先する領域」だけを、ピラミッドの下の段から並べる
     // （測定・お困りごとだけで色が付いた領域は出さない。変更依頼 2026-10-19 の仕様）。
-    const goalAreaItems = unique(copm.flatMap((goal) => goal.areas));
     const areaMenus = pyramidCells
-      .filter((cell) => goalAreaItems.includes(cell.item))
+      .filter((cell) => goalItems.includes(cell.item))
       .map(({ item, tier }) => ({
         item,
         tier,
@@ -434,7 +404,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     if (domainHits.length) tuningKeys.push('riskCopy');
     if (gradeOutlook) tuningKeys.push('gradeOutlook');
 
-    // --- コーチ向け（areaMenus はレポート先頭の「方針とメニューの方向性」に使う。plan・wantPackages・copmFocus は
+    // --- コーチ向け（areaMenus はレポート先頭の「方針とメニューの方向性」に使う。plan・copmFocus は
     // 旧メニュー提案の表示をやめたが、ロジックの整理が済むまで残す） ---
     // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。
     const coachFocus = unique([sorted[0], sorted[1], sorted.at(-1)].filter((key): key is ExerciseKey => key !== undefined))
@@ -519,7 +489,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         text: `チェックされた困りごとの多くは、${lowestExercise.parentName}（${lowestExercise.name} Lv${levelValue(levelOf(lowestKey))}／${lowestExercise.maxLevel}）がまだ育っている途中であることと一致しています。${lowestExercise.grow}`,
       },
       roadmap,
-      wants,
       copm,
       growthSigns: [...GROWTH_SIGNS],
       watchPoints,
@@ -572,26 +541,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           note: data.observationNotes[key] ?? '',
         })),
         cautions: coachCautions,
-        wantPackages: data.wants.flatMap((id) => {
-          const want = wantById(id);
-          if (!want) return [];
-          const axisLv = levelOf(want.axis) ?? 0;
-          const axisMaxLv = exerciseByKey(want.axis).maxLevel;
-          // 支える種目が上限の3割以下なら、パッケージより先に土台を上げる。
-          const status: WantPackageStatus = !isMeasured(levelOf(want.axis))
-            ? 'unmeasured'
-            : axisLv <= Math.ceil(axisMaxLv * WANT_FOUNDATION_RATIO) ? 'foundationFirst' : 'ready';
-          return [{
-            id: want.id,
-            icon: want.icon,
-            short: wantShortText(want.text),
-            menu: want.menu,
-            axisKey: want.axis,
-            axisLv,
-            axisMaxLv,
-            status,
-          }];
-        }),
         copmFocus: {
           mostImportant: mostImportantGoal ? { text: mostImportantGoal.text, importance: mostImportantGoal.importance } : null,
           lowSatisfaction: data.copm

@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import {
+  COPM_MAX,
   hasSurveyAnswers,
   parseSurveyRow,
+  surveyGoalTexts,
   surveyReplacedFields,
-  WANT_MAX,
-  wantById,
   type AssessmentData,
   type SurveyAnswers,
   type SurveyReplacedField,
@@ -15,7 +15,6 @@ import styles from '../styles/page.module.css';
 
 const REPLACED_LABELS: Record<SurveyReplacedField, string> = {
   troubles: 'お困りごと',
-  wants: 'できるようになりたいこと',
 };
 
 // 回答が無かった欄は今の入力のまま残すことを、空欄ではなく言葉で示す。
@@ -30,7 +29,7 @@ function skippedLines({ skipped }: SurveyResponse): string[] {
     ...(skipped.troubles.length ? [`選択肢に無いお困りごと：${skipped.troubles.join('、')}`] : []),
     ...(skipped.wants.length ? [`選択肢に無いできるようになりたいこと：${skipped.wants.join('、')}`] : []),
     ...(skipped.overLimit.length
-      ? [`${WANT_MAX}つを超えたできるようになりたいこと：${skipped.overLimit.join('、')}（必要なら取り込んだあとで入れ替えてください）`]
+      ? [`目標の上限（${COPM_MAX}つ）を超えたできるようになりたいこと：${skipped.overLimit.join('、')}（必要なら取り込んだあとで入れ替えてください）`]
       : []),
     ...skipped.tooLong.map(({ label }) => `${label}：長すぎて入力欄に入りません（要約して手で入力してください）`),
   ];
@@ -127,13 +126,8 @@ export function SurveyImportDialog({
             {importable ? (
               <dl className={styles.importFields}>
                 <div><dt>お困りごと</dt><dd>{listOrNoAnswer(importable.troubles)}</dd></div>
-                <div>
-                  <dt>できるようになりたいこと</dt>
-                  <dd>{listOrNoAnswer(importable.wants.map((id) => wantById(id)?.text ?? id))}</dd>
-                </div>
-                {importable.freeWants.length ? (
-                  <div><dt>自由記載（目標欄へ）</dt><dd>{importable.freeWants.join('、')}</dd></div>
-                ) : null}
+                {/* できるようになりたいこと（仮の文言に直したもの）と自由記載は、目標の空き行に足す。 */}
+                <div><dt>目標に追加</dt><dd>{listOrNoAnswer(surveyGoalTexts(importable))}</dd></div>
               </dl>
             ) : (
               <p className={styles.importWarning}>この行には取り込める回答がありません。</p>

@@ -15,6 +15,7 @@ describe('D1初期マイグレーション', () => {
       '0003_google_drive.sql',
       '0004_remove_env_supports.sql',
       '0005_remove_ppi_memo.sql',
+      '0006_remove_wants.sql',
     ]);
 
     await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);

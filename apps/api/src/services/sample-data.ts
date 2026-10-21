@@ -20,7 +20,6 @@ import {
   schoolYear,
   todayInJst,
   TROUBLE_ITEMS,
-  WANT_ITEMS,
   type AssessmentData,
   type CompletedAssessmentData,
   type ExerciseKey,
@@ -132,7 +131,6 @@ function completedData(input: {
     key,
     randomInt(input.random, 0, ENGAGEMENT_LEVEL_COUNT),
   ]));
-  const wants = selectDistinct(input.random, WANT_ITEMS.map((item) => item.id), randomInt(input.random, 1, 3));
   const copm = input.goals.map((text) => ({
     text,
     memo: '',
@@ -147,7 +145,6 @@ function completedData(input: {
     observationNotes: {},
     engagement,
     troubles,
-    wants,
     copm,
   });
 }
@@ -160,7 +157,6 @@ function draftData(random: Random): AssessmentData {
     observationNotes: {},
     engagement: { dur: randomInt(random, 0, ENGAGEMENT_LEVEL_COUNT) },
     troubles: selectDistinct(random, TROUBLE_ITEMS, 1),
-    wants: [],
     copm: [],
   });
 }

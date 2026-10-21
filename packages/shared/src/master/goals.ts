@@ -1,10 +1,10 @@
 import type { ExerciseKey } from './exercises';
 
 /**
- * できるようになりたいこと（複数選択可）。
- * お困りごと（いま困っていること）とは別に、達成したい具体的なことを聞く。
- * 「事前アンケート項目一覧」のシート②を移植した（2026-10-11）。並び順もシートどおり（id は欠番・飛び番あり）。
- * id は保存値なので振り直さない（w10「ボールを蹴る・打つ」は w9 に統合して欠番。2026-10-11）。
+ * できるようになりたいこと。お困りごと（いま困っていること）とは別に、達成したい具体的なことを聞く。
+ * アセスメントでは目標（COPM）を入れるときの候補として出すだけで、選んだ項目は保存しない（仮の文言を目標欄に入れる。2026-10-21）。
+ * 「事前アンケート項目一覧」のシート②を移植した（2026-10-11）。並び順もシートどおり（id は欠番・飛び番あり。
+ * w10「ボールを蹴る・打つ」は w9 に統合して欠番。2026-10-11）。
  * 文言は事前アンケート（Googleフォーム）の選択肢と同じにする（取り込みは文言で照合する）。
  * group＝区分／menu＝対応するへやすぽアシストのメニューパッケージ／axis＝主に支える種目
  */
@@ -45,7 +45,6 @@ export const WANT_ITEMS = [
 export type WantItem = (typeof WANT_ITEMS)[number];
 
 export const WANT_GROUPS = ['運動', '学習', '生活', '気持ち・対人'] as const;
-export const WANT_MAX = 4;
 
 export function wantById(id: string): WantItem | null {
   return WANT_ITEMS.find((item) => item.id === id) ?? null;
@@ -71,18 +70,6 @@ export function wantToGoalText(text: string): string {
     .replace(/してほしい$/, 'する')
     .replace(/したい$/, 'する')
     .replace(/たい$/, 'る');
-}
-
-/** レポートで短く並べるための表記。 */
-export function wantShortText(text: string): string {
-  return text
-    .replace(/ができるようになりたい$/, '')
-    // 「〜ようになりたい」を先に外す。先に「〜になりたい」を外すと「よう」が残る。
-    .replace(/ようになりたい$/, '')
-    .replace(/になりたい$/, '')
-    .replace(/してほしい$/, '')
-    .replace(/たい$/, '')
-    .replace(/^泳げる$/, '泳げるようになる');
 }
 
 /**

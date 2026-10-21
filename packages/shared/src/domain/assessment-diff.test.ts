@@ -10,7 +10,6 @@ const reported = {
     lv: { post: 3, eyeh: 4, hand: 5 },
     observations: { post: ['体が左右や前後に大きく揺れる'] },
     troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
-    wants: ['w18', 'w1'],
     copm: [{ text: '授業中に座っていられる', memo: '', performance: 5, satisfaction: 5, importance: 8 }],
   }),
 };
@@ -28,7 +27,6 @@ describe('レポートへ未反映の変更', () => {
   it('選んだ順番だけが違う場合は差分にしない', () => {
     const reordered = clone(reported);
     reordered.data.troubles.reverse();
-    reordered.data.wants.reverse();
     expect(changedAssessmentSections(reported, reordered)).toEqual([]);
   });
 

@@ -1,4 +1,4 @@
-import { COPM_MAX, WANT_ITEMS, WANT_MAX, wantById, wantToGoalText } from '../master/goals';
+import { COPM_MAX, WANT_ITEMS, wantById, wantToGoalText } from '../master/goals';
 import { SURVEY_SHEET_COLUMNS, SURVEY_SHEET_HEADER, type SurveySheetHeader } from '../master/survey-form';
 import { TROUBLE_ITEMS } from '../master/troubles';
 import { emptyCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/assessment';
@@ -14,7 +14,7 @@ const TIMESTAMP_PATTERN = /^(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}
 export interface SurveyAnswers {
   /** マスタの文言（保存値）。 */
   troubles: string[];
-  /** できるようになりたいことの id。 */
+  /** できるようになりたいことの id。仮の文言に直して目標（COPM）の文言として入れる。 */
   wants: string[];
   /** 自由記載。目標（COPM）の文言として入れる。 */
   freeWants: string[];
@@ -26,7 +26,7 @@ export interface SurveySkipped {
   troubles: string[];
   /** マスタの文言と一致しなかったできるようになりたいこと。 */
   wants: string[];
-  /** 自由記載と合わせて上限（4つ）を超えた分。 */
+  /** 自由記載と合わせて目標の上限（4つ）を超えた分。 */
   overLimit: string[];
   /** 入力欄の文字数の上限を超えた自由記述（入力欄に入らないため、コーチが要約して入れる）。 */
   tooLong: { label: string; value: string }[];
@@ -147,7 +147,7 @@ export function parseSurveyRow(text: string): SurveyParseResult {
     if (!troubles.includes(trouble)) troubles.push(trouble);
   }
 
-  // できるようになりたいことは、自由記載と合わせて4つまで。先に並んでいるものを残す。
+  // できるようになりたいことは目標の行に入れるため、自由記載と合わせて目標の上限（4つ）まで。先に並んでいるものを残す。
   const wants: string[] = [];
   for (const value of splitChoices(cellOf(SURVEY_SHEET_COLUMNS.wants))) {
     const id = WANT_ID_BY_TEXT.get(normalize(value));
@@ -156,7 +156,7 @@ export function parseSurveyRow(text: string): SurveyParseResult {
       continue;
     }
     if (wants.includes(id)) continue;
-    if (wants.length >= WANT_MAX) {
+    if (wants.length >= COPM_MAX) {
       skipped.overLimit.push(wantById(id)!.text);
       continue;
     }
@@ -170,7 +170,7 @@ export function parseSurveyRow(text: string): SurveyParseResult {
       skipped.tooLong.push({ label: 'できるようになりたいこと（自由記載）', value });
       continue;
     }
-    if (wants.length + freeWants.length >= WANT_MAX) skipped.overLimit.push(value);
+    if (wants.length + freeWants.length >= COPM_MAX) skipped.overLimit.push(value);
     else freeWants.push(value);
   }
 
@@ -196,7 +196,7 @@ export function surveyGoalTexts(answers: SurveyAnswers): string[] {
   return [...new Set(texts)];
 }
 
-export type SurveyReplacedField = 'troubles' | 'wants';
+export type SurveyReplacedField = 'troubles';
 
 const sameSet = (first: readonly string[], second: readonly string[]) => (
   first.length === second.length && first.every((value) => second.includes(value))
@@ -206,7 +206,6 @@ const sameSet = (first: readonly string[], second: readonly string[]) => (
 export function surveyReplacedFields(data: AssessmentData, answers: SurveyAnswers): SurveyReplacedField[] {
   const replaced: SurveyReplacedField[] = [];
   if (answers.troubles.length && data.troubles.length && !sameSet(data.troubles, answers.troubles)) replaced.push('troubles');
-  if (answers.wants.length && data.wants.length && !sameSet(data.wants, answers.wants)) replaced.push('wants');
   return replaced;
 }
 
@@ -218,12 +217,11 @@ export interface SurveyApplyResult {
 
 /**
  * 回答を入力に反映する。回答があった欄は置き換え、回答が無かった欄には触らない（コーチの手入力を消さない）。
- * 目標は、同じ文言の行が無いものだけを空き行に足す（できるようになりたいことを手で選んだときと同じ）。
+ * 目標は、同じ文言の行が無いものだけを空き行に足す（コーチが入れた目標を消さないため）。
  */
 export function applySurveyAnswers(data: AssessmentData, answers: SurveyAnswers): SurveyApplyResult {
   const next: AssessmentData = { ...data };
   if (answers.troubles.length) next.troubles = [...answers.troubles];
-  if (answers.wants.length) next.wants = [...answers.wants];
 
   const copm = [...data.copm];
   const goalsNotAdded: string[] = [];

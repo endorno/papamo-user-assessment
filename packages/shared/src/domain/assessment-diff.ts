@@ -65,7 +65,7 @@ export function changedAssessmentSections(
     changed.push('engagement');
   }
   if (!sameSet(before.troubles, after.troubles)) changed.push('troubles');
-  if (!sameSet(before.wants, after.wants) || !sameCopm(before.copm, after.copm)) changed.push('goals');
+  if (!sameCopm(before.copm, after.copm)) changed.push('goals');
 
   return changed;
 }

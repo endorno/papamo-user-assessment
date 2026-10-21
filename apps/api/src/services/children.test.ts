@@ -192,7 +192,6 @@ describe('子ども管理サービス', () => {
           observationNotes: {},
           engagement: {},
           troubles: [],
-          wants: [],
           copm: [],
         }),
         crypto.randomUUID(),

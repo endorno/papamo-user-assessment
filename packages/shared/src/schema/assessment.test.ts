@@ -114,7 +114,6 @@ describe('アセスメント入力スキーマ', () => {
       observationNotes: {},
       engagement: {},
       troubles: [],
-      wants: [],
     };
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, text: '　' }] }).success).toBe(false);
     expect(assessmentDataCompletedSchema.parse({ ...completed, copm: [{ ...goal, text: ' 縄跳びを跳べる　' }] }).copm[0]?.text)
@@ -134,7 +133,6 @@ describe('アセスメント入力スキーマ', () => {
       observationNotes: {},
       engagement: {},
       troubles: [],
-      wants: [],
     };
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4 } }] }).success).toBe(false);
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4, satisfaction: 3 } }] }).success).toBe(true);
@@ -165,9 +163,13 @@ describe('アセスメント入力スキーマ', () => {
   it('選択式の配列に同じ値が重複していると拒否する', () => {
     const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
     const accepts = (data: Record<string, unknown>) => assessmentPatchRequestSchema.safeParse({ ...base, data }).success;
-    expect(accepts({ wants: [WANT_ITEMS[0]!.id, WANT_ITEMS[0]!.id] })).toBe(false);
     expect(accepts({ troubles: [TROUBLE_ITEMS[0]!, TROUBLE_ITEMS[0]!] })).toBe(false);
     const observation = EXERCISES[0]!.observations[0]!.text;
     expect(accepts({ observations: { [EXERCISES[0]!.key]: [observation, observation] } })).toBe(false);
+  });
+
+  it('できるようになりたいことは保存しない（候補は目標の文言を入れる手助けだけ）', () => {
+    const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { wants: [WANT_ITEMS[0]!.id] } }).success).toBe(false);
   });
 });

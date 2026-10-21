@@ -20,10 +20,6 @@ import {
   MIN_EXERCISE_LEVEL,
   TEXT_LIMITS,
   TROUBLE_CATEGORIES,
-  WANT_GROUPS,
-  WANT_ITEMS,
-  WANT_MAX,
-  wantToGoalText,
   withCopmBaseline,
   withoutExtExerciseInput,
   type AssessmentData,
@@ -41,6 +37,7 @@ import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
 import { ChildShortId } from '../components/ChildId';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { GoalCandidateDialog } from '../components/GoalCandidateDialog';
 import { SurveyImportDialog } from '../components/SurveyImportDialog';
 import { useToast } from '../components/Toast';
 import { formatJapaneseDate, honorificLabel } from '../utils/display';
@@ -126,13 +123,12 @@ function sectionId(key: AssessmentSectionKey) {
 function hasAnyInput(form: AssessmentFormState) {
   const {
     lv, observations, observationNotes, engagement,
-    troubles, wants, copm,
+    troubles, copm,
   } = form.data;
   return Boolean(
     Object.keys(lv).length
     || Object.keys(engagement).length
     || troubles.length
-    || wants.length
     || copm.length
     || Object.values(observations).some((selected) => selected?.length)
     || Object.values(observationNotes).some((note) => note?.trim()),
@@ -169,7 +165,7 @@ export function AssessmentPage() {
   const [localRestore, setLocalRestore] = useState<LocalDraft | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showSurveyImport, setShowSurveyImport] = useState(false);
-  const [wantLimitNotice, setWantLimitNotice] = useState(false);
+  const [showGoalCandidates, setShowGoalCandidates] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
   const [reverting, setReverting] = useState(false);
 
@@ -181,6 +177,8 @@ export function AssessmentPage() {
   const inFlightRef = useRef<Promise<boolean> | null>(null);
   const changeVersionRef = useRef(0);
   const saveDelayRef = useRef(SAVE_DELAY_MS);
+  // 追加した目標の行。描画し終えてから文言欄へカーソルを移す。
+  const focusGoalIndexRef = useRef<number | null>(null);
 
   const returnToListIfDeleted = useCallback((caught: unknown) => {
     if (!(caught instanceof ApiClientError) || caught.code !== 'not_found') return false;
@@ -317,6 +315,18 @@ export function AssessmentPage() {
     return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [dirty]);
 
+  const goalCount = form?.data.copm.length ?? 0;
+  useEffect(() => {
+    const index = focusGoalIndexRef.current;
+    if (index === null || index >= goalCount) return;
+    focusGoalIndexRef.current = null;
+    const textarea = document.getElementById(`copm-text-${index}`);
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+    textarea.focus();
+    // 仮の文言は書き換える前提なので、末尾から続けて直せるようにする。
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }, [goalCount]);
+
   // 画面を離れる瞬間に未送信の変更が残っていたら、最後の1回だけ送り切る。
   useEffect(() => () => {
     const currentForm = formRef.current;
@@ -397,26 +407,6 @@ export function AssessmentPage() {
     }));
   }
 
-  // 「できるようになりたいこと」を選ぶと、空いている目標欄へ仮の文言を入れる。
-  function toggleWant(id: string, checked: boolean) {
-    const current = formRef.current;
-    if (!current) return;
-    if (checked && current.data.wants.length >= WANT_MAX) {
-      setWantLimitNotice(true);
-      return;
-    }
-    setWantLimitNotice(false);
-    const want = WANT_ITEMS.find((item) => item.id === id);
-    const suggestion = want ? wantToGoalText(want.text) : '';
-    updateData((data) => {
-      const wants = checked ? [...data.wants, id] : data.wants.filter((item) => item !== id);
-      if (!checked || !suggestion) return { ...data, wants };
-      const alreadyListed = data.copm.some((goal) => goal.text === suggestion);
-      if (alreadyListed || data.copm.length >= COPM_MAX) return { ...data, wants };
-      return { ...data, wants, copm: [...data.copm, emptyCopmGoal(suggestion)] };
-    });
-  }
-
   function updateCopmGoal(index: number, update: (goal: CopmGoal) => CopmGoal, delay = SAVE_DELAY_MS) {
     updateData((data) => ({
       ...data,
@@ -424,24 +414,26 @@ export function AssessmentPage() {
     }), delay);
   }
 
-  function addCopmGoal() {
-    updateData((data) => (
-      data.copm.length >= COPM_MAX ? data : { ...data, copm: [...data.copm, emptyCopmGoal()] }
-    ));
+  // 候補から選んだ仮の文言（候補を使わないときは空）で目標を足し、すぐ書き換えられるよう文言欄へカーソルを移す。
+  function addCopmGoal(text: string) {
+    setShowGoalCandidates(false);
+    const current = formRef.current;
+    if (!current || current.data.copm.length >= COPM_MAX) return;
+    focusGoalIndexRef.current = current.data.copm.length;
+    updateData((data) => ({ ...data, copm: [...data.copm, emptyCopmGoal(text)] }));
   }
 
   function removeCopmGoal(index: number) {
     updateData((data) => ({ ...data, copm: data.copm.filter((_, position) => position !== index) }));
   }
 
-  // 事前アンケートの回答で、お困りごと・できるようになりたいこと（と目標）をまとめて置き換える。
+  // 事前アンケートの回答で、お困りごとを置き換え、できるようになりたいこと・自由記載を目標の空き行に足す。
   // 回答がなかった欄には触らず、コーチの手入力を消さない。取り込む前の入力には通知の「元に戻す」で戻せる。
   function importSurvey(answers: SurveyAnswers) {
     const current = formRef.current;
     if (!current) return;
     const before = current.data;
     const { data, goalsNotAdded } = applySurveyAnswers(before, answers);
-    setWantLimitNotice(false);
     updateData(() => data);
     const notAdded = goalsNotAdded.length
       ? `目標欄に空きがなく、${goalsNotAdded.map((text) => `「${text}」`).join('')}は入れていません。`
@@ -779,29 +771,10 @@ export function AssessmentPage() {
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-goals" data-assessment-section aria-labelledby="goals-title">
               <div className={styles.sectionHeader}><div><h2 id="goals-title">4.ご家族・本人の目標</h2><p className={styles.muted}>最大{COPM_MAX}つ。3か月後に同じ設問で採点し直し、差分を見ます</p></div></div>
 
-              <fieldset className={styles.wantBox}>
-                <legend>できるようになりたいこと（{form.data.wants.length}/{WANT_MAX}）</legend>
-                <p className={styles.muted}>お困りごと（いま困っていること）とは別に、達成したい具体的なことを選びます。選ぶと下の目標欄に仮の文言が入るので、ご家族の言葉に書き換えてください。</p>
-                {wantLimitNotice ? <p className={styles.formError} role="alert">できるようになりたいことは最大{WANT_MAX}つまでです。</p> : null}
-                <div className={styles.wantGroups}>
-                  {WANT_GROUPS.map((group) => (
-                    <div className={styles.wantGroup} key={group}>
-                      <strong>{group}</strong>
-                      {WANT_ITEMS.filter((item) => item.group === group).map((item) => (
-                        <label className={`${styles.troubleOption} ${form.data.wants.includes(item.id) ? styles.optionSelected : ''}`} key={item.id}>
-                          <input type="checkbox" checked={form.data.wants.includes(item.id)} disabled={assessment.readOnly} onChange={(event) => toggleWant(item.id, event.target.checked)} />
-                          <span>{item.icon} {item.text}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </fieldset>
-
               <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
               {firstInTool ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}
 
-              {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。上から選ぶか、「目標を追加」で入力してください。</p> : null}
+              {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。「目標を追加」から、候補を選ぶか自由に書いてください。</p> : null}
               {form.data.copm.map((goal, index) => {
                 const previous = assessment.previous?.copm.find((candidate) => candidate.text === goal.text);
                 return (
@@ -847,7 +820,7 @@ export function AssessmentPage() {
               })}
               {!assessment.readOnly && form.data.copm.length < COPM_MAX ? (
                 <div className={styles.inlineActions}>
-                  <button className={styles.secondaryButton} type="button" onClick={addCopmGoal}>目標を追加</button>
+                  <button className={styles.secondaryButton} type="button" aria-haspopup="dialog" onClick={() => setShowGoalCandidates(true)}>目標を追加</button>
                 </div>
               ) : null}
             </section>
@@ -922,6 +895,11 @@ export function AssessmentPage() {
             importSurvey(answers);
             setShowSurveyImport(false);
           }}
+        />
+        <GoalCandidateDialog
+          open={showGoalCandidates}
+          onCancel={() => setShowGoalCandidates(false)}
+          onPick={addCopmGoal}
         />
         <ConfirmDialog
           open={localRestore !== null}

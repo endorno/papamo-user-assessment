@@ -33,7 +33,6 @@ beforeAll(async () => {
       observationNotes: {},
       engagement: { dur: 1, sup: 2 },
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
-      wants: ['w18'],
       copm: [
         { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
         { text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 },
@@ -59,7 +58,6 @@ beforeAll(async () => {
         observationNotes: {},
         engagement: { dur: 3, sup: 3 },
         troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
-        wants: ['w18'],
         copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
       },
     },
