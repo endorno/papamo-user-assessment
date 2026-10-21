@@ -11,6 +11,8 @@ import {
   EXERCISES,
   EXT_EXERCISE_KEYS,
   exerciseByKey,
+  GRADE_OUTLOOK,
+  GRADES,
   GROWTH_SIGNS,
   isMeasured,
   ladderLabel,
@@ -18,24 +20,29 @@ import {
   MIN_EXERCISE_LEVEL,
   NEURO_DOMAINS,
   PPI_QUESTIONS,
+  PYRAMID_ELEMENT_COPY,
   PYRAMID_TIERS,
   pyramidTierLabel,
   RISK_NOTES,
   TROUBLE_CATEGORIES,
   troubleDomainOf,
   TUNING_NOTES,
+  WANT_ITEMS,
   wantById,
   wantShortText,
+  wantToGoalText,
   type CoachCautionKey,
   type EngagementKey,
   type ExerciseKey,
   type PpiKey,
+  type PyramidItem,
   type TuningKey,
 } from '../master';
 import { addMonthsClamped, nextDueDate } from '../domain/date';
 import type {
   CoachFocusRole,
   DomainVerdict,
+  PyramidSource,
   ReportContent,
   ReportDomainHit,
   ReportGenerator,
@@ -60,6 +67,13 @@ const FOCUS_MENU_COUNT: Record<CoachFocusRole, { month3: number; month6: number 
 /** 支える種目が上限のこの割合以下なら「土台が届いていない」とみなす。 */
 const WANT_FOUNDATION_RATIO = 0.3;
 
+/** 種目ごとの基盤（①②③）と「最重要にすべき領域」に出す数。 */
+const FOUNDATION_COUNT = 3;
+const FOCUS_AREA_COUNT = 3;
+
+/** 最重要にすべき領域を選ぶ順（暫定）。目標と測定の両方に出た要素を先にする。 */
+const PYRAMID_SOURCE_ORDER: PyramidSource[] = ['both', 'measured', 'goal'];
+
 function ppiSnapshot(input: ReportInput, previous = false): Record<PpiKey, number> {
   const data = previous ? input.previous?.data : input.assessment.data;
   if (!data) {
@@ -73,6 +87,33 @@ function ppiSnapshot(input: ReportInput, previous = false): Record<PpiKey, numbe
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
+}
+
+/** その種目を支えるピラミッドの要素。根っこ（いちばん下の段）を先にする。 */
+function foundationsOf(key: ExerciseKey): string[] {
+  const exercise = exerciseByKey(key);
+  return unique([exercise.pyramidRoot, ...exercise.pyramidRelated]).slice(0, FOUNDATION_COUNT);
+}
+
+/**
+ * 目標の達成のために優先する領域。
+ * 【暫定】目標は自由記述で領域との対応を持たないため、「できるようになりたいこと」から入れた仮の文言と一致したときだけ、
+ * その項目を主に支える種目の基盤を返す。
+ */
+function goalAreasOf(text: string): string[] {
+  const want = WANT_ITEMS.find((item) => wantToGoalText(item.text) === text.trim());
+  return want ? foundationsOf(want.axis) : [];
+}
+
+/** 学年が上がったときの見通し。いまの学年より先の時期だけを、何学年先かとともに返す。 */
+function gradeOutlookOf(gradeCode: ReportInput['child']['gradeCode']): ReportContent['gradeOutlook'] {
+  const current = GRADES.findIndex((grade) => grade.code === gradeCode);
+  if (current < 0) return null;
+  const milestones = GRADE_OUTLOOK.milestones.flatMap(({ label, theme, gradeCode: milestoneCode, yearsAfter }) => {
+    const gradesAhead = GRADES.findIndex((grade) => grade.code === milestoneCode) + yearsAfter - current;
+    return gradesAhead >= 1 ? [{ label, theme, gradesAhead }] : [];
+  });
+  return milestones.length ? { milestones, summary: GRADE_OUTLOOK.summary } : null;
 }
 
 export class RuleBasedReportGenerator implements ReportGenerator {
@@ -170,6 +211,13 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         lv: levelOf(key) ?? 0,
         maxLv: exercise.maxLevel,
       };
+    });
+
+    // 種目ごとの「できている力／次に高めたい力」（保護者向け1枚目）。
+    // 【暫定】Lv に応じた文言のマスタが届くまで、種目ごとの固定の文言（概要と、育てる力の1つ目）を出す。
+    const abilities = keys.map((key) => {
+      const exercise = exerciseByKey(key);
+      return { key, can: exercise.summary, next: exercise.build[0] ?? '', foundations: foundationsOf(key) };
     });
 
     const upcomingExercises = (input.assessment.unlockExt ? [] : EXT_EXERCISE_KEYS).map((key) => {
@@ -278,6 +326,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     );
     const copm = data.copm.map(({ baseline, ...goal }) => {
       const previousGoal = previousCopm.get(goal.text);
+      const areas = goalAreasOf(goal.text);
       // 前回の回が無い初回は、ツール導入前（Excel）の採点を前回として並べる（既存会員の目標の変化を見せるため）。
       const previous = previousGoal
         ? {
@@ -288,6 +337,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         : baseline && { ...baseline };
       return {
         ...goal,
+        areas,
         ...(previous
           ? {
               previous,
@@ -297,6 +347,51 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           : {}),
       };
     });
+
+    // --- ピラミッドの2系統と、最重要にすべき領域 ---
+    // 【暫定】測定・お困りごと由来＝いちばん低い種目の要素と照合した領域（highlighted）。
+    // 目標由来＝選んだ「できるようになりたいこと」と目標を主に支える種目の要素。
+    const selectedWants = data.wants.flatMap((id) => {
+      const want = wantById(id);
+      return want ? [{ goalText: wantToGoalText(want.text), areas: foundationsOf(want.axis) }] : [];
+    });
+    const goalItems = unique([
+      ...selectedWants.flatMap((want) => want.areas),
+      ...copm.flatMap((goal) => goal.areas),
+    ]);
+    const sourceOf = (item: string): PyramidSource | null => {
+      const goal = goalItems.includes(item);
+      const measured = highlighted.includes(item);
+      if (goal && measured) return 'both';
+      if (measured) return 'measured';
+      return goal ? 'goal' : null;
+    };
+    // 重要度の高い目標を先にする（同じ重要度なら入力順）。
+    const goalsByImportance = [...copm].sort((first, second) => second.importance - first.importance);
+    const pyramidCells = PYRAMID_TIERS.flatMap((row) => row.items.map((item, position) => ({ item, tier: row.tier, position })));
+    const byPosition = (first: { tier: number; position: number }, second: { tier: number; position: number }) => (
+      first.tier - second.tier || first.position - second.position
+    );
+    const focusAreas = pyramidCells
+      .flatMap((cell) => {
+        const source = sourceOf(cell.item);
+        return source ? [{ ...cell, source }] : [];
+      })
+      .sort((first, second) => (
+        PYRAMID_SOURCE_ORDER.indexOf(first.source) - PYRAMID_SOURCE_ORDER.indexOf(second.source) || byPosition(first, second)
+      ))
+      .slice(0, FOCUS_AREA_COUNT)
+      .sort(byPosition)
+      .map(({ item, tier, source }) => ({
+        item,
+        tier,
+        source,
+        ...PYRAMID_ELEMENT_COPY[item as PyramidItem],
+        // 結びつく目標（COPM）が無ければ、選んだ「できるようになりたいこと」の文言で代える。
+        goalText: goalsByImportance.find((goal) => goal.areas.includes(item))?.text
+          ?? selectedWants.find((want) => want.areas.includes(item))?.goalText
+          ?? null,
+      }));
 
     // --- 3か月・6か月の見通し ---
     const roadmap = {
@@ -318,10 +413,14 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           .slice(0, 6)
       : undefined;
     const ppiPrevious = input.previous ? ppiSnapshot(input, true) : undefined;
-    const tuningKeys: TuningKey[] = ['priorityRule'];
+    const gradeOutlook = gradeOutlookOf(input.child.gradeCode);
+    const tuningKeys: TuningKey[] = ['priorityRule', 'abilityCopy', 'focusAreas', 'pyramidSources'];
     if (input.previous) tuningKeys.push('comparison');
     if (engagement.some((axis) => axis.prevLevel !== undefined)) tuningKeys.push('engagementDelta');
+    if (copm.length) tuningKeys.push('goalAreas');
     if (copm.some((goal) => goal.previous)) tuningKeys.push('copmDelta');
+    if (domainHits.length) tuningKeys.push('riskCopy');
+    if (gradeOutlook) tuningKeys.push('gradeOutlook');
 
     // --- コーチ向け（plan・wantPackages・copmFocus はレポート末尾のメニュー提案に使う） ---
     // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。
@@ -362,6 +461,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         coachName: input.coach.displayName,
       },
       levels,
+      abilities,
       conditionNotes,
       upcomingExercises,
       priorities,
@@ -389,15 +489,18 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           }
         : null,
       proprioceptionNote,
-      risks: [...RISK_NOTES],
+      risks: RISK_NOTES.map((note) => ({ ...note })),
+      gradeOutlook,
       pyramid: {
         rows: PYRAMID_TIERS.map((row) => ({ tier: row.tier, items: [...row.items] })),
         highlighted,
+        goalItems,
         root: pyramidRoot,
         rootTierLabel: pyramidTierLabel(pyramidRoot),
         related: pyramidRelated,
         sourceKey: lowestKey,
       },
+      focusAreas,
       link: {
         lowestKey,
         text: `チェックされた困りごとの多くは、${lowestExercise.parentName}（${lowestExercise.name} Lv${levelValue(levelOf(lowestKey))}／${lowestExercise.maxLevel}）がまだ育っている途中であることと一致しています。${lowestExercise.grow}`,

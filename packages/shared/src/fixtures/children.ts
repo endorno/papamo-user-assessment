@@ -1,4 +1,4 @@
-import type { AgeGroup } from '../master';
+import type { AgeGroup, GradeCode } from '../master';
 import type { AssessmentData, CompletedAssessmentData, Honorific } from '../schema';
 
 export interface ChildFixture {
@@ -6,6 +6,7 @@ export interface ChildFixture {
   name: string;
   honorific: Honorific;
   grade: string;
+  gradeCode: GradeCode;
   ageHint: string;
   ageGroup: AgeGroup;
   joinedMonth: string;
@@ -26,12 +27,12 @@ export type AssessmentFixture =
   | (AssessmentFixtureBase & { status: 'draft'; data: AssessmentData });
 
 export const CHILD_FIXTURES: ChildFixture[] = [
-  { id: 'c1', name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', joinedMonth: '2026-02', extUnlocked: false },
-  { id: 'c2', name: 'ゆい', honorific: 'chan', grade: '年中', ageHint: '4〜5歳', ageGroup: 'pre', joinedMonth: '2026-06', extUnlocked: false },
-  { id: 'c3', name: 'そうた', honorific: 'kun', grade: '小学3年生', ageHint: '8〜9歳', ageGroup: 'sch', joinedMonth: '2026-08', extUnlocked: false },
-  { id: 'c4', name: 'あおい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2026-05', extUnlocked: false },
-  { id: 'c6', name: 'みお', honorific: 'chan', grade: '小学4年生', ageHint: '9〜10歳', ageGroup: 'sch', joinedMonth: '2025-11', extUnlocked: true },
-  { id: 'c5', name: 'りん', honorific: 'chan', grade: '年長', ageHint: '5〜6歳', ageGroup: 'pre', joinedMonth: '2026-09', extUnlocked: false },
+  { id: 'c1', name: 'はると', honorific: 'kun', grade: '小学1年生', gradeCode: 'e1', ageHint: '6〜7歳', ageGroup: 'sch', joinedMonth: '2026-02', extUnlocked: false },
+  { id: 'c2', name: 'ゆい', honorific: 'chan', grade: '年中', gradeCode: 'k2', ageHint: '4〜5歳', ageGroup: 'pre', joinedMonth: '2026-06', extUnlocked: false },
+  { id: 'c3', name: 'そうた', honorific: 'kun', grade: '小学3年生', gradeCode: 'e3', ageHint: '8〜9歳', ageGroup: 'sch', joinedMonth: '2026-08', extUnlocked: false },
+  { id: 'c4', name: 'あおい', honorific: 'chan', grade: '小学2年生', gradeCode: 'e2', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2026-05', extUnlocked: false },
+  { id: 'c6', name: 'みお', honorific: 'chan', grade: '小学4年生', gradeCode: 'e4', ageHint: '9〜10歳', ageGroup: 'sch', joinedMonth: '2025-11', extUnlocked: true },
+  { id: 'c5', name: 'りん', honorific: 'chan', grade: '年長', gradeCode: 'k3', ageHint: '5〜6歳', ageGroup: 'pre', joinedMonth: '2026-09', extUnlocked: false },
 ];
 
 const FIXTURE_GOALS: Record<string, string[]> = {

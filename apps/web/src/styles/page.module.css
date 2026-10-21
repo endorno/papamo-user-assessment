@@ -937,23 +937,10 @@
   margin-bottom: 18px;
 }
 
-.reportPage :global(.sheet) {
-  margin-top: 16px;
-  padding: 28px 32px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--card);
-}
-
 .reportPage :global(.sheet) h1 {
   margin: 0;
   font-size: 1.55rem;
   text-wrap: balance;
-}
-
-.reportPage :global(.sheet) h2 {
-  margin: 24px 0 8px;
-  font-size: 1.1rem;
 }
 
 .lead {
@@ -1670,16 +1657,56 @@
   }
 }
 
+/*
+ * 紙面（.sheet）は、左上のタブ（.sheetTab）と枠のあるカード（.sheetCard）を縦に重ねる（v10）。
+ * PDF生成時はサーバーが .sheet に最低高さを付けるので、カードを伸ばして枠を紙面の下まで届かせる。
+ */
 .reportPage :global(.sheet) {
   position: relative;
   display: flex;
   min-height: 257mm;
   flex-direction: column;
   margin-top: 18px;
-  padding: 32px 36px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+}
+
+.sheetTab {
+  align-self: flex-start;
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 8px 8px 0 0;
+  background: var(--report-tab);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sheetTab span {
+  margin: 0 6px;
+  opacity: 0.7;
+}
+
+.sheetTabCoach {
+  background: var(--violet);
+}
+
+.sheetCard {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 28px 32px 14px;
+  border: 1.5px solid var(--report-tab);
+  border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
   background: var(--card);
+}
+
+/* 保護者向けの見出しは番号を振らず、太字だけにする（v10）。 */
+.reportPage :global(.sheet) .reportHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 16px 0 6px;
+  font-size: 1rem;
 }
 
 .reportPage :global(.sheet) h1 {
@@ -1718,6 +1745,12 @@
   text-align: right;
 }
 
+.parentSheet .reportSheetHeader {
+  margin-bottom: 14px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 /* 1枚目の主役。レーダーを枠の中央に大きく置き、説明はその下に回す（design-mock-v2 準拠）。 */
 .reportHero {
   display: grid;
@@ -1754,13 +1787,6 @@
   font-size: 0.86rem;
 }
 
-.reportHero .radarScaleNote {
-  margin-top: 4px;
-  color: var(--mute);
-  font-size: 0.74rem;
-  text-align: center;
-}
-
 .reportHero .reportTotal {
   margin-top: 4px;
   color: var(--green-ink);
@@ -1780,14 +1806,101 @@
   font-weight: 400;
 }
 
-.reportLead {
-  font-size: 0.94rem !important;
-}
-
-/* 図の読み方（初回は記録の趣旨、比較は線の見方）。本文（育てたい力の説明）より目立たせない。 */
+/* 図の読み方（初回は記録の趣旨、比較は線の見方）。見出しのすぐ下に小さく置く（v10）。 */
 .reportHero .reportHeroAside {
+  margin-top: 4px;
   color: var(--mute);
   font-size: 0.76rem;
+}
+
+/* --- レポート1枚目：種目ごとの、できている力／次に高めたい力 --- */
+
+.abilityList {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 16px 8px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.abilityList h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 2px;
+  font-size: 0.92rem;
+}
+
+.abilityItem {
+  padding: 8px 0;
+}
+
+.abilityItem + .abilityItem {
+  border-top: 1px dashed var(--line);
+}
+
+.reportHero .abilityItem p {
+  margin: 4px 0 0;
+  color: var(--ink2);
+  font-size: 0.82rem;
+}
+
+.reportHero .abilityItem .abilityName {
+  margin: 0;
+  color: var(--ink2);
+  font-variant-numeric: tabular-nums;
+}
+
+.abilityName strong {
+  margin-right: 6px;
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.abilityCan,
+.abilityNext {
+  display: inline-block;
+  width: 7rem;
+  margin-right: 8px;
+  padding: 1px 0;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.abilityCan {
+  background: var(--report-can);
+}
+
+.abilityNext {
+  background: var(--report-next);
+}
+
+/* 支える土台（①②③）は「次に高めたい力」の文の下にそろえる。 */
+.reportHero .abilityItem .foundationChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: calc(7rem + 8px);
+}
+
+.foundationChips span {
+  padding: 0 8px;
+  border: 1px solid var(--report-focus-line);
+  border-radius: 4px;
+  background: var(--report-focus-bg);
+  color: var(--report-next-ink);
+  font-size: 0.72rem;
+}
+
+.abilityCondition {
+  display: block;
+  margin-top: 4px;
+  color: var(--mute);
+  font-size: 0.72rem;
 }
 
 .levelTableWrap {
@@ -1862,13 +1975,6 @@
   font-weight: 400;
 }
 
-.reportTwoColumns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
 .reportBox {
   padding: 13px 15px;
   border: 1px solid var(--line);
@@ -1896,142 +2002,279 @@
   background: var(--green-soft);
 }
 
-.reportBoxOrange {
-  border-color: #f1cdae;
-  background: var(--orange-soft);
+.reportFooter {
+  margin-top: auto;
+  padding-top: 12px;
+  color: #a1a1aa;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
-.troublePills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* --- レポート2枚目：最重要にすべき領域 --- */
+
+.reportPage :global(.sheet) .focusAreas .reportHeading {
+  margin-top: 0;
 }
 
-.troublePills span {
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: var(--green-soft);
-  color: var(--green-ink);
-  font-size: 0.78rem;
-}
-
-.troublePills .troubleGone {
-  background: var(--line2);
-  color: var(--mute);
-  text-decoration: line-through;
-}
-
-.troublePills .troubleAdded {
-  border: 1px solid #f1cdae;
-  background: var(--orange-soft);
-  color: var(--orange-ink);
-}
-
-.reportPpi {
+.focusAreas ol {
   display: grid;
-  gap: 9px;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.reportPpi > div {
-  display: grid;
-  grid-template-columns: 120px 1fr 58px;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8rem;
+.reportPage :global(.sheet) .focusAreas li {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--report-focus-line);
+  border-radius: 10px;
+  background: var(--report-focus-bg);
 }
 
-.reportPpiTrack {
-  position: relative;
-  display: block;
-  height: 11px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--line2);
-}
-
-.reportPpiTrack i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  border-radius: inherit;
-  background: var(--orange);
-}
-
-.reportPpiTrack .reportPpiPrevious {
-  background: #f1cdae;
-}
-
-.reportPpiTrack i:last-child {
-  height: 6px;
-  margin-top: 2.5px;
-}
-
-.reportPpi strong {
-  color: var(--orange-ink);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.ppiLegend {
-  margin: 5px 0 0;
-  color: var(--mute);
-  font-size: 0.68rem;
-  text-align: right;
-}
-
-.reportQuote {
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  border-left: 3px solid var(--orange);
-  background: var(--paper);
+.focusAreas li p {
+  margin: 0;
   color: var(--ink2);
   font-size: 0.82rem;
 }
 
-.miniTimeline {
+.focusAreas li p:first-child {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 22px;
+  gap: 2px 8px;
 }
 
-.miniTimeline span {
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: var(--paper);
+.focusAreas li p:first-child strong {
+  color: var(--report-next-ink);
+  font-size: 0.94rem;
+}
+
+.focusAreas li p:first-child small {
+  color: var(--mute);
+  font-size: 0.78rem;
+}
+
+.focusAreas li p + p {
+  margin-top: 4px;
+  padding-left: 28px;
+}
+
+.focusNumber {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--report-next);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* --- レポート2枚目：ピラミッドの凡例（目標由来は塗り、測定・お困りごと由来は青い太枠） --- */
+
+.pyramidLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 16px;
   color: var(--ink2);
-  font-size: 0.75rem;
+  font-size: 0.74rem;
+}
+
+.pyramidLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pyramidLegend i {
+  width: 18px;
+  height: 13px;
+  border-radius: 3px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- レポート2枚目：目標の表・困りごとの背景 --- */
+
+/* 2枚目に表が2つ並ぶため、行の高さを詰める（コーチ向けの表は変えない）。 */
+.parentSheet .levelTable td {
+  padding: 6px 7px;
+}
+
+/* スマホ幅で列を潰さないよう、枠の中で横にずらして読ませる（コーチ向けの表と同じ）。 */
+.goalTable,
+.backgroundTable {
+  min-width: 540px;
+}
+
+.goalTable th {
+  vertical-align: bottom;
+}
+
+.goalTable th[colspan] {
+  border-bottom-style: dashed;
   text-align: center;
 }
 
-.miniTimeline .timelineCurrent {
-  background: var(--green-soft);
-  color: var(--green-ink);
-  font-weight: 700;
+.goalTable th small {
+  display: block;
+  font-size: 0.64rem;
 }
 
-.miniTimeline .timelineUnlock {
-  background: var(--violet-soft);
-  color: var(--violet-ink);
-  font-weight: 700;
+.goalTable thead tr:last-child th {
+  text-align: center;
 }
 
-.miniTimeline b {
-  color: var(--mute);
+.goalAreas {
+  margin: 0;
+  padding: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  list-style: none;
+  white-space: nowrap;
 }
 
-.reportFooter {
+.reportPage :global(.sheet) .goalAreas li {
+  margin: 0;
+}
+
+.troubleIcon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fdf3c7;
+  font-size: 0.68rem;
+  vertical-align: middle;
+}
+
+/* --- レポート2枚目：続いた場合に起こりうること・学年が上がると --- */
+
+.riskCard {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--report-risk-line);
+  border-radius: 10px;
+  background: var(--report-risk-bg);
+}
+
+.riskCard h2,
+.gradeOutlook h3 {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--red);
+  font-size: 0.96rem;
+}
+
+.riskCard ul {
+  color: var(--ink2);
+  font-size: 0.82rem;
+}
+
+.gradeOutlook {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--report-risk-line);
+}
+
+.gradeOutlook h3 {
+  font-size: 0.88rem;
+}
+
+.reportPage :global(.sheet) .gradeOutlook ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.gradeBadge {
+  display: inline-block;
+  margin: 0 4px 0 8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.gradeOutlook p {
+  margin: 6px 0 0;
+  color: var(--ink2);
+  font-size: 0.8rem;
+}
+
+.riskCard .riskDisclaimer {
+  margin-top: 8px;
+}
+
+/* --- レポート2枚目：次回の振り返りスケジュール --- */
+
+.scheduleBox {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--report-schedule-line);
+  border-radius: 10px;
+  background: var(--report-schedule-bg);
+}
+
+.scheduleBox h2 {
+  margin: 0;
+  color: var(--report-schedule-ink);
+  font-size: 0.96rem;
+}
+
+.scheduleBox > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--line2);
+  margin-top: 8px;
+}
+
+.scheduleBox > div p {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--report-schedule-ink);
+}
+
+.scheduleBox > div strong {
+  color: var(--report-schedule-ink);
+  font-size: 0.84rem;
+}
+
+.scheduleBox > div span {
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scheduleBox > div small {
   color: var(--mute);
-  font-size: 0.7rem;
+  font-size: 0.74rem;
+}
+
+.scheduleBox > p {
+  margin: 8px 0 0;
+  color: var(--ink2);
+  font-size: 0.78rem;
 }
 
 @media (max-width: 640px) {
@@ -2052,20 +2295,24 @@
 
   .reportPage :global(.sheet) {
     min-height: 0;
-    padding: 22px 18px;
+  }
+
+  .sheetCard {
+    padding: 20px 16px 12px;
   }
 
   .reportSheetHeader > p {
     text-align: left;
   }
 
-  .reportTwoColumns {
+  .reportHero .abilityItem .foundationChips {
+    padding-left: 0;
+  }
+
+  .scheduleBox > div {
     grid-template-columns: 1fr;
   }
 
-  .reportPpi > div {
-    grid-template-columns: 96px 1fr 52px;
-  }
 }
 
 /*
@@ -2087,9 +2334,12 @@
   .reportPage :global(.sheet) {
     min-height: 0;
     margin: 0;
-    padding: 22px 20px 12px;
-    border-radius: 10px;
     break-after: page;
+  }
+
+  .sheetCard {
+    padding: 18px 20px 10px;
+    border-radius: 0 10px 10px 10px;
   }
 
   .reportPage :global(.sheet):last-child {
@@ -2413,7 +2663,7 @@
 
 /* --- レポート：コーチ向けの紙面（design-mock-v2 のコーチ用「3か月・6か月に当てるメニュー」） --- */
 
-/* 保護者向けの4枚との切れ目。画面だけに出す。 */
+/* 保護者向けの2枚との切れ目。画面だけに出す。 */
 .audienceDivider {
   display: flex;
   align-items: center;
@@ -2445,8 +2695,8 @@
   font-size: 0.74rem;
 }
 
-.reportPage :global(.sheet).coachSheet {
-  border-color: #c4b7e6;
+.coachSheet .sheetCard {
+  border-color: var(--violet);
 }
 
 .coachSheet .reportSheetHeader {
@@ -2831,22 +3081,12 @@
   font-style: normal;
 }
 
-/* --- レポート：困りごとの見立て --- */
-
-.troubleLine {
-  display: block;
-}
-
 /* --- レポート：育ちのピラミッド --- */
 
 .pyramid {
   display: grid;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  background: var(--paper);
+  gap: 5px;
+  margin-top: 6px;
 }
 
 .pyramidRow {
@@ -2875,116 +3115,42 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 4px;
+  padding: 4px;
   line-height: 1.3;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #eef2ec;
-  color: var(--ink2);
+  border-radius: 6px;
+  color: var(--mute);
   font-size: 0.76rem;
 }
 
-.pyramidCell.pyramidHot {
-  border-color: var(--orange);
-  background: var(--orange-soft);
-  color: var(--orange-ink);
-  font-weight: 700;
-}
-
-.pyramidCell.pyramidRoot {
-  border-width: 2px;
-  background: var(--orange);
-  color: #fff;
-}
-
-.pyramidBase {
-  margin: 4px 0 0;
-  color: var(--mute);
-  font-size: 0.72rem;
-  text-align: center;
-}
-
-/* --- レポート：6か月ロードマップ --- */
-
-.roadmap {
-  display: grid;
-  grid-template-columns: 1fr 18px 1fr 18px 1fr 18px 1fr;
-  align-items: stretch;
-  gap: 5px;
-  margin-top: 12px;
-}
-
-.roadmapArrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--orange);
-  font-size: 1rem;
-}
-
-.roadmapColumn {
-  display: flex;
-  overflow: hidden;
-  flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+/* 凡例の見本（.pyramidLegend i）とピラミッドのマスで同じ指定を使う。.pyramidCell より後ろに置いて上書きする。 */
+.pyramidNone {
+  border: 1px solid var(--pyramid-none-line);
   background: #fff;
 }
 
-.roadmapColumn h3 {
-  margin: 0;
-  padding: 8px 6px;
-  color: #fff;
-  font-size: 0.8rem;
-  line-height: 1.35;
-  text-align: center;
-}
-
-.roadmapColumn h3 span {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 400;
-}
-
-.roadmapBody {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 9px 10px;
-}
-
-.roadmapLabel {
-  margin: 0 0 3px;
-  color: #4a5a54;
-  font-size: 0.72rem;
+.pyramidGoal {
+  border: 1px solid var(--pyramid-goal-line);
+  background: var(--pyramid-goal-fill);
+  color: var(--pyramid-goal-ink);
   font-weight: 700;
 }
 
-.roadmapColumn ul {
-  margin: 0;
-  padding-left: 1em;
-  font-size: 0.74rem;
-  line-height: 1.7;
+.pyramidMeasured {
+  border: 2px solid var(--pyramid-measured-line);
+  background: #fff;
+  color: var(--pyramid-measured-ink);
+  font-weight: 700;
+}
+
+.pyramidBoth {
+  border: 2px solid var(--pyramid-measured-line);
+  background: var(--pyramid-goal-fill);
+  color: var(--pyramid-goal-ink);
+  font-weight: 700;
 }
 
 /* 「期待する変化」はひとまわり淡い色の帯にして、上のリストと分ける。 */
-.roadmapSub {
-  margin: 8px -10px -9px;
-  padding: 8px 10px;
-  border-top: 1px dashed var(--line);
-}
 
-.roadmapNow h3 { background: #4f9e6a; }
-.roadmapMonth3 h3 { background: #e08a2e; }
-.roadmapMonth6 h3 { background: #3a7cc0; }
-.roadmapFuture h3 { background: #d6437a; }
-
-.roadmapNow .roadmapSub { background: #eef6f0; }
-.roadmapMonth3 .roadmapSub { background: #fdf3ea; }
-.roadmapMonth3 .roadmapSub .roadmapLabel { color: #c87220; }
-.roadmapMonth6 .roadmapSub { background: #f0f5fc; }
-.roadmapMonth6 .roadmapSub .roadmapLabel { color: #2f6fb5; }
-.roadmapFuture li { color: #c13566; }
 
 @media (max-width: 720px) {
   .engagementRow,
@@ -3004,14 +3170,6 @@
 
   .reportHero {
     grid-template-columns: 1fr;
-  }
-
-  .roadmap {
-    grid-template-columns: 1fr;
-  }
-
-  .roadmapArrow {
-    transform: rotate(90deg);
   }
 
   .engagementBars > div {

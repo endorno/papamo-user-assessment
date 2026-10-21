@@ -21,13 +21,14 @@ const data: CompletedAssessmentData = {
 
 function inputFor(
   assessmentData: CompletedAssessmentData,
-  options: { unlockExt?: boolean; previous?: ReportInput['previous']; seqNo?: number } = {},
+  options: { unlockExt?: boolean; previous?: ReportInput['previous']; seqNo?: number; gradeCode?: ReportInput['child']['gradeCode'] } = {},
 ): ReportInput {
   return {
     child: {
       name: 'はると',
       honorific: 'kun',
       grade: '小学1年生',
+      gradeCode: options.gradeCode ?? 'e1',
       ageHint: '6〜7歳',
       ageGroup: 'sch',
       joinedMonth: '2026-03',
@@ -236,6 +237,7 @@ describe('RuleBasedReportGenerator', () => {
       {
         text: 'ひとりで靴をはける',
         memo: '',
+        areas: [],
         performance: 6,
         satisfaction: 5,
         importance: 8,
@@ -243,7 +245,7 @@ describe('RuleBasedReportGenerator', () => {
         performanceDelta: 2,
         satisfactionDelta: 2,
       },
-      { text: '縄跳びを跳べる', memo: '', performance: 3, satisfaction: 4, importance: 6 },
+      { text: '縄跳びを跳べる', memo: '', areas: [], performance: 3, satisfaction: 4, importance: 6 },
     ]);
     expect(report.tuning.map(({ key }) => key)).toContain('copmDelta');
     expect(reportContentSchema.parse(report)).toEqual(report);
@@ -356,5 +358,74 @@ describe('RuleBasedReportGenerator', () => {
     `);
     expect(report.tuning.map(({ key }) => key)).toContain('comparison');
     expect(reportContentSchema.parse(report)).toEqual(report);
+  });
+
+  describe('保護者向け2枚構成の暫定ルール', () => {
+    it('種目ごとの力は、記録した種目ごとに固定の文言とピラミッドの基盤3つを出す', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(data));
+
+      expect(report.abilities.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
+      expect(report.abilities[0]).toEqual({
+        key: 'post',
+        can: '狭い足場で体の軸を保ち、頭を動かしても崩れない',
+        next: '体の軸を安定させる',
+        foundations: ['前庭覚', '姿勢', 'バランス'],
+      });
+      expect(report.tuning.map(({ key }) => key)).toEqual(expect.arrayContaining(['abilityCopy', 'focusAreas', 'pyramidSources']));
+    });
+
+    it('目標は「できるようになりたいこと」の文言と一致したときだけ優先する領域を持ち、ピラミッドの目標由来になる', async () => {
+      const goalData: CompletedAssessmentData = {
+        ...data,
+        lv: { post: 12, eyeh: 3, hand: 9 },
+        troubles: [],
+        // w12「字をきれいに書けるようになりたい」は hand が主に支える。
+        wants: ['w12'],
+        copm: [
+          { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
+          { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
+        ],
+      };
+      const report = await new RuleBasedReportGenerator().generate(inputFor(goalData));
+
+      expect(report.copm.map(({ text, areas }) => ({ text, areas }))).toEqual([
+        { text: '字をきれいに書けるようになる', areas: ['固有覚', '運動のコントロール', 'ボディイメージ'] },
+        { text: '自分で決めた目標', areas: [] },
+      ]);
+      expect(report.pyramid.goalItems).toEqual(['固有覚', '運動のコントロール', 'ボディイメージ']);
+      // 測定由来はいちばん低い種目（eyeh）の要素。ボディイメージは目標と両方に出る。
+      expect(report.pyramid.highlighted).toEqual(['身体の位置', 'ボディイメージ', '目と手の連携']);
+      expect(report.focusAreas.map(({ item, source, goalText }) => ({ item, source, goalText }))).toEqual([
+        { item: '身体の位置', source: 'measured', goalText: null },
+        { item: 'ボディイメージ', source: 'both', goalText: '字をきれいに書けるようになる' },
+        { item: '目と手の連携', source: 'measured', goalText: null },
+      ]);
+      expect(report.focusAreas[0]).toMatchObject({ tier: 2, definition: '自分と物の位置関係をつかむ' });
+      expect(report.tuning.map(({ key }) => key)).toContain('goalAreas');
+      expect(reportContentSchema.parse(report)).toEqual(report);
+    });
+
+    it('学年が上がったときの見通しは、いまの学年より先の時期だけを学年差つきで出す', async () => {
+      const outlookOf = async (gradeCode: ReportInput['child']['gradeCode']) => (
+        await new RuleBasedReportGenerator().generate(inputFor(data, { gradeCode }))
+      ).gradeOutlook;
+
+      expect((await outlookOf('e5'))?.milestones).toEqual([
+        { label: '小6ごろ', theme: '自立への移行', gradesAhead: 1 },
+        { label: '高校ごろ', theme: '自己実現と将来設計', gradesAhead: 5 },
+      ]);
+      expect((await outlookOf('e6'))?.milestones.map(({ label, gradesAhead }) => ({ label, gradesAhead })))
+        .toEqual([{ label: '高校ごろ', gradesAhead: 4 }]);
+      expect((await outlookOf('j3'))?.milestones.map(({ gradesAhead }) => gradesAhead)).toEqual([1]);
+      expect(await outlookOf('graduated')).toBeNull();
+    });
+
+    it('起こりうることは太字にするキーフレーズを本文の中に持つ', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(data));
+
+      expect(report.risks).toHaveLength(4);
+      for (const { text, emphasis } of report.risks) expect(text).toContain(emphasis);
+      expect(report.tuning.map(({ key }) => key)).toContain('riskCopy');
+    });
   });
 });

@@ -24,6 +24,7 @@ function reportInput(id: string): ReportInput {
       name: child.name,
       honorific: child.honorific,
       grade: child.grade,
+      gradeCode: child.gradeCode,
       ageHint: child.ageHint,
       ageGroup: child.ageGroup,
       joinedMonth: child.joinedMonth,
@@ -63,9 +64,57 @@ describe('承認モックのフィクスチャ', () => {
       strengths: report.strengths.map(({ key }) => key),
       upcoming: report.upcomingExercises.map(({ key }) => key),
       nextDue: report.nextDue,
+      // 保護者向け2枚構成の暫定ルール（ロジックが決まったら差し替える）。
+      goalItems: report.pyramid.goalItems,
+      copmAreas: report.copm.map(({ text, areas }) => ({ text, areas })),
+      focusAreas: report.focusAreas.map(({ item, source, goalText }) => ({ item, source, goalText })),
+      gradeOutlook: report.gradeOutlook?.milestones.map(({ label, gradesAhead }) => `${label}・約${gradesAhead}学年先`) ?? null,
     }))).toMatchInlineSnapshot(`
       [
         {
+          "copmAreas": [
+            {
+              "areas": [
+                "視覚",
+                "眼球運動",
+                "目と手の連携",
+              ],
+              "text": "板書を写すのが間に合うようになる",
+            },
+            {
+              "areas": [],
+              "text": "すぐにあきらめず最後までやりきる",
+            },
+          ],
+          "focusAreas": [
+            {
+              "goalText": "姿勢よく座れるようになる",
+              "item": "前庭覚",
+              "source": "both",
+            },
+            {
+              "goalText": "板書を写すのが間に合うようになる",
+              "item": "眼球運動",
+              "source": "both",
+            },
+            {
+              "goalText": "板書を写すのが間に合うようになる",
+              "item": "目と手の連携",
+              "source": "both",
+            },
+          ],
+          "goalItems": [
+            "視覚",
+            "眼球運動",
+            "目と手の連携",
+            "前庭覚",
+            "姿勢",
+            "バランス",
+          ],
+          "gradeOutlook": [
+            "小6ごろ・約5学年先",
+            "高校ごろ・約9学年先",
+          ],
           "id": "a1",
           "kind": "first",
           "levels": [
@@ -102,6 +151,49 @@ describe('承認モックのフィクスチャ', () => {
           ],
         },
         {
+          "copmAreas": [
+            {
+              "areas": [
+                "視覚",
+                "眼球運動",
+                "目と手の連携",
+              ],
+              "text": "板書を写すのが間に合うようになる",
+            },
+            {
+              "areas": [],
+              "text": "すぐにあきらめず最後までやりきる",
+            },
+          ],
+          "focusAreas": [
+            {
+              "goalText": null,
+              "item": "身体の位置",
+              "source": "measured",
+            },
+            {
+              "goalText": "板書を写すのが間に合うようになる",
+              "item": "眼球運動",
+              "source": "both",
+            },
+            {
+              "goalText": "板書を写すのが間に合うようになる",
+              "item": "目と手の連携",
+              "source": "both",
+            },
+          ],
+          "goalItems": [
+            "視覚",
+            "眼球運動",
+            "目と手の連携",
+            "前庭覚",
+            "姿勢",
+            "バランス",
+          ],
+          "gradeOutlook": [
+            "小6ごろ・約5学年先",
+            "高校ごろ・約9学年先",
+          ],
           "id": "a2",
           "kind": "comparison",
           "levels": [
@@ -138,6 +230,45 @@ describe('承認モックのフィクスチャ', () => {
           ],
         },
         {
+          "copmAreas": [
+            {
+              "areas": [],
+              "text": "ノートを最後まで写せるようになる",
+            },
+            {
+              "areas": [],
+              "text": "忘れ物を減らす",
+            },
+          ],
+          "focusAreas": [
+            {
+              "goalText": "朝の支度を自分で進められるようになる",
+              "item": "前庭覚",
+              "source": "both",
+            },
+            {
+              "goalText": "板書を写すのが間に合うようになる",
+              "item": "眼球運動",
+              "source": "both",
+            },
+            {
+              "goalText": "朝の支度を自分で進められるようになる",
+              "item": "運動のコントロール",
+              "source": "both",
+            },
+          ],
+          "goalItems": [
+            "視覚",
+            "眼球運動",
+            "目と手の連携",
+            "前庭覚",
+            "運動のコントロール",
+            "学習・情緒／複合運動",
+          ],
+          "gradeOutlook": [
+            "小6ごろ・約2学年先",
+            "高校ごろ・約6学年先",
+          ],
           "id": "m3",
           "kind": "comparison",
           "levels": [

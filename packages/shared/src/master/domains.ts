@@ -12,9 +12,34 @@ export const PYRAMID_TIERS = [
   { tier: 5, label: 'いちばん上の段', items: ['学習・情緒／複合運動'] },
 ] as const;
 
+export type PyramidItem = (typeof PYRAMID_TIERS)[number]['items'][number];
+
 export function pyramidTierLabel(item: string): string {
   return PYRAMID_TIERS.find((row) => row.items.some((candidate) => candidate === item))?.label ?? '';
 }
+
+/**
+ * ピラミッドの各要素の、保護者向けの短い定義（definition）と、育つと何が変わるか（effect）。
+ * 保護者向けレポート2枚目の「最重要にすべき領域」で「ここが育つと{effect}ため、…」の形で使う。
+ * 【仮】PdM の文言が届くまでの仮置き（2026-10-21）。前庭覚・身体の位置の定義と固有覚の定義の書き出しは、変更依頼の例から取った。
+ */
+export const PYRAMID_ELEMENT_COPY: Record<PyramidItem, { definition: string; effect: string }> = {
+  聴覚: { definition: '音を聞き分けて、言葉や合図を受け取る', effect: '話や合図を聞き取りやすくなる' },
+  前庭覚: { definition: '重力の向きと体の傾きを感じ取る', effect: '姿勢を保つのに使う力が減る' },
+  固有覚: { definition: '自分の手足がどれくらいの力で動いているかを感じ取る', effect: '力の入れすぎ・抜けすぎが減る' },
+  触覚: { definition: '触れたものの形や手ざわりを感じ分ける', effect: '道具や物を落ち着いて扱いやすくなる' },
+  視覚: { definition: '見たものの形や位置を正しく受け取る', effect: '見て判断するまでが速くなる' },
+  姿勢: { definition: '体の軸をまっすぐに保つ', effect: '座る・立つ姿勢が崩れにくくなる' },
+  バランス: { definition: 'ぐらついても体を立て直す', effect: '動きながらでも転びにくくなる' },
+  身体の位置: { definition: '自分と物の位置関係をつかむ', effect: 'ぶつかる・取り損ねることが減る' },
+  眼球運動: { definition: '頭が動いても、見たいものに目を合わせ続ける', effect: '読む・写すときに目が疲れにくくなる' },
+  姿勢調整: { definition: '動きに合わせて姿勢を細かく整える', effect: '長い時間の活動でも姿勢を保ちやすくなる' },
+  ボディイメージ: { definition: '自分の体の大きさや形を体の中でつかむ', effect: '真似をする・道具を使う動きがスムーズになる' },
+  運動のコントロール: { definition: '力の加減とタイミングを合わせる', effect: '動きのばらつきが減る' },
+  目と手の連携: { definition: '見たものに合わせて手を動かす', effect: '書く・切る・捕る動きが安定する' },
+  言語機能: { definition: '言葉で考え、伝える', effect: '説明を聞いて動けることが増える' },
+  '学習・情緒／複合運動': { definition: '止まる・切り替える・がまんする', effect: '落ち着いて学習や遊びに取り組みやすくなる' },
+};
 
 /**
  * 神経ドメイン（DN 1〜7）。お子さまのお困りごとの各項目が内部でここへ紐づく。

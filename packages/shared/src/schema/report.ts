@@ -26,6 +26,8 @@ const ppiSchema = z.object({
   nav: ppiScoreSchema,
 });
 
+const pyramidSourceSchema = z.enum(['both', 'measured', 'goal']);
+
 const reportLevelSchema = z.object({
   key: exerciseKeySchema,
   name: z.string(),
@@ -41,6 +43,7 @@ const reportLevelSchema = z.object({
 const copmReportSchema = z.object({
   text: z.string(),
   memo: z.string(),
+  areas: z.array(z.string()),
   performance: copmScoreSchema,
   satisfaction: copmScoreSchema,
   importance: copmScoreSchema,
@@ -71,6 +74,12 @@ export const reportContentSchema = z.object({
     coachName: z.string(),
   }),
   levels: z.array(reportLevelSchema),
+  abilities: z.array(z.object({
+    key: exerciseKeySchema,
+    can: z.string(),
+    next: z.string(),
+    foundations: z.array(z.string()),
+  })),
   conditionNotes: z.array(z.object({
     key: exerciseKeySchema,
     name: z.string(),
@@ -141,15 +150,28 @@ export const reportContentSchema = z.object({
     parentText: z.string(),
   }).nullable(),
   proprioceptionNote: z.boolean(),
-  risks: z.array(z.string()),
+  risks: z.array(z.object({ text: z.string(), emphasis: z.string() })),
+  gradeOutlook: z.object({
+    milestones: z.array(z.object({ label: z.string(), theme: z.string(), gradesAhead: z.number().int().positive() })),
+    summary: z.string(),
+  }).nullable(),
   pyramid: z.object({
     rows: z.array(z.object({ tier: z.number().int(), items: z.array(z.string()) })),
     highlighted: z.array(z.string()),
+    goalItems: z.array(z.string()),
     root: z.string(),
     rootTierLabel: z.string(),
     related: z.array(z.string()),
     sourceKey: exerciseKeySchema,
   }),
+  focusAreas: z.array(z.object({
+    item: z.string(),
+    tier: z.number().int(),
+    source: pyramidSourceSchema,
+    definition: z.string(),
+    effect: z.string(),
+    goalText: z.string().nullable(),
+  })),
   link: z.object({ lowestKey: exerciseKeySchema, text: z.string() }),
   ppi: z.object({ current: ppiSchema, previous: ppiSchema.optional(), note: z.string() }),
   roadmap: z.object({

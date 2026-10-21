@@ -22,19 +22,22 @@ let firstReport: ReportContent;
 
 beforeAll(async () => {
   const generator = new RuleBasedReportGenerator();
-  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedMonth: '2026-03' };
+  const child = { name: 'はると', honorific: 'kun' as const, grade: '小学1年生', gradeCode: 'e1' as const, ageHint: '6〜7歳', ageGroup: 'sch' as const, joinedMonth: '2026-03' };
   const previous = {
     seqNo: 1,
     assessedOn: '2026-06-01',
     unlockExt: false,
     data: {
       lv: { post: 5, eyeh: 5, hand: 5 },
-      observations: { post: [], eyeh: [], hand: [] },
+      observations: { post: ['指示理解の難しさ'], eyeh: [], hand: [] },
       observationNotes: {},
       engagement: { dur: 1, sup: 2 },
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
       wants: ['w18'],
-      copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 }],
+      copm: [
+        { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
+        { text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 },
+      ],
       ppi: { time: 3, emo: 3, soc: 2, fut: 4, nav: 3 },
       ppiNote: '',
       memo: '',
@@ -77,73 +80,148 @@ afterEach(() => {
 });
 
 describe('レポート', () => {
-  it('初回レポートの見出しと困りごとを初回向けに表示する', async () => {
+  it('初回レポートは保護者向けの2枚で、1枚目にスコアと種目ごとの力を出す', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
-    expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの現在地と強み');
-    expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('今のお困りごとと、その理由');
-    expect(screen.queryByText(/3か月でできるようになったこと/)).not.toBeInTheDocument();
-    // 総合点の分母は実施した種目（基本3種目 × 30）だけで数える。
-    expect(screen.getByRole('region', { name: '育ちマップ' })).toHaveTextContent(/今の到達\s*15\s*\/90（実施した3種目の合計）/);
-    // 線が1本だけの初回は凡例を出さず、軸には運動名ではなく力の名前を出す。
+    const firstSheet = await screen.findByRole('region', { name: 'レポート1ページ目' });
+    expect(firstSheet).toHaveTextContent('本体（ご家庭説明用）｜Page 1');
+    expect(within(firstSheet).getByRole('heading', { level: 1 })).toHaveTextContent('はるとくんのスコア');
+    expect(firstSheet).toHaveTextContent('アセスメント日：2026年6月1日');
+    // 年齢は保存しないため、学年から引いた目安を名前に添える。担当コーチの行は出さない。
+    expect(firstSheet).toHaveTextContent('はるとくん（6〜7歳）小学1年生');
+    expect(firstSheet).not.toHaveTextContent('担当');
+    expect(firstSheet).toHaveTextContent('へやすぽアシスト');
+    expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'レポート3ページ目' })).not.toBeInTheDocument();
+
+    // 図の読み方は育ちマップの見出しのすぐ下。総合点の分母は実施した種目（基本3種目 × 30）だけで数える。
+    const hero = screen.getByRole('region', { name: '育ちマップ' });
+    expect(hero).toHaveTextContent(/^育ちマップ（5つの土台のレーダーチャート）できた・できなかったの採点ではなく/);
+    expect(hero).toHaveTextContent(/今の到達\s*15\s*\/90（実施した3種目の合計）/);
+    // 未開放の種目は「未実施」と表示し、凡例は前回と重ねる比較のときだけ出す。
+    expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('未実施');
+    expect(screen.getByRole('img', { name: '5種目の到達レベル' })).not.toHaveTextContent('半年目以降');
     expect(screen.queryByText('今回')).not.toBeInTheDocument();
-    // 1枚目の見出しが1つだけなら番号を振らない。未開放種目の案内は注記とレーダーだけで伝える。
-    const firstSheet = screen.getByRole('region', { name: 'レポート1ページ目' });
-    expect(within(firstSheet).getByRole('heading', { level: 2 }).textContent).toMatch(/^取り組みの様子/);
-    expect(firstSheet).not.toHaveTextContent('これから加わる種目');
-    expect(screen.getByRole('img', { name: '5種目の到達レベル' })).toHaveTextContent('姿勢制御/動的バランス');
-    // ルールが未確定の箇所には目印を出す。
-    expect(screen.getAllByText(/アルゴリズム調整中/).length).toBeGreaterThan(0);
+
+    const abilities = within(hero).getByRole('region', { name: /実施した種目ごとの、できている力／次に高めたい力/ });
+    expect(abilities).toHaveTextContent('ラインウォークLv5/30');
+    expect(abilities).toHaveTextContent('できている力狭い足場で体の軸を保ち、頭を動かしても崩れない');
+    expect(abilities).toHaveTextContent('次に高めたい力体の軸を安定させる');
+    expect(abilities).toHaveTextContent('①前庭覚②姿勢③バランス');
+    // 当日の様子の注記は、その種目のところに添える。
+    expect(abilities).toHaveTextContent('当日の様子（指示理解の難しさ）');
+    // 優先テーマ・強みのカードと、未測定の注記は出さない。
+    expect(firstSheet).not.toHaveTextContent('これから特に伸ばしたい力');
+    expect(firstSheet).not.toHaveTextContent('強み（いま伸びているところ）');
+    expect(firstSheet).not.toHaveTextContent('今回まだ測っていません');
+    expect(within(firstSheet).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.replace(/アルゴリズム調整中.*$/, ''))).toEqual([
+      '実施した種目ごとの、できている力／次に高めたい力',
+      '取り組みの様子',
+    ]);
+    // 暫定の箇所はコーチに分かるよう画面に目印を出し、PDFには出さない。
+    const tuningTags = screen.getAllByText(/アルゴリズム調整中/);
+    expect(tuningTags.length).toBeGreaterThan(0);
+    for (const tag of tuningTags) expect(tag).toHaveAttribute('data-print-hidden');
   });
 
-  it('比較レポートを4枚構成と日本語ラベルで表示する', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+  it('2枚目は最重要の領域・2系統のピラミッド・目標・困りごとの背景・振り返りの予定の順に並べる', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
-    expect(await screen.findByRole('region', { name: 'レポート1ページ目' })).toHaveTextContent('はるとくんの3か月の変化');
-    // 比較では見出しが2つあるので連番を振る。
-    expect(within(screen.getByRole('region', { name: 'レポート1ページ目' })).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.slice(0, 2))).toEqual(['13', '2取']);
-    const troubleSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
-    expect(troubleSheet).toHaveTextContent('育ちのピラミッド');
-    // ピラミッドは5段。上の段ほど狭くするための段クラスが付いている。
-    const pyramidRows = troubleSheet.querySelectorAll('[class*="pyramidRow"]');
+    const sheet = await screen.findByRole('region', { name: 'レポート2ページ目' });
+    expect(sheet).toHaveTextContent('本体（ご家庭説明用）｜Page 2');
+    expect(within(sheet).getByRole('heading', { level: 1 })).toHaveTextContent('発達ピラミッドから見る、育てるべき領域');
+    expect(within(sheet).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.replace(/アルゴリズム調整中.*$/, ''))).toEqual([
+      '最重要にすべき領域',
+      'ご家族・本人の目標',
+      '困りごとの背景にありそうな力',
+      '今の困りごとが続いた場合に起こりうること',
+      '次回の振り返りスケジュール',
+    ]);
+
+    const focus = within(sheet).getByRole('region', { name: /最重要にすべき領域/ });
+    const focusItems = within(focus).getAllByRole('listitem');
+    expect(focusItems).toHaveLength(3);
+    expect(focusItems[0]).toHaveTextContent('1前庭覚重力の向きと体の傾きを感じ取る');
+    expect(focusItems[0]).toHaveTextContent('目標「姿勢よく座れるようになる」などの達成に近づきます。');
+
+    // ピラミッドは5段で、上の段ほど狭い。目標由来と測定・お困りごと由来を描き分け、凡例を上に置く。
+    expect(sheet).toHaveTextContent('該当なし目標から必要測定・お困りごと両方');
+    const pyramidRows = sheet.querySelectorAll('[class*="pyramidRow"]');
     expect(pyramidRows).toHaveLength(5);
     expect(pyramidRows[0]?.className).toMatch(/pyramidTier5/);
     expect(pyramidRows[4]?.className).toMatch(/pyramidTier1/);
-    expect(screen.getByRole('region', { name: 'レポート3ページ目' })).toHaveTextContent('時間の負担');
-    // ロードマップは次回レビューのタイムラインと並べるため、最後の4枚目に置く。
-    const roadmapSheet = screen.getByRole('region', { name: 'レポート4ページ目' });
-    expect(roadmapSheet).toHaveTextContent('6か月成長ロードマップ');
-    // 現在地 → 3か月後 → 6か月後 → 目指す未来 の4本立て。
-    expect(within(roadmapSheet).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
-      '現在地（今ここ）',
-      '3か月後の目安（土台づくり）',
-      '6か月後の目安（目標へつなげる）',
-      '目指す未来（生活・学習の中で）',
+    expect(within(sheet).getByText('前庭覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidBoth/);
+    expect(within(sheet).getByText('視覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidNone/);
+
+    // 目標は重要度の高い順。現在の状態は遂行度・満足度の2段の見出しにする。
+    const goalTable = within(sheet).getAllByRole('table')[0]!;
+    expect(goalTable).toHaveTextContent('親御さんにとっての重要度');
+    expect(within(goalTable).getByRole('columnheader', { name: '現在の状態 （10段階）' })).toHaveAttribute('colspan', '2');
+    expect(within(goalTable).getAllByRole('row')[1]).toHaveTextContent('遂行度満足度');
+    const goalRows = within(goalTable).getAllByRole('row').slice(2);
+    expect(goalRows.map((row) => row.textContent)).toEqual([
+      '姿勢よく座れるようになる933①前庭覚②姿勢③バランス',
+      '自分で決めた目標455—',
     ]);
-    expect(roadmapSheet).toHaveTextContent('4・5種目目を追加');
-    expect(screen.getAllByText('半年目以降').length).toBeGreaterThan(0);
+
+    // 困りごとの背景は、優先して見る土台をピラミッドの要素名で出す。
+    const backgroundTable = within(sheet).getAllByRole('table')[1]!;
+    expect(backgroundTable).toHaveTextContent('姿勢がすぐ崩れる／机に伏せる・寝転がる');
+    expect(backgroundTable).toHaveTextContent('ボディイメージ');
+
+    const risk = within(sheet).getByRole('region', { name: /今の困りごとが続いた場合に起こりうること/ });
+    expect(within(risk).getByText('疲れやすくなる').tagName).toBe('STRONG');
+    expect(risk).toHaveTextContent('小6ごろ約5学年先（自立への移行）');
+    expect(risk).toHaveTextContent('高校ごろ約9学年先（自己実現と将来設計）');
+
+    const schedule = within(sheet).getByRole('region', { name: '次回の振り返りスケジュール' });
+    expect(schedule).toHaveTextContent('3か月レビュー2026年9月1日ごろ');
+    expect(schedule).toHaveTextContent('6か月レビュー2026年12月1日ごろ');
+    expect(sheet).toHaveTextContent('本レポートは運動課題の到達段階の記録であり、診断ではありません。');
+    // お困り度と6か月ロードマップは廃止した。
+    expect(screen.queryByText(/ご家庭のお困り度/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/6か月成長ロードマップ/)).not.toBeInTheDocument();
   });
 
-  it('保護者向けの4枚のあとに、コーチ向けの切れ目とメニュー提案を置く', async () => {
+  it('比較レポートも同じ2枚構成で、前回との差を添える', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const firstSheet = await screen.findByRole('region', { name: 'レポート1ページ目' });
+    expect(within(firstSheet).getByRole('heading', { level: 1 })).toHaveTextContent('はるとくんのスコア');
+    expect(firstSheet).toHaveTextContent('アセスメント日：2026年9月1日（前回 2026年6月1日）');
+    expect(firstSheet).toHaveTextContent('色の濃い線が今回、点線が3か月前です。');
+    expect(screen.getByText('前回')).toBeInTheDocument();
+    expect(screen.getByText('今回')).toBeInTheDocument();
+    expect(within(firstSheet).getByRole('region', { name: /実施した種目ごとの/ })).toHaveTextContent('ラインウォークLv8/30（▲3）');
+    expect(firstSheet).toHaveTextContent('3か月でできるようになったこと');
+    expect(screen.getByRole('region', { name: 'レポート2ページ目' })).toHaveTextContent('前回 3');
+    expect(screen.queryByRole('region', { name: 'レポート3ページ目' })).not.toBeInTheDocument();
+  });
+
+  it('保護者向けの2枚のあとに、コーチ向けの切れ目とメニュー提案を置く', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
     const coachSheet = await screen.findByRole('region', { name: 'コーチ向け メニュー提案' });
-    const lastParentSheet = screen.getByRole('region', { name: 'レポート4ページ目' });
+    const lastParentSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
     expect(lastParentSheet.compareDocumentPosition(coachSheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // 切れ目は画面だけに出し、紙面は保護者向けPDFから外す目印を付ける。
     expect(screen.getByText('ここからはコーチ向け').closest('[data-print-hidden]')).not.toBeNull();
     expect(coachSheet).toHaveAttribute('data-coach-only');
+    expect(coachSheet).toHaveTextContent('コーチ用｜Page 3');
     expect(coachSheet).toHaveTextContent('コーチ用・保護者には渡さない');
+    // コーチ向けは、誰が作ったレポートかが分かるよう担当を出したままにする。
+    expect(coachSheet).toHaveTextContent('担当 さとうコーチ');
     expect(within(coachSheet).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
       '13か月・6か月に当てるメニュー',
       '2目標への当て方',
     ]);
     expect(coachSheet).toHaveTextContent('主軸');
     expect(coachSheet).toHaveTextContent('対応するメニューパッケージ');
-    // 保護者向けの4枚にはメニュー提案を出さない。
+    // 保護者向けの紙面にはメニュー提案を出さない。
     expect(lastParentSheet).not.toHaveTextContent('当てるメニュー');
   });
 
@@ -198,7 +276,7 @@ describe('レポート', () => {
     expect(screen.queryByRole('link', { name: '一覧に戻る' })).not.toBeInTheDocument();
   });
 
-  it('保護者向けPDFは4枚だけをサーバーへ送り、ファイルとして保存する', async () => {
+  it('保護者向けPDFは2枚だけをサーバーへ送り、ファイルとして保存する', async () => {
     const { fetchMock, click, createObjectURL, savedFileNames } = stubPdfDownload();
     renderReportPage();
 
@@ -209,10 +287,12 @@ describe('レポート', () => {
     expect(url).toBe('/api/assessments/assessment-1/report/pdf');
     expect(init?.method).toBe('POST');
     const { html } = JSON.parse(String(init?.body)) as { html: string };
-    // 画面の4枚をそのまま送り、操作ボタンやコーチ向けの紙面など保護者に渡さないものは含めない。
-    expect(html).toContain('はるとくんの3か月の変化');
+    // 画面の2枚をそのまま送り、操作ボタンやコーチ向けの紙面、暫定の目印など保護者に渡さないものは含めない。
+    expect(html).toContain('はるとくんのスコア');
+    expect(html).toContain('発達ピラミッドから見る、育てるべき領域');
     expect(html).not.toContain('はるとくんのメニュー提案');
     expect(html).not.toContain('ここからはコーチ向け');
+    expect(html).not.toContain('アルゴリズム調整中');
     // 同じお名前のお子さまと同じフォルダに保存しても上書きしないよう、IDの末尾4文字を入れる。
     expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回</title>');
     expect(html).not.toContain('保護者向けPDF');
@@ -410,7 +490,7 @@ describe('レポート', () => {
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const [, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/report/pdf'))!;
     const { html } = JSON.parse(String(init?.body)) as { html: string };
-    expect(html).toContain('はるとくんの3か月の変化');
+    expect(html).toContain('はるとくんのスコア');
     expect(html).toContain('はるとくんのメニュー提案');
     // 画面だけの切れ目は入れず、紙面の帯でコーチ用と分かるようにする。
     expect(html).not.toContain('ここからはコーチ向け');

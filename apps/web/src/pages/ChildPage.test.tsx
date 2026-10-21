@@ -208,7 +208,7 @@ describe('子どもページ', () => {
 
   it('コーチ向けのメニュー提案はレポート末尾へ案内し、振り返りと計画のタブは置かない', async () => {
     const latestReport = await new RuleBasedReportGenerator().generate({
-      child: { name: 'ゆい', honorific: 'chan', grade: '小学2年生', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2025-06' },
+      child: { name: 'ゆい', honorific: 'chan', grade: '小学2年生', gradeCode: 'e2', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2025-06' },
       coach: { displayName: 'さとうコーチ' },
       assessment: {
         seqNo: 1,

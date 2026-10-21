@@ -42,9 +42,12 @@ function chartValue(level: number | undefined) {
   return level ?? 0;
 }
 
-/** 軸ラベルの下に添える今回の到達。未開放の軸は数値の代わりに「半年目以降」を出す。 */
+/**
+ * 軸ラベルの下に添える今回の到達（レポート用）。未開放の軸は数値の代わりに「未実施」を出す。
+ * 保護者向けレポート v10 で「半年目以降」から改めた。子どもページの図は「半年目以降」のまま（コーチには時期の目安が役に立つため）。
+ */
 function levelCaption(level: ReportLevel | undefined, available: boolean) {
-  if (!available || !level) return '半年目以降';
+  if (!available || !level) return '未実施';
   if (level.delta === undefined) return `Lv${level.lv}`;
   const { delta } = level;
   return `Lv${level.lv}（${delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '±0'}）`;

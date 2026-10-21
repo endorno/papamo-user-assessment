@@ -31,6 +31,7 @@ export async function generateReport(input: {
       name: input.child.name,
       honorific: input.child.honorific as Honorific,
       grade: grade.name,
+      gradeCode: grade.code,
       ageHint: grade.ageHint,
       ageGroup: grade.ageGroup,
       joinedMonth: input.child.joinedMonth,

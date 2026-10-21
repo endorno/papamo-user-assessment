@@ -18,6 +18,28 @@
   --red: #c4534a;
   --red-soft: #fae7e4;
   --focus: #9ccfc2;
+
+  /*
+   * 保護者向けレポート（v10・2026-10-21）。色の意味をそろえる：
+   * 緑＝できている、オレンジ＝次に高めたい、赤の塗り＝目標由来、青の太枠＝測定・お困りごと由来。
+   */
+  --report-tab: #2e9d5b;
+  --report-can: #3a9d5d;
+  --report-next: #e08a3c;
+  --report-next-ink: #b25a17;
+  --report-focus-bg: #fff8ef;
+  --report-focus-line: #f0c9a5;
+  --pyramid-none-line: #d4d4d8;
+  --pyramid-goal-fill: #f6d3cf;
+  --pyramid-goal-line: #d45a50;
+  --pyramid-goal-ink: #9b2f26;
+  --pyramid-measured-line: #3b6fd1;
+  --pyramid-measured-ink: #234a99;
+  --report-risk-bg: #fdf1ee;
+  --report-risk-line: #f0c2b8;
+  --report-schedule-bg: #eff5fc;
+  --report-schedule-line: #bfd5ee;
+  --report-schedule-ink: #2a5ea8;
   --r: 10px;
   --r-lg: 16px;
 

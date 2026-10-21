@@ -27,7 +27,9 @@ const PRINTABLE_HEIGHT_PX = Math.floor((A4_MM.height - PAGE_MARGIN_MM.top - PAGE
 
 /*
  * 1シート＝1ページを保証するため、シートごとに高さを実測して zoom で紙面に収める（design-mock-v2 の fitA4 を移植）。
- * 余白が大きく余るシートは少し拡大して紙面を埋める。zoom は再レイアウトを伴い高さが線形に縮まないので、測り直しながら詰める。
+ * 余白が大きく余るシートは少し拡大して紙面を埋める。
+ * zoom を下げると紙面の幅が広がって折り返しが減るため、高さは zoom に比例しない（比例とみなして下げるだけだと縮めすぎる。2026-10-21）。
+ * そこで、収まる範囲でいちばん大きい zoom を二分探索で探す。
  * Chrome 127 以前は zoom をかけた要素の getBoundingClientRect が拡縮前の大きさを返すため、紙面上の高さは zoom を掛けて求める。
  * ページ内のスクリプトは止めているため、ここで評価する。関数ではなく文字列で渡すのは、Worker のバンドルで付く補助関数を持ち込まないため。
  */
@@ -41,16 +43,27 @@ const FIT_SHEETS_SCRIPT = `(() => {
   const rectIncludesZoom = probe.getBoundingClientRect().height < 75;
   probe.remove();
   for (const sheet of document.querySelectorAll('.sheet')) {
-    sheet.style.zoom = '';
     sheet.style.minHeight = '';
-    let zoom = Math.min(maxZoom, Math.max(minZoom, target / sheet.getBoundingClientRect().height));
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    const fits = (zoom) => {
       sheet.style.zoom = zoom.toFixed(3);
       const rectHeight = sheet.getBoundingClientRect().height;
-      const printedHeight = rectIncludesZoom ? rectHeight : rectHeight * zoom;
-      if (printedHeight <= target || zoom <= minZoom) break;
-      zoom = Math.max(minZoom, (zoom * target) / printedHeight - 0.004);
+      return (rectIncludesZoom ? rectHeight : rectHeight * zoom) <= target;
+    };
+    let zoom = minZoom;
+    if (fits(maxZoom)) {
+      zoom = maxZoom;
+    } else if (fits(minZoom)) {
+      let low = minZoom;
+      let high = maxZoom;
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const middle = (low + high) / 2;
+        if (fits(middle)) low = middle;
+        else high = middle;
+      }
+      // 小数第3位で丸めて収まらなくならないよう、切り捨てる。
+      zoom = Math.floor(low * 1000) / 1000;
     }
+    sheet.style.zoom = zoom.toFixed(3);
     // 枠が紙面の下まで届くよう、残りを最低高さで埋める（min-height も zoom で拡縮される）。
     sheet.style.minHeight = target / zoom + 'px';
   }

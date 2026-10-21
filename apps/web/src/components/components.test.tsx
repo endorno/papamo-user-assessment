@@ -104,7 +104,7 @@ describe('共通UI', () => {
       memo: '',
     };
     const report = reportContentSchema.parse(await new RuleBasedReportGenerator().generate({
-      child: { name: 'はると', honorific: 'kun', grade: '小学1年生', ageHint: '6〜7歳', ageGroup: 'sch', joinedMonth: '2026-03' },
+      child: { name: 'はると', honorific: 'kun', grade: '小学1年生', gradeCode: 'e1', ageHint: '6〜7歳', ageGroup: 'sch', joinedMonth: '2026-03' },
       coach: { displayName: 'さとうコーチ' },
       assessment: { seqNo: 2, assessedOn: '2026-09-01', unlockExt: false, data },
       previous: { seqNo: 1, assessedOn: '2026-06-01', unlockExt: false, data: { ...data, lv: { post: 5, eyeh: 6, hand: 6 } } },
