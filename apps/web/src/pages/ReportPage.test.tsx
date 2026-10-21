@@ -38,9 +38,6 @@ beforeAll(async () => {
         { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
         { text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 3, importance: 9 },
       ],
-      ppi: { time: 3, emo: 3, soc: 2, fut: 4, nav: 3 },
-      ppiNote: '',
-      memo: '',
     },
   };
   const common = {
@@ -64,9 +61,6 @@ beforeAll(async () => {
         troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
         wants: ['w18'],
         copm: [{ text: '姿勢よく座れるようになる', memo: '', performance: 6, satisfaction: 5, importance: 9 }],
-        ppi: { time: 2, emo: 2, soc: 1, fut: 3, nav: 2 },
-        ppiNote: '宿題の声かけが負担になっている',
-        memo: '',
       },
     },
     previous,

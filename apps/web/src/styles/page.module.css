@@ -320,8 +320,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.levelTrack,
-.ppiTrack {
+.levelTrack {
   display: block;
   height: 12px;
   overflow: hidden;
@@ -329,8 +328,7 @@
   background: var(--line2);
 }
 
-.levelTrack i,
-.ppiTrack i {
+.levelTrack i {
   display: block;
   height: 100%;
   border-radius: inherit;
@@ -378,54 +376,27 @@
   gap: 10px;
 }
 
-.summaryMetrics {
+/* 子どもページの概要。チェックされた困りごとをカテゴリごとに1行で見せる。 */
+.troubleSummary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.summaryMetrics > div {
+.troubleSummary li {
   display: grid;
-  gap: 4px;
-  padding: 12px;
+  gap: 2px;
+  padding: 10px 12px;
   border-radius: var(--r);
   background: var(--paper);
+  font-size: 0.84rem;
 }
 
-.summaryMetrics span,
-.summaryMetrics small {
-  color: var(--mute);
-  font-size: 0.75rem;
-}
-
-.summaryMetrics strong {
-  font-size: 1.2rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.ppiBars {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.ppiBars > div {
-  display: grid;
-  grid-template-columns: 100px 1fr 24px;
-  align-items: center;
-  gap: 8px;
+.troubleSummary strong {
+  color: var(--ink2);
   font-size: 0.78rem;
-}
-
-.ppiBars strong {
-  color: var(--orange-ink);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.ppiTrack i {
-  background: var(--orange);
 }
 
 .compactButton {
@@ -847,33 +818,6 @@
   margin-left: 6px;
 }
 
-.ppiQuestion {
-  min-width: 0;
-  margin: 0;
-  padding: 16px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line2);
-}
-
-.ppiQuestion legend {
-  color: var(--ink2);
-  font-size: 0.88rem;
-  font-weight: 500;
-}
-
-.ppiScaleLabels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
-  color: var(--mute);
-  font-size: 0.7rem;
-}
-
-.assessmentSection .ppiButtons {
-  grid-template-columns: repeat(6, minmax(44px, 1fr));
-  margin-top: 3px;
-}
-
 .assessmentDock {
   position: fixed;
   right: 0;
@@ -993,37 +937,6 @@
 .panel h2 {
   margin: 0;
   font-size: 1.1rem;
-}
-
-.ppiButtons {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(32px, 1fr));
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.lvButton,
-.lvButtonSelected {
-  min-height: 40px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink2);
-  font: inherit;
-  font-weight: 700;
-}
-
-.lvButtonSelected {
-  border-color: var(--green);
-  background: var(--green);
-  color: #fff;
-}
-
-.lvButton:focus-visible,
-.lvButtonSelected:focus-visible {
-  outline: 3px solid #9ccfc2;
-  outline-offset: 2px;
 }
 
 .panel textarea,
@@ -1395,14 +1308,6 @@
   font-size: 0.8rem;
 }
 
-.memo {
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border-left: 3px solid var(--green);
-  background: var(--green-soft);
-  color: var(--ink2);
-}
-
 .assessmentTimeline {
   display: grid;
   gap: 8px;
@@ -1552,8 +1457,7 @@
   }
 
   .nameFields,
-  .basicGrid,
-  .summaryMetrics {
+  .basicGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1586,10 +1490,6 @@
   .unenteredBadge {
     grid-column: 1 / -1;
     justify-self: start;
-  }
-
-  .assessmentSection .ppiButtons {
-    grid-template-columns: repeat(6, minmax(40px, 1fr));
   }
 
   .dockInner {
@@ -2406,8 +2306,6 @@
 .secondaryButton,
 .compactButton,
 .textDangerButton,
-.lvButton,
-.lvButtonSelected,
 .errorChip,
 .errorChipSelected,
 .troubleOption,
@@ -2419,11 +2317,6 @@
 }
 
 .troubleOption:hover {
-  background: var(--green-soft);
-}
-
-.assessmentSection .ppiButtons .lvButton:hover:not(:disabled) {
-  border-color: var(--green);
   background: var(--green-soft);
 }
 
@@ -3448,29 +3341,12 @@
   }
 }
 
-/* --- ご家庭のお困り度 --- */
-
-.assessmentPage .ppiQuestion {
-  padding: 9px 0;
-}
-
-.assessmentPage .ppiScaleLabels {
-  margin-top: 3px;
-}
-
-.assessmentPage .ppiButtons .lvButton,
-.assessmentPage .ppiButtons .lvButtonSelected {
-  min-height: 36px;
-}
-
 /* タッチ端末では指で押しやすい高さ（44px）に戻す。 */
 @media (pointer: coarse) {
   .assessmentPage .panel .levelSelect,
   .assessmentPage .errorChip,
   .assessmentPage .errorChipSelected,
   .assessmentPage .troubleOption,
-  .assessmentPage .ppiButtons .lvButton,
-  .assessmentPage .ppiButtons .lvButtonSelected,
   .assessmentPage .copmRow select,
   .assessmentPage .copmScores > button {
     min-height: 44px;

@@ -71,9 +71,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['黒板やお手本を写すのが遅い・間に合わない', '落ち着いて座っていられない', '姿勢がすぐ崩れる／机に伏せる・寝転がる', '字を書くと線がガタガタ／筆圧が不安定'],
       wants: ['w16', 'w18'],
       copm: copmOf('c1', [[3, 2, 9], [4, 3, 7]], ['連絡帳が写しきれない日が週3日ほど']),
-      ppi: { time: 4, emo: 3, soc: 2, fut: 4, nav: 4 },
-      ppiNote: '宿題のときに姿勢が崩れて、毎日声をかけるのがつらい',
-      memo: '初回。緊張が強く、後半は集中が切れやすい。ラインウォークは17cmで踏み外しが多く、頭上物を持たせると顕著。',
     },
   },
   {
@@ -86,9 +83,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['黒板やお手本を写すのが遅い・間に合わない', '姿勢がすぐ崩れる／机に伏せる・寝転がる'],
       wants: ['w16', 'w18'],
       copm: copmOf('c1', [[5, 5, 9], [6, 6, 7]], ['写せる日が増えてきた']),
-      ppi: { time: 3, emo: 2, soc: 2, fut: 3, nav: 2 },
-      ppiNote: '座り直しは減った。板書はまだ最後まで写せない日がある',
-      memo: '2回目。8.5cm帯に入った。じゃんけんの「勝つ」まで安定。保護者の表情が明るい。',
     },
   },
   {
@@ -101,9 +95,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['よく物にぶつかる・つまずく', '姿勢がすぐ崩れる／机に伏せる・寝転がる', 'いちど始めると切り替えられない'],
       wants: ['w9', 'w15'],
       copm: copmOf('c2', [[3, 3, 8], [2, 2, 9]]),
-      ppi: { time: 2, emo: 3, soc: 1, fut: 3, nav: 4 },
-      ppiNote: '園から「気になる」と言われたが、何をすればいいか分からない',
-      memo: '初回。歌に合わせると集中が続く。手の形づくりに時間がかかる。',
     },
   },
   {
@@ -113,7 +104,7 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       observations: { post: ['膝を曲げて重心を落とす'], eyeh: ['投げる高さや方向がばらつく'], hand: [] },
       observationNotes: {},
       engagement: { dur: 2 },
-      troubles: [], wants: [], copm: [], ppi: {}, ppiNote: '', memo: '',
+      troubles: [], wants: [], copm: [],
     },
   },
   {
@@ -126,8 +117,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['字を書くと線がガタガタ／筆圧が不安定', '力加減が極端（強すぎる・弱すぎる）', '忘れ物・なくし物が多い'],
       wants: ['w12'],
       copm: copmOf('c4', [[4, 3, 10]], ['宿題のたびに書き直しになる']),
-      ppi: { time: 3, emo: 4, soc: 3, fut: 3, nav: 3 },
-      ppiNote: '', memo: '初回。手の力加減の極端さが強い。',
     },
   },
   {
@@ -140,9 +129,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['黒板やお手本を写すのが遅い・間に合わない', 'ふたつの指示を同時に持っていられない', '忘れ物・なくし物が多い', '姿勢がすぐ崩れる／机に伏せる・寝転がる'],
       wants: ['w16', 'w21'],
       copm: copmOf('c6', [[3, 2, 10], [3, 3, 8]], ['連絡帳を私が先生に確認している']),
-      ppi: { time: 3, emo: 4, soc: 3, fut: 4, nav: 4 },
-      ppiNote: '連絡帳を写せず、毎日私が先生に確認している',
-      memo: '初回。理解は早いが手が追いつかない。姿勢は17cmで崩れる。',
     },
   },
   {
@@ -155,8 +141,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['黒板やお手本を写すのが遅い・間に合わない', '忘れ物・なくし物が多い', '姿勢がすぐ崩れる／机に伏せる・寝転がる'],
       wants: ['w16', 'w21'],
       copm: copmOf('c6', [[5, 4, 10], [4, 4, 8]]),
-      ppi: { time: 3, emo: 3, soc: 2, fut: 3, nav: 3 },
-      ppiNote: '', memo: '2回目。8.5cm帯へ。じゃんけん「勝つ」まで安定。',
     },
   },
   {
@@ -169,9 +153,6 @@ export const ASSESSMENT_FIXTURES: AssessmentFixture[] = [
       troubles: ['黒板やお手本を写すのが遅い・間に合わない', '忘れ物・なくし物が多い'],
       wants: ['w16', 'w21'],
       copm: copmOf('c6', [[7, 7, 10], [5, 5, 8]], ['板書は最後まで写せる日が増えた']),
-      ppi: { time: 2, emo: 2, soc: 2, fut: 3, nav: 2 },
-      ppiNote: '板書は最後まで写せる日が増えた',
-      memo: '3回目。4・5種目目を開放。あしあとは追従性の帯、信号は反応速度の帯からスタート。',
     },
   },
 ];

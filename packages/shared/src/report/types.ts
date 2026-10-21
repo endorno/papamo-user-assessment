@@ -1,5 +1,5 @@
 import type { GradeSnapshot } from '../domain/grade';
-import type { AgeGroup, CoachCautionKey, EngagementKey, ExerciseKey, PpiKey, TuningKey } from '../master';
+import type { AgeGroup, CoachCautionKey, EngagementKey, ExerciseKey, TuningKey } from '../master';
 import type { CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
 
 export interface ChildSnapshot {
@@ -159,7 +159,6 @@ export interface ReportContent {
   };
   focusAreas: ReportFocusArea[];
   link: { lowestKey: ExerciseKey; text: string };
-  ppi: { current: Record<PpiKey, number>; previous?: Record<PpiKey, number>; note: string };
   roadmap: {
     month3Build: string[];
     month3Changes: string[];
@@ -191,7 +190,6 @@ export interface ReportContent {
       observations: string[];
       note: string;
     }[];
-    memo: string;
     /** 3か月・6か月に当てるメニュー。主軸＝最小Lv／次点＝2番目／維持＝最大Lv。 */
     plan: {
       focus: {

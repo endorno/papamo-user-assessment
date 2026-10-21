@@ -1,5 +1,4 @@
 import { COPM_MAX, WANT_ITEMS, WANT_MAX, wantById, wantToGoalText } from '../master/goals';
-import { PPI_QUESTIONS, PPI_SCORE_MAX, type PpiKey } from '../master/ppi';
 import { SURVEY_SHEET_COLUMNS, SURVEY_SHEET_HEADER, type SurveySheetHeader } from '../master/survey-form';
 import { TROUBLE_ITEMS } from '../master/troubles';
 import { emptyCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/assessment';
@@ -9,7 +8,6 @@ import { emptyCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/asses
  * マスタの文言には含まれない（survey-import.test.ts で確かめている）。
  */
 const CHOICE_SEPARATOR = ',';
-const PPI_ANSWER_PATTERN = new RegExp(`^[0-${PPI_SCORE_MAX}]$`);
 // 回答シートのタイムスタンプ（日本の表示形式 2026/10/01 10:00:00 と、米国式 10/1/2026 10:00:00）。
 const TIMESTAMP_PATTERN = /^(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4})/;
 
@@ -20,8 +18,6 @@ export interface SurveyAnswers {
   wants: string[];
   /** 自由記載。目標（COPM）の文言として入れる。 */
   freeWants: string[];
-  ppi: Partial<Record<PpiKey, number>>;
-  ppiNote: string;
 }
 
 /** 回答にはあったが取り込まない値。取り込む前にコーチへ見せる。 */
@@ -32,8 +28,6 @@ export interface SurveySkipped {
   wants: string[];
   /** 自由記載と合わせて上限（4つ）を超えた分。 */
   overLimit: string[];
-  /** 0〜5 の整数として読めなかったお困り度。 */
-  ppi: { key: PpiKey; name: string; value: string }[];
   /** 入力欄の文字数の上限を超えた自由記述（入力欄に入らないため、コーチが要約して入れる）。 */
   tooLong: { label: string; value: string }[];
 }
@@ -141,7 +135,7 @@ export function parseSurveyRow(text: string): SurveyParseResult {
     };
   }
 
-  const skipped: SurveySkipped = { troubles: [], wants: [], overLimit: [], ppi: [], tooLong: [] };
+  const skipped: SurveySkipped = { troubles: [], wants: [], overLimit: [], tooLong: [] };
 
   const troubles: string[] = [];
   for (const value of splitChoices(cellOf(SURVEY_SHEET_COLUMNS.troubles))) {
@@ -180,38 +174,17 @@ export function parseSurveyRow(text: string): SurveyParseResult {
     else freeWants.push(value);
   }
 
-  const ppi: Partial<Record<PpiKey, number>> = {};
-  for (const { key, name } of PPI_QUESTIONS) {
-    const raw = cellOf(SURVEY_SHEET_COLUMNS.ppi[key]);
-    if (!raw) continue;
-    const value = raw.normalize('NFKC');
-    if (PPI_ANSWER_PATTERN.test(value)) ppi[key] = Number(value);
-    else skipped.ppi.push({ key, name, value: raw });
-  }
-
-  let ppiNote = cellOf(SURVEY_SHEET_COLUMNS.ppiNote);
-  if (ppiNote.length > TEXT_LIMITS.ppiNote) {
-    skipped.tooLong.push({ label: 'いま一番負担に感じている場面', value: ppiNote });
-    ppiNote = '';
-  }
-
   return {
     ok: true,
     answeredAt,
     childName: cellOf(SURVEY_SHEET_COLUMNS.childName),
-    answers: { troubles, wants, freeWants, ppi, ppiNote },
+    answers: { troubles, wants, freeWants },
     skipped,
   };
 }
 
 export function hasSurveyAnswers(answers: SurveyAnswers): boolean {
-  return Boolean(
-    answers.troubles.length
-    || answers.wants.length
-    || answers.freeWants.length
-    || Object.keys(answers.ppi).length
-    || answers.ppiNote,
-  );
+  return Boolean(answers.troubles.length || answers.wants.length || answers.freeWants.length);
 }
 
 /** 目標欄に入れる文言。選んだ項目は仮の文言に直し、自由記載はそのまま使う。 */
@@ -223,7 +196,7 @@ export function surveyGoalTexts(answers: SurveyAnswers): string[] {
   return [...new Set(texts)];
 }
 
-export type SurveyReplacedField = 'troubles' | 'wants' | 'ppi' | 'ppiNote';
+export type SurveyReplacedField = 'troubles' | 'wants';
 
 const sameSet = (first: readonly string[], second: readonly string[]) => (
   first.length === second.length && first.every((value) => second.includes(value))
@@ -234,9 +207,6 @@ export function surveyReplacedFields(data: AssessmentData, answers: SurveyAnswer
   const replaced: SurveyReplacedField[] = [];
   if (answers.troubles.length && data.troubles.length && !sameSet(data.troubles, answers.troubles)) replaced.push('troubles');
   if (answers.wants.length && data.wants.length && !sameSet(data.wants, answers.wants)) replaced.push('wants');
-  const ppiKeys = Object.keys(answers.ppi) as PpiKey[];
-  if (ppiKeys.some((key) => data.ppi[key] !== undefined && data.ppi[key] !== answers.ppi[key])) replaced.push('ppi');
-  if (answers.ppiNote && data.ppiNote.trim() && data.ppiNote !== answers.ppiNote) replaced.push('ppiNote');
   return replaced;
 }
 
@@ -254,8 +224,6 @@ export function applySurveyAnswers(data: AssessmentData, answers: SurveyAnswers)
   const next: AssessmentData = { ...data };
   if (answers.troubles.length) next.troubles = [...answers.troubles];
   if (answers.wants.length) next.wants = [...answers.wants];
-  if (Object.keys(answers.ppi).length) next.ppi = { ...data.ppi, ...answers.ppi };
-  if (answers.ppiNote) next.ppiNote = answers.ppiNote;
 
   const copm = [...data.copm];
   const goalsNotAdded: string[] = [];

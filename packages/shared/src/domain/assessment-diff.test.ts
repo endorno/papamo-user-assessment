@@ -12,7 +12,6 @@ const reported = {
     troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
     wants: ['w18', 'w1'],
     copm: [{ text: '授業中に座っていられる', memo: '', performance: 5, satisfaction: 5, importance: 8 }],
-    ppi: { time: 1, emo: 2, soc: 3, fut: 4, nav: 5 },
   }),
 };
 
@@ -39,10 +38,9 @@ describe('レポートへ未反映の変更', () => {
     current.data.lv.eyeh = 6;
     current.data.observationNotes.hand = '左右の取り違えが多い';
     current.data.copm[0]!.satisfaction = 7;
-    current.data.ppiNote = '宿題の声かけ';
-    current.data.memo = '所見';
+    current.data.troubles.pop();
 
-    expect(changedAssessmentSections(reported, current)).toEqual(['basic', 'eyeh', 'hand', 'goals', 'ppi', 'memo']);
+    expect(changedAssessmentSections(reported, current)).toEqual(['basic', 'eyeh', 'hand', 'troubles', 'goals']);
   });
 
   it('目標の前回の点数（ツール導入前）を変えたら目標の差分にする', () => {

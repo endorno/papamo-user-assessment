@@ -115,9 +115,6 @@ describe('アセスメント入力スキーマ', () => {
       engagement: {},
       troubles: [],
       wants: [],
-      ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
-      ppiNote: '',
-      memo: '',
     };
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, text: '　' }] }).success).toBe(false);
     expect(assessmentDataCompletedSchema.parse({ ...completed, copm: [{ ...goal, text: ' 縄跳びを跳べる　' }] }).copm[0]?.text)
@@ -138,9 +135,6 @@ describe('アセスメント入力スキーマ', () => {
       engagement: {},
       troubles: [],
       wants: [],
-      ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
-      ppiNote: '',
-      memo: '',
     };
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4 } }] }).success).toBe(false);
     expect(assessmentDataCompletedSchema.safeParse({ ...completed, copm: [{ ...goal, baseline: { performance: 4, satisfaction: 3 } }] }).success).toBe(true);
@@ -164,9 +158,7 @@ describe('アセスメント入力スキーマ', () => {
   it('自由記入欄は入力欄と同じ上限で検証する', () => {
     const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
     const within = (data: Record<string, unknown>) => assessmentPatchRequestSchema.safeParse({ ...base, data }).success;
-    expect(within({ memo: 'あ'.repeat(TEXT_LIMITS.memo) })).toBe(true);
-    expect(within({ memo: 'あ'.repeat(TEXT_LIMITS.memo + 1) })).toBe(false);
-    expect(within({ ppiNote: 'あ'.repeat(TEXT_LIMITS.ppiNote + 1) })).toBe(false);
+    expect(within({ observationNotes: { post: 'あ'.repeat(TEXT_LIMITS.observationNote) } })).toBe(true);
     expect(within({ observationNotes: { post: 'あ'.repeat(TEXT_LIMITS.observationNote + 1) } })).toBe(false);
   });
 

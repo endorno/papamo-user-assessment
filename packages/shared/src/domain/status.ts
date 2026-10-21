@@ -1,5 +1,4 @@
 import { activeExerciseKeys, type ExerciseKey } from '../master/exercises';
-import { PPI_QUESTIONS } from '../master/ppi';
 import { daysBetween, nextDueDate, todayInJst } from './date';
 
 export interface AssessmentProgress {
@@ -8,7 +7,6 @@ export interface AssessmentProgress {
   unlockExt: boolean;
   lv: Partial<Record<ExerciseKey, number>>;
   troubles: string[];
-  ppi: Partial<Record<(typeof PPI_QUESTIONS)[number]['key'], number>>;
 }
 
 export interface ChildStatusInput {
@@ -26,8 +24,7 @@ export function assessmentProgress(input: AssessmentProgress): { filled: number;
   const keys = activeExerciseKeys(input.unlockExt);
   const levels = keys.filter((key) => input.lv[key] !== undefined).length;
   const trouble = input.troubles.length > 0 ? 1 : 0;
-  const ppi = PPI_QUESTIONS.every(({ key }) => input.ppi[key] !== undefined) ? 1 : 0;
-  return { filled: levels + trouble + ppi, total: keys.length + 2 };
+  return { filled: levels + trouble, total: keys.length + 1 };
 }
 
 export function stateOf(

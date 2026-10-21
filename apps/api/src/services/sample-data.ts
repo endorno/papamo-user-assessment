@@ -16,8 +16,6 @@ import {
   ENGAGEMENT_LEVEL_COUNT,
   maxLevelOf,
   monthOfDate,
-  PPI_QUESTIONS,
-  PPI_SCORE_MAX,
   reportContentSchema,
   schoolYear,
   todayInJst,
@@ -151,12 +149,6 @@ function completedData(input: {
     troubles,
     wants,
     copm,
-    ppi: Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [
-      key,
-      randomInt(input.random, 0, PPI_SCORE_MAX + 1),
-    ])),
-    ppiNote: input.sequence % 3 === 0 ? '家庭での取り組み方も相談したい。' : '',
-    memo: `サンプル所見（第${input.sequence}回）。継続して経過を確認する。`,
   });
 }
 
@@ -170,9 +162,6 @@ function draftData(random: Random): AssessmentData {
     troubles: selectDistinct(random, TROUBLE_ITEMS, 1),
     wants: [],
     copm: [],
-    ppi: { time: randomInt(random, 0, PPI_SCORE_MAX + 1), emo: randomInt(random, 0, PPI_SCORE_MAX + 1) },
-    ppiNote: '',
-    memo: '入力途中のサンプルです。',
   });
 }
 

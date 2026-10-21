@@ -328,14 +328,13 @@ describe('承認モックのフィクスチャ', () => {
         unlockExt: assessment.unlockExt,
         lv: assessment.data.lv,
         troubles: assessment.data.troubles,
-        ppi: assessment.data.ppi,
       }));
 
     expect(stateOf({ archivedAt: null, assessments }, '2026-09-05')).toEqual({
       key: 'draft',
-      label: 'アセスメント入力中（2/5）',
+      label: 'アセスメント入力中（2/4）',
       filled: 2,
-      total: 5,
+      total: 4,
       order: 0,
     });
   });

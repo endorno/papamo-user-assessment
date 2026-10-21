@@ -72,7 +72,6 @@ function assessmentProgressFrom(row: {
     unlockExt: input.unlockExt,
     lv: input.data.lv,
     troubles: input.data.troubles,
-    ppi: input.data.ppi,
     goals: done ? input.data.copm.map((goal) => goal.text) : [],
     hasUnreportedChanges: hasUnreportedChanges(row, reportInput),
   };

@@ -78,7 +78,7 @@ async function updateReport(client: TestClient, assessmentId: string) {
   const current = assessmentResponseSchema.parse(await (await request(client, `/assessments/${assessmentId}`)).json()).assessment;
   const patched = await request(client, `/assessments/${assessmentId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ data: { ...current.data, memo: '更新' }, updatedAt: current.updatedAt }),
+    body: JSON.stringify({ data: { ...current.data, observationNotes: { post: '更新' } }, updatedAt: current.updatedAt }),
   });
   const saved = assessmentResponseSchema.parse(await patched.json()).assessment;
   const completed = await request(client, `/assessments/${assessmentId}/complete`, {

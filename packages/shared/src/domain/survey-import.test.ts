@@ -26,12 +26,6 @@ const answeredRow = {
   [columns.troubles]: `${POSTURE}, ${BALL}`,
   [columns.wants]: '球技が上手になりたい, 公園の遊具で遊べるようになりたい',
   [columns.freeWants[0]]: '階段をスムーズに昇り降りできるようになりたい',
-  [columns.ppi.time]: '5',
-  [columns.ppi.emo]: '4',
-  [columns.ppi.soc]: '2',
-  [columns.ppi.fut]: '4',
-  [columns.ppi.nav]: '3',
-  [columns.ppiNote]: '朝、着替えから家を出るまで毎日40分以上かかる',
 };
 
 function parsed(text: string) {
@@ -51,7 +45,7 @@ describe('事前アンケートの回答シートの列', () => {
     expect(new Set(SURVEY_SHEET_HEADER).size).toBe(SURVEY_SHEET_HEADER.length);
     const used = [
       columns.answeredAt, columns.childName, columns.troubles, columns.wants,
-      ...columns.freeWants, ...Object.values(columns.ppi), columns.ppiNote,
+      ...columns.freeWants,
     ];
     for (const header of used) expect(SURVEY_SHEET_HEADER).toContain(header);
   });
@@ -73,46 +67,38 @@ describe('parseSurveyRow', () => {
       troubles: [POSTURE, BALL],
       wants: ['w9', 'w23'],
       freeWants: ['階段をスムーズに昇り降りできるようになりたい'],
-      ppi: { time: 5, emo: 4, soc: 2, fut: 4, nav: 3 },
-      ppiNote: '朝、着替えから家を出るまで毎日40分以上かかる',
     });
-    expect(result.skipped).toEqual({ troubles: [], wants: [], overLimit: [], ppi: [], tooLong: [] });
+    expect(result.skipped).toEqual({ troubles: [], wants: [], overLimit: [], tooLong: [] });
   });
 
   it('1行目（列名）ごとコピーした場合と、右に列が足されたシートからコピーした場合も読む', () => {
     const header = SURVEY_SHEET_HEADER.join('\t');
     expect(parsed(`${header}\n${sheetRow(answeredRow)}`).childName).toBe('はると');
     // 運用で右端に「担当」などの列を足しても、読む列の位置は変わらない。
-    expect(parsed(`${sheetRow(answeredRow)}\tさとう\t済`).answers.ppi.nav).toBe(3);
+    expect(parsed(`${sheetRow(answeredRow)}\tさとう\t済`).answers.freeWants).toEqual(['階段をスムーズに昇り降りできるようになりたい']);
   });
 
   it('改行を含む記述のセル（スプレッドシートが引用符で囲む）を1つのセルとして読む', () => {
-    const row = sheetRow({ ...answeredRow, [columns.ppiNote]: 'PLACEHOLDER' })
-      .replace('PLACEHOLDER', '"朝の支度で\n毎日 ""もう嫌"" と言う"');
+    const row = sheetRow({ ...answeredRow, [columns.freeWants[0]]: 'PLACEHOLDER' })
+      .replace('PLACEHOLDER', '"朝の支度を\n ""ひとりで"" できるようになりたい"');
 
-    expect(parsed(row).answers.ppiNote).toBe('朝の支度で\n毎日 "もう嫌" と言う');
+    expect(parsed(row).answers.freeWants).toEqual(['朝の支度を\n "ひとりで" できるようになりたい']);
   });
 
-  it('マスタに無い値・0〜5 でないお困り度・長すぎる記述は取り込まずに返す', () => {
+  it('マスタに無い値・長すぎる記述は取り込まずに返す', () => {
     const { answers, skipped } = parsed(sheetRow({
       ...answeredRow,
       [columns.troubles]: `${POSTURE}, 存在しない困りごと`,
       [columns.wants]: '球技が上手になりたい, ボールを蹴る・打つ',
-      [columns.ppi.time]: '３',
-      [columns.ppi.emo]: '6',
-      [columns.ppiNote]: 'あ'.repeat(201),
+      [columns.freeWants[0]]: 'あ'.repeat(101),
     }));
 
     expect(answers.troubles).toEqual([POSTURE]);
     expect(answers.wants).toEqual(['w9']);
-    // 全角の数字は読む。
-    expect(answers.ppi.time).toBe(3);
-    expect(answers.ppi.emo).toBeUndefined();
-    expect(answers.ppiNote).toBe('');
+    expect(answers.freeWants).toEqual([]);
     expect(skipped.troubles).toEqual(['存在しない困りごと']);
     expect(skipped.wants).toEqual(['ボールを蹴る・打つ']);
-    expect(skipped.ppi).toEqual([{ key: 'emo', name: '感情の負担', value: '6' }]);
-    expect(skipped.tooLong.map(({ label }) => label)).toEqual(['いま一番負担に感じている場面']);
+    expect(skipped.tooLong.map(({ label }) => label)).toEqual(['できるようになりたいこと（自由記載）']);
   });
 
   it('できるようになりたいことは自由記載と合わせて4つまで取り込み、超えた分を返す', () => {
@@ -142,31 +128,27 @@ describe('applySurveyAnswers', () => {
     troubles: [POSTURE],
     wants: ['w9'],
     freeWants: ['階段を昇り降りできるようになりたい'],
-    ppi: { time: 5, emo: 4 },
-    ppiNote: '朝の支度',
   };
 
   it('回答があった欄を置き換え、選んだ項目の仮の文言と自由記載を目標欄に足す', () => {
-    const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, troubles: [BALL], ppi: { nav: 1 }, memo: '所見' }, answers);
+    const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, troubles: [BALL], engagement: { dur: 2 } }, answers);
 
     expect(data.troubles).toEqual([POSTURE]);
     expect(data.wants).toEqual(['w9']);
     expect(data.copm.map(({ text }) => text)).toEqual(['球技が上手になる', '階段を昇り降りできるようになりたい']);
-    // 回答の無かった設問・欄はコーチの入力のまま残す。
-    expect(data.ppi).toEqual({ nav: 1, time: 5, emo: 4 });
-    expect(data.ppiNote).toBe('朝の支度');
-    expect(data.memo).toBe('所見');
+    // 取り込みの対象でない欄はコーチの入力のまま残す。
+    expect(data.engagement).toEqual({ dur: 2 });
     expect(goalsNotAdded).toEqual([]);
   });
 
   it('回答の無い欄には触らない', () => {
     const { data } = applySurveyAnswers(
-      { ...empty, troubles: [BALL], ppiNote: '手入力' },
-      { troubles: [], wants: [], freeWants: [], ppi: { time: 2 }, ppiNote: '' },
+      { ...empty, troubles: [BALL], wants: ['w1'] },
+      { troubles: [], wants: [], freeWants: ['開脚したい'] },
     );
 
     expect(data.troubles).toEqual([BALL]);
-    expect(data.ppiNote).toBe('手入力');
+    expect(data.wants).toEqual(['w1']);
   });
 
   it('同じ文言の目標は重ねず、目標欄に空きが無ければ入れずに返す', () => {
@@ -179,8 +161,7 @@ describe('applySurveyAnswers', () => {
 
   it('置き換わる手入力があるときだけ知らせる', () => {
     expect(surveyReplacedFields(empty, answers)).toEqual([]);
-    expect(surveyReplacedFields({ ...empty, troubles: [POSTURE], ppi: { time: 5 } }, answers)).toEqual([]);
-    expect(surveyReplacedFields({ ...empty, troubles: [BALL], wants: ['w1'], ppi: { emo: 1 }, ppiNote: '別の場面' }, answers))
-      .toEqual(['troubles', 'wants', 'ppi', 'ppiNote']);
+    expect(surveyReplacedFields({ ...empty, troubles: [POSTURE], wants: ['w9'] }, answers)).toEqual([]);
+    expect(surveyReplacedFields({ ...empty, troubles: [BALL], wants: ['w1'] }, answers)).toEqual(['troubles', 'wants']);
   });
 });

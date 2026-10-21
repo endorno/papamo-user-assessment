@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { assessmentProgress, stateOf } from './status';
 
 describe('一覧の状態判定', () => {
-  it('PPI 0 を未回答として扱わず、5問そろえば1項目と数える', () => {
+  it('到達を選んだ種目と、困りごとの入力を数える', () => {
     const result = stateOf(
       {
         archivedAt: null,
@@ -14,14 +14,13 @@ describe('一覧の状態判定', () => {
             unlockExt: false,
             lv: { post: 1, eyeh: 1, hand: 1 },
             troubles: ['困りごと'],
-            ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
           },
         ],
       },
       '2026-09-02',
     );
 
-    expect(result).toMatchObject({ key: 'draft', filled: 5, total: 5 });
+    expect(result).toMatchObject({ key: 'draft', filled: 4, total: 4 });
   });
 
   it('完了アセスメントから次回予定日を判定する', () => {
@@ -35,7 +34,6 @@ describe('一覧の状態判定', () => {
             unlockExt: false,
             lv: { post: 1, eyeh: 1, hand: 1 },
             troubles: [],
-            ppi: {},
           },
         ],
       },
@@ -50,16 +48,15 @@ describe('一覧の状態判定', () => {
       status: 'draft' as const,
       assessedOn: '2026-09-01',
       troubles: [],
-      ppi: {},
     };
-    expect(assessmentProgress({ ...base, unlockExt: false, lv: {} })).toEqual({ filled: 0, total: 5 });
-    expect(assessmentProgress({ ...base, unlockExt: true, lv: {} })).toEqual({ filled: 0, total: 7 });
+    expect(assessmentProgress({ ...base, unlockExt: false, lv: {} })).toEqual({ filled: 0, total: 4 });
+    expect(assessmentProgress({ ...base, unlockExt: true, lv: {} })).toEqual({ filled: 0, total: 6 });
     expect(assessmentProgress({
       ...base,
       unlockExt: true,
       lv: { post: 3, eyeh: 0, hand: -1, sacc: 2, inhi: 1 },
       troubles: ['よく物にぶつかる・つまずく'],
-    })).toEqual({ filled: 6, total: 7 });
+    })).toEqual({ filled: 6, total: 6 });
   });
 
   it('アーカイブ中の子どもは状態を持たない', () => {
@@ -82,7 +79,6 @@ describe('一覧の状態判定', () => {
             unlockExt: false,
             lv: { post: 1, eyeh: 1, hand: 1 },
             troubles: [],
-            ppi: {},
           },
         ],
       },
@@ -100,7 +96,6 @@ describe('一覧の状態判定', () => {
       unlockExt: false,
       lv: {},
       troubles: [],
-      ppi: {},
     });
     const result = stateOf(
       { archivedAt: null, assessments: [done('2026-06-01'), done('2026-03-01')] },

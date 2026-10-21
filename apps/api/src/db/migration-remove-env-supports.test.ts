@@ -11,7 +11,7 @@ describe('環境調整の廃止（0004）', () => {
     const before = testEnv.TEST_MIGRATIONS.filter(({ name }) => name < '0004');
     await applyD1Migrations(testEnv.DB, before);
     const now = '2026-10-01T00:00:00.000Z';
-    const data = { lv: { post: 3 }, engagement: { dur: 2 }, envSupports: ['e-vis'], troubles: [], memo: '' };
+    const data = { lv: { post: 3 }, engagement: { dur: 2 }, envSupports: ['e-vis'], troubles: [] };
     const { envSupports: _envSupports, ...dataWithout } = data;
     await testEnv.DB.batch([
       testEnv.DB.prepare('INSERT INTO coaches (id, email, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')

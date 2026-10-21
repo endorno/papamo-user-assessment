@@ -98,9 +98,6 @@ describe('API ルート結合', () => {
           lv: { post: 3, eyeh: 4, hand: 5 },
           observations: {},
           troubles: ['よく物にぶつかる・つまずく'],
-          ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-          ppiNote: '',
-          memo: '',
         },
         updatedAt: detail.updatedAt,
       }),
@@ -160,7 +157,7 @@ describe('API ルート結合', () => {
     const revertDetail = assessmentResponseSchema.parse(await (await request(client, `/assessments/${created.id}`)).json()).assessment;
     const secondEdit = await request(client, `/assessments/${created.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ data: { ...revertDetail.data, memo: '戻す前の所見' }, updatedAt: revertDetail.updatedAt }),
+      body: JSON.stringify({ data: { ...revertDetail.data, observationNotes: { post: '戻す前の所見' } }, updatedAt: revertDetail.updatedAt }),
     });
     const secondEdited = assessmentResponseSchema.parse(await secondEdit.json()).assessment;
     const revertResponse = await request(client, `/assessments/${created.id}/revert`, {
@@ -168,7 +165,7 @@ describe('API ルート結合', () => {
       body: JSON.stringify({ updatedAt: secondEdited.updatedAt }),
     });
     expect(revertResponse.status).toBe(200);
-    expect(assessmentResponseSchema.parse(await revertResponse.json()).assessment.data.memo).toBe('');
+    expect(assessmentResponseSchema.parse(await revertResponse.json()).assessment.data.observationNotes).toEqual({});
 
     const nextAssessment = await request(client, `/children/${child.id}/assessments`, {
       method: 'POST',
@@ -277,7 +274,7 @@ describe('API ルート結合', () => {
 
     const archivedPatch = await request(client, `/assessments/${assessment.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ data: { memo: '保存できない内容' }, updatedAt: assessment.updatedAt }),
+      body: JSON.stringify({ data: { observationNotes: { post: '保存できない内容' } }, updatedAt: assessment.updatedAt }),
     });
     expect(archivedPatch.status).toBe(409);
 

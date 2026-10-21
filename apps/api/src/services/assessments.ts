@@ -10,7 +10,6 @@ import {
   parseStoredCompletedData,
   withoutExtExerciseInput,
   MASTER_VERSION,
-  PPI_QUESTIONS,
   reportContentSchema,
   reportedInputSchema,
   todayInJst,
@@ -208,8 +207,8 @@ function writableMutationCondition(
   );
 }
 
-// 保護者と確認する入力（お困りごと・できるようになりたいこと・目標・お困り度）は前回の回から引き継ぎ、変わったところだけ直してもらう。
-// その場で観察する入力（Lv・見えた動作・取り組みの発達）と所見は毎回まっさらにする。
+// 保護者と確認する入力（お困りごと・できるようになりたいこと・目標）は前回の回から引き継ぎ、変わったところだけ直してもらう。
+// その場で観察する入力（Lv・見えた動作・取り組みの発達）は毎回まっさらにする。
 function initialData(previous: CompletedAssessmentData | null): AssessmentData {
   // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
   // ツール導入前の採点は初回だけのもの。2回目からはツールの前回の回と比べるので引き継がない。
@@ -222,9 +221,6 @@ function initialData(previous: CompletedAssessmentData | null): AssessmentData {
     troubles: previous?.troubles ? [...previous.troubles] : [],
     wants: previous?.wants ? [...previous.wants] : [],
     copm,
-    ppi: previous?.ppi ? { ...previous.ppi } : {},
-    ppiNote: previous?.ppiNote ?? '',
-    memo: '',
   };
 }
 
@@ -322,7 +318,6 @@ export async function getAssessment(env: Env, assessmentId: string, coachId: str
             status: 'done' as const,
             lv: previousInput.data.lv,
             troubles: previousInput.data.troubles,
-            ppi: previousInput.data.ppi,
             engagement: previousInput.data.engagement,
             copm: previousInput.data.copm,
           };
@@ -437,7 +432,6 @@ export async function deleteAssessment(env: Env, assessmentId: string, coachId: 
 function assertCompletable(data: AssessmentData, unlockExt: boolean) {
   const missing = activeExerciseKeys(unlockExt).filter((key) => data.lv[key] === undefined);
   if (missing.length) throw new AssessmentServiceError('validation', '全種目のLvを確定してください。');
-  if (!PPI_QUESTIONS.every(({ key }) => data.ppi[key] !== undefined)) throw new AssessmentServiceError('validation', 'ご家庭の負担度を5問すべて回答してください。');
   if (data.copm.some((goal) => !goal.text.trim())) throw new AssessmentServiceError('validation', '文言が空の目標があります。文言を入力するか、その目標を削除してください。');
   if (data.copm.some(hasPartialCopmBaseline)) throw new AssessmentServiceError('validation', '前回の点数は遂行度と満足度の両方を選んでください。前回の採点がない目標は両方とも空欄にします。');
 }

@@ -43,9 +43,6 @@ const assessment = {
     troubles: [],
     wants: [],
     copm: [],
-    ppi: {},
-    ppiNote: '',
-    memo: '',
   },
   createdAt: '2026-09-12T00:00:00.000Z',
   updatedAt: '2026-09-12T00:00:00.000Z',
@@ -90,30 +87,27 @@ describe('アセスメント入力', () => {
 
     expect(await screen.findByRole('heading', { name: 'ゆいちゃんのアセスメント' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: '入力項目' })).toHaveTextContent('ラインウォーク');
-    expect(screen.getByRole('region', { name: '5.ご家庭のお困り度' })).toHaveTextContent('5問すべて回答');
+    // ご家庭のお困り度・コーチ所見メモは廃止した（2026-10-21）。
+    expect(screen.queryByRole('region', { name: /お困り度/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: /所見メモ/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ラインウォークのLv' })).toHaveAttribute('href', '#assessment-post');
     expect(screen.getByRole('button', { name: 'レポートを作る' })).toBeDisabled();
   });
 
-  it('Lvと0点の回答を選択し、800ms後に全体を自動保存する', async () => {
+  it('LvとLv0を選択し、800ms後に全体を自動保存する', async () => {
     renderAssessmentPage();
     const exerciseSection = await screen.findByRole('region', { name: 'ラインウォーク' });
     const levelSelect = within(exerciseSection).getByLabelText('到達');
     fireEvent.change(levelSelect, { target: { value: '3' } });
     expect(levelSelect).toHaveValue('3');
-
-    const ppiSection = screen.getByRole('region', { name: '5.ご家庭のお困り度' });
-    const firstQuestion = within(ppiSection).getAllByRole('group')[0]!;
-    const zeroButton = within(firstQuestion).getByRole('button', { name: '0' });
-    fireEvent.click(zeroButton);
-    expect(zeroButton).toHaveAttribute('aria-pressed', 'true');
+    const eyehSelect = within(screen.getByRole('region', { name: 'お手玉キャッチ' })).getByLabelText('到達');
+    fireEvent.change(eyehSelect, { target: { value: '0' } });
 
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       expect(patchCall).toBeDefined();
-      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number }; ppi: { time?: number } } };
-      expect(body.data.lv.post).toBe(3);
-      expect(body.data.ppi.time).toBe(0);
+      const body = JSON.parse(String(patchCall?.[1]?.body)) as { data: { lv: { post?: number; eyeh?: number } } };
+      expect(body.data.lv).toEqual({ post: 3, eyeh: 0 });
     }, { timeout: 2000 });
   });
 
@@ -189,7 +183,6 @@ describe('アセスメント入力', () => {
     expect(preview).toHaveTextContent('回答したお子さまゆい2026/10/01 10:15:30 回答');
     expect(preview).toHaveTextContent('取り込み先ゆいちゃんの第1回アセスメント');
     expect(preview).toHaveTextContent('お困りごと姿勢がすぐ崩れる／机に伏せる・寝転がる、ボールを投げる・受けるのが苦手');
-    expect(preview).toHaveTextContent('時間の負担 5・感情の負担 4・周囲との負担 2・将来への不安 4・情報・判断の迷い 3');
     fireEvent.click(within(dialog).getByRole('button', { name: 'この内容で取り込む' }));
 
     const troubles = screen.getByRole('region', { name: '3.お子さまのお困りごと' });
@@ -198,14 +191,12 @@ describe('アセスメント入力', () => {
     expect(within(goals).getByRole('checkbox', { name: /球技が上手になりたい/ })).toBeChecked();
     expect(within(goals).getByRole('textbox', { name: '目標 1' })).toHaveValue('球技が上手になる');
     expect(within(goals).getByRole('textbox', { name: '目標 2' })).toHaveValue('階段をスムーズに昇り降りできるようになりたい');
-    expect(screen.getByLabelText('いま一番負担に感じている場面（任意）')).toHaveValue('朝、着替えから家を出るまで毎日40分以上かかる');
 
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
       const body = assessmentPatchRequestSchema.parse(JSON.parse(String(patchCall?.[1]?.body)));
       expect(body.data.troubles).toEqual(['姿勢がすぐ崩れる／机に伏せる・寝転がる', 'ボールを投げる・受けるのが苦手']);
       expect(body.data.wants).toEqual(['w9']);
-      expect(body.data.ppi).toEqual({ time: 5, emo: 4, soc: 2, fut: 4, nav: 3 });
     }, { timeout: 2000 });
   });
 
@@ -249,7 +240,7 @@ describe('アセスメント入力', () => {
         ...assessment,
         seqNo: 2,
         prevAssessmentId: 'assessment-0',
-        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], ppi: {}, engagement: {}, copm: [] },
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], engagement: {}, copm: [] },
       },
     }));
 
@@ -286,7 +277,7 @@ describe('アセスメント入力', () => {
       assessment: {
         ...assessment,
         seqNo: 2,
-        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: { post: 10 }, troubles: [], ppi: {}, engagement: {}, copm: [] },
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: { post: 10 }, troubles: [], engagement: {}, copm: [] },
       },
     }));
 
@@ -373,7 +364,6 @@ const completedData = {
   ...assessment.data,
   lv: { post: 3, eyeh: 4, hand: 5 },
   troubles: ['よく物にぶつかる・つまずく'],
-  ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
 };
 const completedAssessment = {
   ...assessment,
@@ -419,17 +409,17 @@ describe('アセスメント入力：保存が止まらないこと', () => {
       </MemoryRouter>
     );
     const view = render(tree());
-    const memo = await screen.findByLabelText('コーチ所見メモ（内部用）');
-    fireEvent.change(memo, { target: { value: '入力途中のメモ' } });
+    const note = within(await screen.findByRole('region', { name: 'ラインウォーク' })).getByLabelText('見えた動作（自由記入）');
+    fireEvent.change(note, { target: { value: '入力途中のメモ' } });
 
     auth.session = { access_token: 'refreshed-token' };
     view.rerender(tree());
 
-    expect(screen.getByLabelText('コーチ所見メモ（内部用）')).toHaveValue('入力途中のメモ');
+    expect(within(screen.getByRole('region', { name: 'ラインウォーク' })).getByLabelText('見えた動作（自由記入）')).toHaveValue('入力途中のメモ');
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => !init?.method)).toHaveLength(1);
     await waitFor(() => {
       const patchCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
-      expect(JSON.parse(String(patchCall?.[1]?.body)).data.memo).toBe('入力途中のメモ');
+      expect(JSON.parse(String(patchCall?.[1]?.body)).data.observationNotes.post).toBe('入力途中のメモ');
     }, { timeout: 3000 });
   });
 
@@ -481,7 +471,7 @@ describe('アセスメント入力：保存が止まらないこと', () => {
         seqNo: 2,
         prevAssessmentId: 'assessment-0',
         data: { ...assessment.data, copm: [goal] },
-        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], ppi: {}, engagement: {}, copm: [{ ...goal, performance: 3 }] },
+        previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], engagement: {}, copm: [{ ...goal, performance: 3 }] },
       },
     }));
 
@@ -537,12 +527,12 @@ describe('アセスメント入力：完了済みの回とレポート', () => {
   it('編集するとレポートへ未反映の項目を示し、更新ボタンを出す', async () => {
     stubCompleted(completedAssessment);
     renderAssessmentPage();
-    const memo = await screen.findByLabelText('コーチ所見メモ（内部用）');
-    fireEvent.change(memo, { target: { value: 'あとから書き足した所見' } });
+    const troubles = await screen.findByRole('region', { name: '3.お子さまのお困りごと' });
+    fireEvent.click(within(troubles).getByRole('checkbox', { name: /忘れ物・なくし物が多い/ }));
 
     const notice = await screen.findByText('レポート作成後に変更した項目があります');
-    expect(notice.closest('[role="status"]')).toHaveTextContent('コーチ所見メモ');
-    expect(within(screen.getByRole('navigation', { name: '入力項目' })).getByRole('link', { name: /コーチ所見メモ/ })).toHaveTextContent('未反映');
+    expect(notice.closest('[role="status"]')).toHaveTextContent('お困りごと');
+    expect(within(screen.getByRole('navigation', { name: '入力項目' })).getByRole('link', { name: /お困りごと/ })).toHaveTextContent('未反映');
     expect(screen.getByRole('button', { name: 'レポートを更新' })).toBeInTheDocument();
     // 自動保存は入力だけを送る（レポートの作り直しは complete を押したときだけ）。
     await waitFor(() => {
@@ -552,13 +542,13 @@ describe('アセスメント入力：完了済みの回とレポート', () => {
   });
 
   it('レポート作成時の内容に戻せる', async () => {
-    stubCompleted({ ...completedAssessment, data: { ...completedData, memo: '未反映の所見' } });
+    stubCompleted({ ...completedAssessment, data: { ...completedData, observationNotes: { post: '未反映の所見' } } });
     renderAssessmentPage();
 
     fireEvent.click(await screen.findByRole('button', { name: 'レポート作成時の内容に戻す' }));
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '作成時の内容に戻す' }));
 
-    await waitFor(() => expect(screen.getByLabelText('コーチ所見メモ（内部用）')).toHaveValue(''));
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'ラインウォーク' })).getByLabelText('見えた動作（自由記入）')).toHaveValue(''));
     const revertCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).endsWith('/revert'));
     expect(JSON.parse(String(revertCall?.[1]?.body))).toEqual({ updatedAt: completedAssessment.updatedAt });
     expect(screen.queryByText('レポート作成後に変更した項目があります')).not.toBeInTheDocument();
@@ -575,12 +565,6 @@ function surveyRow(overrides: Partial<Record<SurveySheetHeader, string>> = {}) {
     [columns.troubles]: '姿勢がすぐ崩れる／机に伏せる・寝転がる, ボールを投げる・受けるのが苦手',
     [columns.wants]: '球技が上手になりたい',
     [columns.freeWants[0]]: '階段をスムーズに昇り降りできるようになりたい',
-    [columns.ppi.time]: '5',
-    [columns.ppi.emo]: '4',
-    [columns.ppi.soc]: '2',
-    [columns.ppi.fut]: '4',
-    [columns.ppi.nav]: '3',
-    [columns.ppiNote]: '朝、着替えから家を出るまで毎日40分以上かかる',
     ...overrides,
   };
   return SURVEY_SHEET_HEADER.map((header) => values[header] ?? '').join('\t');

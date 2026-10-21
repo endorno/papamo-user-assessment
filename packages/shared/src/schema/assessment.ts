@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { PPI_QUESTIONS, PPI_SCORE_MAX } from '../master/ppi';
 import {
   EXERCISES,
   EXT_EXERCISE_KEYS,
@@ -56,12 +55,10 @@ const monthSchema = z.string()
   .refine(isValidMonthString, '存在する年月を入力してください。');
 // Lv0〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
 const levelSchemaFor = (maxLevel: number) => z.number().int().min(MIN_EXERCISE_LEVEL).max(maxLevel);
-export const ppiScoreSchema = z.number().int().min(0).max(PPI_SCORE_MAX);
 const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,
   levelSchemaFor(exercise.maxLevel).optional(),
 ]));
-const ppiFields = Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema.optional()]));
 
 /**
  * 自由記入欄の文字数上限。API の検証と入力欄の maxLength で同じ値を使う
@@ -71,8 +68,6 @@ export const TEXT_LIMITS = {
   copmText: 100,
   copmMemo: 300,
   observationNote: 500,
-  ppiNote: 200,
-  memo: 2000,
 } as const;
 
 /** 選択式の配列に同じ値が2つ以上入らないようにする。 */
@@ -143,9 +138,6 @@ export const assessmentDataDraftSchema = z.object({
   troubles: troublesSchema.default([]),
   wants: wantSchema.default([]),
   copm: copmSchema.default([]),
-  ppi: z.object(ppiFields).strict().default({}),
-  ppiNote: z.string().max(TEXT_LIMITS.ppiNote).default(''),
-  memo: z.string().max(TEXT_LIMITS.memo).default(''),
 }).strict();
 
 export const assessmentDataPatchSchema = z.object({
@@ -156,9 +148,6 @@ export const assessmentDataPatchSchema = z.object({
   troubles: troublesSchema.optional(),
   wants: wantSchema.optional(),
   copm: copmSchema.optional(),
-  ppi: z.object(ppiFields).strict().optional(),
-  ppiNote: z.string().max(TEXT_LIMITS.ppiNote).optional(),
-  memo: z.string().max(TEXT_LIMITS.memo).optional(),
 }).strict();
 
 export const assessmentDataCompletedSchema = z.object({
@@ -169,9 +158,6 @@ export const assessmentDataCompletedSchema = z.object({
   troubles: troublesSchema,
   wants: wantSchema,
   copm: completedCopmSchema,
-  ppi: z.object(Object.fromEntries(PPI_QUESTIONS.map(({ key }) => [key, ppiScoreSchema]))).strict(),
-  ppiNote: z.string().max(TEXT_LIMITS.ppiNote),
-  memo: z.string().max(TEXT_LIMITS.memo),
 }).strict();
 
 export const childCreateRequestSchema = z.object({
@@ -252,7 +238,6 @@ export const assessmentDetailSchema = z.object({
     status: z.literal('done'),
     lv: z.record(exerciseKeySchema, storedLevelSchema.optional()),
     troubles: z.array(z.string()),
-    ppi: z.object(ppiFields),
     engagement: engagementSchema,
     copm: copmSchema,
   }).nullable(),

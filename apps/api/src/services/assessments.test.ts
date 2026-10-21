@@ -49,9 +49,6 @@ function completedInput(unlockExt = false) {
     },
     observations: {},
     troubles: ['よく物にぶつかる・つまずく'],
-    ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-    ppiNote: '',
-    memo: '',
   };
 }
 
@@ -84,12 +81,8 @@ describe('アセスメントサービス', () => {
       lv: Record<string, number | undefined>;
       observations: Record<string, string[]>;
       troubles: string[];
-      ppi: Record<string, number | undefined>;
-      ppiNote: string;
-      memo: string;
     };
     draft.lv = { post: 3, eyeh: 4, hand: 5 };
-    draft.ppi = { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 };
     draft.troubles = ['よく物にぶつかる・つまずく'];
     const saved = await patchAssessment(testEnv, created.id, coach.id, {
       data: draft,
@@ -146,7 +139,7 @@ describe('アセスメントサービス', () => {
     });
   });
 
-  it('必須のLv・PPIが揃わない状態では完了できない', async () => {
+  it('全種目のLvが揃わない状態では完了できない', async () => {
     const { coach, child } = await createFixture('めい');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const missingLevel = await patchAssessment(testEnv, assessment.id, coach.id, {
@@ -158,19 +151,10 @@ describe('アセスメントサービス', () => {
     });
     await expect(completeAssessment(testEnv, assessment.id, coach)).rejects.toMatchObject({ code: 'validation' });
 
-    const missingPpi = await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: {
-        ...completedInput(),
-        ppi: { time: 0, emo: 1, soc: 2, fut: 3 },
-      },
-      updatedAt: missingLevel.updatedAt,
-    });
-    await expect(completeAssessment(testEnv, assessment.id, coach)).rejects.toMatchObject({ code: 'validation' });
-
     // 到達が Lv0 でも、選ばれてさえいれば完了できる。
     await patchAssessment(testEnv, assessment.id, coach.id, {
       data: { ...completedInput(), lv: { post: 0, eyeh: 0, hand: 5 } },
-      updatedAt: missingPpi.updatedAt,
+      updatedAt: missingLevel.updatedAt,
     });
     const { report } = await completeAssessment(testEnv, assessment.id, coach);
     expect(report.levels.map(({ key, lv }) => [key, lv])).toEqual([['post', 0], ['eyeh', 0], ['hand', 5]]);
@@ -180,12 +164,12 @@ describe('アセスメントサービス', () => {
     const { coach, child } = await createFixture('えま');
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { memo: '先に保存された内容' },
+      data: { observationNotes: { post: '先に保存された内容' } },
       updatedAt: assessment.updatedAt,
     });
 
     await expect(patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { memo: '古い画面からの内容' },
+      data: { observationNotes: { post: '古い画面からの内容' } },
       updatedAt: assessment.updatedAt,
     })).rejects.toMatchObject({
       code: 'conflict',
@@ -198,11 +182,11 @@ describe('アセスメントサービス', () => {
     const assessment = await createAssessment(testEnv, child.id, coach.id, false);
     const results = await Promise.allSettled([
       patchAssessment(testEnv, assessment.id, coach.id, {
-        data: { memo: 'コーチAの入力' },
+        data: { observationNotes: { post: 'コーチAの入力' } },
         updatedAt: assessment.updatedAt,
       }),
       patchAssessment(testEnv, assessment.id, coach.id, {
-        data: { memo: 'コーチBの入力' },
+        data: { observationNotes: { post: 'コーチBの入力' } },
         updatedAt: assessment.updatedAt,
       }),
     ]);
@@ -211,7 +195,7 @@ describe('アセスメントサービス', () => {
     expect(results.filter(({ status }) => status === 'rejected')).toHaveLength(1);
     const rejected = results.find(({ status }) => status === 'rejected');
     expect(rejected).toMatchObject({ reason: { code: 'conflict' } });
-    expect((await getAssessment(testEnv, assessment.id, coach.id)).data.memo).toMatch(/コーチ[AB]の入力/);
+    expect((await getAssessment(testEnv, assessment.id, coach.id)).data.observationNotes.post).toMatch(/コーチ[AB]の入力/);
   });
 
   it('4・5種目目の開放を子どもに引き継ぎ、次回も5種目で開始する', async () => {
@@ -226,7 +210,7 @@ describe('アセスメントサービス', () => {
     expect((await getAssessment(testEnv, next.id, coach.id)).previous).toMatchObject({
       seqNo: 1,
       lv: { post: 3, eyeh: 4, hand: 5, sacc: 6, inhi: 7 },
-      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
+      troubles: ['よく物にぶつかる・つまずく'],
     });
   });
 
@@ -234,7 +218,7 @@ describe('アセスメントサービス', () => {
     const { coach, child } = await createFixture('みお');
     const first = await createAssessment(testEnv, child.id, coach.id, false);
     const saved = await patchAssessment(testEnv, first.id, coach.id, {
-      data: { ...completedInput(), wants: ['w9'], engagement: { dur: 2 }, ppiNote: '朝の支度に時間がかかる', memo: '所見' },
+      data: { ...completedInput(), wants: ['w9'], engagement: { dur: 2 }, observationNotes: { post: '後進で振り返る' } },
       updatedAt: first.updatedAt,
     });
     await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
@@ -245,9 +229,7 @@ describe('アセスメントサービス', () => {
       engagement: {},
       troubles: ['よく物にぶつかる・つまずく'],
       wants: ['w9'],
-      ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-      ppiNote: '朝の支度に時間がかかる',
-      memo: '',
+      observationNotes: {},
     });
   });
 
@@ -313,7 +295,7 @@ describe('アセスメントサービス', () => {
     const completed = await getAssessment(testEnv, assessment.id, coach.id);
     const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
       assessedOn: '2026-08-01',
-      data: { ...completed.data, memo: 'あとから書き足した所見', troubles: [] },
+      data: { ...completed.data, observationNotes: { post: 'あとから書き足した所見' }, troubles: [] },
       updatedAt: completed.updatedAt,
     });
 
@@ -323,7 +305,7 @@ describe('アセスメントサービス', () => {
 
     expect(reverted).toMatchObject({
       assessedOn: completed.assessedOn,
-      data: { memo: '', troubles: ['よく物にぶつかる・つまずく'] },
+      data: { observationNotes: {}, troubles: ['よく物にぶつかる・つまずく'] },
     });
     expect((await getReport(testEnv, assessment.id, coach.id)).hasUnreportedChanges).toBe(false);
   });
@@ -335,7 +317,7 @@ describe('アセスメントサービス', () => {
     await completeAssessment(testEnv, assessment.id, coach, saved.updatedAt);
     const completed = await getAssessment(testEnv, assessment.id, coach.id);
     const edited = await patchAssessment(testEnv, assessment.id, coach.id, {
-      data: { ...completed.data, memo: '未反映の所見' },
+      data: { ...completed.data, observationNotes: { post: '未反映の所見' } },
       updatedAt: completed.updatedAt,
     });
 

@@ -60,7 +60,7 @@ describe('非本番用サンプルデータ', () => {
     expect(latest).toMatchObject({ status: 'done', seqNo: 6 });
     expect(JSON.parse(latest!.data)).toMatchObject({
       lv: expect.objectContaining({ post: expect.any(Number), sacc: expect.any(Number) }),
-      ppi: expect.objectContaining({ time: expect.any(Number), nav: expect.any(Number) }),
+      troubles: expect.arrayContaining([expect.any(String)]),
     });
   });
 });

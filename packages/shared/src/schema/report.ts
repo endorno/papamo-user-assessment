@@ -13,18 +13,8 @@ import {
   copmScoreSchema,
   exerciseKeySchema,
   honorificSchema,
-  ppiScoreSchema,
   storedLevelSchema,
 } from './assessment';
-
-// PPI は5問そろって初めてレポートになるため、レポート側では必須で受ける。
-const ppiSchema = z.object({
-  time: ppiScoreSchema,
-  emo: ppiScoreSchema,
-  soc: ppiScoreSchema,
-  fut: ppiScoreSchema,
-  nav: ppiScoreSchema,
-});
 
 const pyramidSourceSchema = z.enum(['both', 'measured', 'goal']);
 
@@ -173,7 +163,6 @@ export const reportContentSchema = z.object({
     goalText: z.string().nullable(),
   })),
   link: z.object({ lowestKey: exerciseKeySchema, text: z.string() }),
-  ppi: z.object({ current: ppiSchema, previous: ppiSchema.optional(), note: z.string() }),
   roadmap: z.object({
     month3Build: z.array(z.string()),
     month3Changes: z.array(z.string()),
@@ -208,7 +197,6 @@ export const reportContentSchema = z.object({
       observations: z.array(z.string()),
       note: z.string(),
     })),
-    memo: z.string(),
     plan: z.object({
       focus: z.array(z.object({
         key: exerciseKeySchema,

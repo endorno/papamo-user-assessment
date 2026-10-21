@@ -19,7 +19,6 @@ import {
   levelValue,
   MIN_EXERCISE_LEVEL,
   NEURO_DOMAINS,
-  PPI_QUESTIONS,
   PYRAMID_ELEMENT_COPY,
   PYRAMID_TIERS,
   pyramidTierLabel,
@@ -34,7 +33,6 @@ import {
   type CoachCautionKey,
   type EngagementKey,
   type ExerciseKey,
-  type PpiKey,
   type PyramidItem,
   type TuningKey,
 } from '../master';
@@ -73,17 +71,6 @@ const FOCUS_AREA_COUNT = 3;
 
 /** 最重要にすべき領域を選ぶ順（暫定）。目標と測定の両方に出た要素を先にする。 */
 const PYRAMID_SOURCE_ORDER: PyramidSource[] = ['both', 'measured', 'goal'];
-
-function ppiSnapshot(input: ReportInput, previous = false): Record<PpiKey, number> {
-  const data = previous ? input.previous?.data : input.assessment.data;
-  if (!data) {
-    throw new Error('PPI の比較対象がありません。');
-  }
-
-  return Object.fromEntries(
-    PPI_QUESTIONS.map(({ key }) => [key, data.ppi[key]]),
-  ) as Record<PpiKey, number>;
-}
 
 function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
@@ -400,10 +387,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       month6Links: growKeys.flatMap((key) => exerciseByKey(key).links).slice(0, 4),
       month6Changes: growKeys.flatMap((key) => exerciseByKey(key).changes6m).slice(0, 4),
     };
-    const watchPoints = [
-      ...growKeys.flatMap((key) => exerciseByKey(key).changes3m).slice(0, 4),
-      ...(data.ppiNote ? [`${data.ppiNote}\u3000…この場面に変化があるか`] : []),
-    ];
+    const watchPoints = growKeys.flatMap((key) => exerciseByKey(key).changes3m).slice(0, 4);
 
     const previousTroubles = input.previous?.data.troubles ?? [];
     const changes3m = input.previous
@@ -412,7 +396,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           .flatMap((key) => exerciseByKey(key).changes3m.slice(0, 2))
           .slice(0, 6)
       : undefined;
-    const ppiPrevious = input.previous ? ppiSnapshot(input, true) : undefined;
     const gradeOutlook = gradeOutlookOf(input.child.gradeCode);
     const tuningKeys: TuningKey[] = ['priorityRule', 'abilityCopy', 'focusAreas', 'pyramidSources'];
     if (input.previous) tuningKeys.push('comparison');
@@ -505,11 +488,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         lowestKey,
         text: `チェックされた困りごとの多くは、${lowestExercise.parentName}（${lowestExercise.name} Lv${levelValue(levelOf(lowestKey))}／${lowestExercise.maxLevel}）がまだ育っている途中であることと一致しています。${lowestExercise.grow}`,
       },
-      ppi: {
-        current: ppiSnapshot(input),
-        ...(ppiPrevious ? { previous: ppiPrevious } : {}),
-        note: data.ppiNote,
-      },
       roadmap,
       wants,
       copm,
@@ -533,7 +511,6 @@ export class RuleBasedReportGenerator implements ReportGenerator {
             note: data.observationNotes[key] ?? '',
           };
         }),
-        memo: data.memo,
         plan: {
           focus: coachFocus.map(({ key, role }) => {
             const exercise = exerciseByKey(key);

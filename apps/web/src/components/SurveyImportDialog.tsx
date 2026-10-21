@@ -3,8 +3,6 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   hasSurveyAnswers,
   parseSurveyRow,
-  PPI_QUESTIONS,
-  PPI_SCORE_MAX,
   surveyReplacedFields,
   WANT_MAX,
   wantById,
@@ -18,8 +16,6 @@ import styles from '../styles/page.module.css';
 const REPLACED_LABELS: Record<SurveyReplacedField, string> = {
   troubles: 'お困りごと',
   wants: 'できるようになりたいこと',
-  ppi: 'ご家庭のお困り度',
-  ppiNote: 'いま一番負担に感じている場面',
 };
 
 // 回答が無かった欄は今の入力のまま残すことを、空欄ではなく言葉で示す。
@@ -29,13 +25,6 @@ function listOrNoAnswer(values: readonly string[]) {
   return values.length ? values.join('、') : NO_ANSWER;
 }
 
-function ppiSummary(answers: SurveyAnswers) {
-  const answered = PPI_QUESTIONS.filter(({ key }) => answers.ppi[key] !== undefined);
-  if (!answered.length) return NO_ANSWER;
-  const summary = answered.map(({ key, name }) => `${name} ${answers.ppi[key]}`).join('・');
-  return answered.length < PPI_QUESTIONS.length ? `${summary}（${PPI_QUESTIONS.length}問中${answered.length}問）` : summary;
-}
-
 function skippedLines({ skipped }: SurveyResponse): string[] {
   return [
     ...(skipped.troubles.length ? [`選択肢に無いお困りごと：${skipped.troubles.join('、')}`] : []),
@@ -43,7 +32,6 @@ function skippedLines({ skipped }: SurveyResponse): string[] {
     ...(skipped.overLimit.length
       ? [`${WANT_MAX}つを超えたできるようになりたいこと：${skipped.overLimit.join('、')}（必要なら取り込んだあとで入れ替えてください）`]
       : []),
-    ...skipped.ppi.map(({ name, value }) => `ご家庭のお困り度「${name}」：${value}（0〜${PPI_SCORE_MAX}の数字ではありません）`),
     ...skipped.tooLong.map(({ label }) => `${label}：長すぎて入力欄に入りません（要約して手で入力してください）`),
   ];
 }
@@ -146,8 +134,6 @@ export function SurveyImportDialog({
                 {importable.freeWants.length ? (
                   <div><dt>自由記載（目標欄へ）</dt><dd>{importable.freeWants.join('、')}</dd></div>
                 ) : null}
-                <div><dt>ご家庭のお困り度</dt><dd>{ppiSummary(importable)}</dd></div>
-                <div><dt>いま一番負担に感じている場面</dt><dd>{importable.ppiNote || NO_ANSWER}</dd></div>
               </dl>
             ) : (
               <p className={styles.importWarning}>この行には取り込める回答がありません。</p>

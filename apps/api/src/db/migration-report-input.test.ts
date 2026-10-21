@@ -11,7 +11,7 @@ describe('レポート作成時の入力の追加（0002）', () => {
     const [initial, triggers] = testEnv.TEST_MIGRATIONS;
     await applyD1Migrations(testEnv.DB, [initial!, triggers!]);
     const now = '2026-09-01T00:00:00.000Z';
-    const data = JSON.stringify({ lv: { post: 3 }, troubles: [], memo: '' });
+    const data = JSON.stringify({ lv: { post: 3 }, troubles: [] });
     await testEnv.DB.batch([
       testEnv.DB.prepare('INSERT INTO coaches (id, email, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
         .bind('coach-1', 'coach@example.com', 'コーチ', now, now),
@@ -39,7 +39,7 @@ describe('レポート作成時の入力の追加（0002）', () => {
     expect(rows.results[0]?.assessment_input && JSON.parse(rows.results[0].assessment_input)).toEqual({
       assessedOn: '2026-09-01',
       unlockExt: false,
-      data: { lv: { post: 3 }, troubles: [], memo: '' },
+      data: { lv: { post: 3 }, troubles: [] },
     });
     expect(rows.results[1]?.assessment_input).toBeNull();
   });

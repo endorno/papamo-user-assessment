@@ -99,9 +99,6 @@ describe('共通UI', () => {
       troubles: [],
       wants: [],
       copm: [],
-      ppi: { time: 1, emo: 1, soc: 1, fut: 1, nav: 1 },
-      ppiNote: '',
-      memo: '',
     };
     const report = reportContentSchema.parse(await new RuleBasedReportGenerator().generate({
       child: { name: 'はると', honorific: 'kun', grade: '小学1年生', gradeCode: 'e1', ageHint: '6〜7歳', ageGroup: 'sch', joinedMonth: '2026-03' },

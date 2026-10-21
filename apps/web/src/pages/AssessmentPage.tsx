@@ -18,8 +18,6 @@ import {
   hasPartialCopmBaseline,
   ladderLabel,
   MIN_EXERCISE_LEVEL,
-  PPI_QUESTIONS,
-  PPI_SCORE_MAX,
   TEXT_LIMITS,
   TROUBLE_CATEGORIES,
   WANT_GROUPS,
@@ -35,7 +33,6 @@ import {
   type CopmGoal,
   type EngagementKey,
   type ExerciseDefinition,
-  type PpiKey,
   type SurveyAnswers,
 } from '@papamo/shared';
 import { apiRequest, ApiClientError } from '../api/client';
@@ -128,20 +125,17 @@ function sectionId(key: AssessmentSectionKey) {
 /** 作っただけの下書きは、確認なしで捨ててよい。 */
 function hasAnyInput(form: AssessmentFormState) {
   const {
-    lv, ppi, observations, observationNotes, engagement,
-    troubles, wants, copm, memo, ppiNote,
+    lv, observations, observationNotes, engagement,
+    troubles, wants, copm,
   } = form.data;
   return Boolean(
     Object.keys(lv).length
-    || Object.keys(ppi).length
     || Object.keys(engagement).length
     || troubles.length
     || wants.length
     || copm.length
     || Object.values(observations).some((selected) => selected?.length)
-    || Object.values(observationNotes).some((note) => note?.trim())
-    || memo.trim()
-    || ppiNote.trim(),
+    || Object.values(observationNotes).some((note) => note?.trim()),
   );
 }
 
@@ -440,7 +434,7 @@ export function AssessmentPage() {
     updateData((data) => ({ ...data, copm: data.copm.filter((_, position) => position !== index) }));
   }
 
-  // 事前アンケートの回答で、お困りごと・できるようになりたいこと（と目標）・お困り度をまとめて置き換える。
+  // 事前アンケートの回答で、お困りごと・できるようになりたいこと（と目標）をまとめて置き換える。
   // 回答がなかった欄には触らず、コーチの手入力を消さない。取り込む前の入力には通知の「元に戻す」で戻せる。
   function importSurvey(answers: SurveyAnswers) {
     const current = formRef.current;
@@ -572,7 +566,6 @@ export function AssessmentPage() {
 
   const exercises = EXERCISES.filter((exercise) => exercise.core || form.unlockExt);
   const missingExercises = exercises.filter((exercise) => form.data.lv[exercise.key] === undefined);
-  const missingPpi = PPI_QUESTIONS.filter(({ key }) => form.data.ppi[key] === undefined);
   const completionIssues = [
     ...missingExercises.map((exercise) => ({ target: sectionId(exercise.key), label: `${exercise.name}のLv` })),
     ...form.data.copm.flatMap((goal, index) => (
@@ -583,7 +576,6 @@ export function AssessmentPage() {
       const missingKey: CopmBaselineKey = goal.baseline?.performance === undefined ? 'performance' : 'satisfaction';
       return [{ target: `copm-baseline-${missingKey}-${index}`, label: `目標${index + 1}の前回の点数` }];
     }),
-    ...(missingPpi.length ? [{ target: sectionId('ppi'), label: `ご家庭のお困り度 あと${missingPpi.length}問` }] : []),
   ];
   const canComplete = completionIssues.length === 0 && !dirty && !saving && !assessment.readOnly && !completing && !reverting;
   // 完了済みの回は、レポートを作ったときの入力と比べて、まだ反映していない変更を示す。
@@ -604,8 +596,6 @@ export function AssessmentPage() {
     { key: 'engagement', label: '取り組みの発達', complete: answeredEngagement.length > 0 },
     { key: 'troubles', label: 'お困りごと', complete: form.data.troubles.length > 0 },
     { key: 'goals', label: 'ご家族・本人の目標', complete: form.data.copm.length > 0 },
-    { key: 'ppi', label: 'ご家庭のお困り度', complete: missingPpi.length === 0 },
-    { key: 'memo', label: 'コーチ所見メモ', complete: true },
   ];
   const sectionLabels = new Map(navSections.map((section) => [section.key, section.label]));
   // ナビに無いセクション（4・5種目目を閉じた回の種目など）は種目名で補う。
@@ -862,33 +852,7 @@ export function AssessmentPage() {
               ) : null}
             </section>
 
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-ppi" data-assessment-section aria-labelledby="ppi-title">
-              <div className={styles.sectionHeader}><div><h2 id="ppi-title">5.ご家庭のお困り度</h2><p className={styles.muted}>0〜{PPI_SCORE_MAX}・{PPI_QUESTIONS.length}問すべて回答してください</p></div></div>
-              {PPI_QUESTIONS.map((question) => (
-                <PpiRow
-                  key={question.key}
-                  question={question}
-                  value={form.data.ppi[question.key]}
-                  previousValue={assessment.previous?.ppi[question.key]}
-                  disabled={assessment.readOnly}
-                  onChange={(value) => updateData((current) => ({ ...current, ppi: { ...current.ppi, [question.key]: value } }))}
-                />
-              ))}
-              <div className={styles.formField}>
-                <label htmlFor="ppi-note">いま一番負担に感じている場面（任意）</label>
-                <input id="ppi-note" value={form.data.ppiNote} maxLength={TEXT_LIMITS.ppiNote} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, ppiNote: event.target.value }))} />
-              </div>
-            </section>
-
             </div>
-
-            <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-memo" data-assessment-section aria-labelledby="memo-title">
-              <div className={styles.sectionHeader}><div><h2 id="memo-title">6.コーチ所見メモ</h2><p className={styles.muted}>内部用です。保護者レポートには出ません</p></div></div>
-              <div className={styles.formField}>
-                <label htmlFor="coach-memo">コーチ所見メモ（内部用）</label>
-                <textarea id="coach-memo" rows={4} value={form.data.memo} maxLength={TEXT_LIMITS.memo} disabled={assessment.readOnly} onChange={(event) => updateText((current) => ({ ...current, memo: event.target.value }))} />
-              </div>
-            </section>
           </div>
         </div>
 
@@ -1136,29 +1100,5 @@ function CopmBaselineScore({
         {COPM_SCORES.map((score) => <option key={score} value={score}>{score}</option>)}
       </select>
     </div>
-  );
-}
-
-function PpiRow({
-  question,
-  value,
-  previousValue,
-  disabled,
-  onChange,
-}: {
-  question: { key: PpiKey; name: string; question: string; lowLabel: string; highLabel: string };
-  value: number | undefined;
-  previousValue: number | undefined;
-  disabled: boolean;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <fieldset className={styles.ppiQuestion}>
-      <legend>{question.question}{previousValue === undefined ? '' : `（前回 ${previousValue}）`}</legend>
-      <div className={styles.ppiScaleLabels}><span>0 {question.lowLabel}</span><span>{question.highLabel} {PPI_SCORE_MAX}</span></div>
-      <div className={styles.ppiButtons} aria-label={question.name}>
-        {Array.from({ length: PPI_SCORE_MAX + 1 }, (_, score) => <button disabled={disabled} className={value === score ? styles.lvButtonSelected : styles.lvButton} key={score} type="button" aria-pressed={value === score} onClick={() => onChange(score)}>{score}</button>)}
-      </div>
-    </fieldset>
   );
 }

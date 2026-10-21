@@ -81,7 +81,7 @@ export async function createChild(client: TestClient, name: string) {
   return childResponseSchema.parse(await response.json()).child;
 }
 
-/** 3種目と PPI を埋めて完了させ、レポートのある回を作る。 */
+/** 3種目と困りごとを埋めて完了させ、レポートのある回を作る。 */
 export async function createCompletedAssessment(client: TestClient, childId: string) {
   const createResponse = await request(client, `/children/${childId}/assessments`, {
     method: 'POST',
@@ -95,9 +95,6 @@ export async function createCompletedAssessment(client: TestClient, childId: str
         lv: { post: 3, eyeh: 4, hand: 5 },
         observations: {},
         troubles: ['よく物にぶつかる・つまずく'],
-        ppi: { time: 0, emo: 1, soc: 2, fut: 3, nav: 4 },
-        ppiNote: '',
-        memo: '',
       },
       updatedAt: created.updatedAt,
     }),

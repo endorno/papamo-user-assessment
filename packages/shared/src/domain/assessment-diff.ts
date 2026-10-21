@@ -1,6 +1,5 @@
 import { ENGAGEMENT_AXES } from '../master/engagement';
 import { EXERCISES, type ExerciseKey } from '../master/exercises';
-import { PPI_QUESTIONS } from '../master/ppi';
 import type { AssessmentData } from '../schema/assessment';
 
 /** 入力画面のセクション単位。レポートへ未反映の変更がどこにあるかを示すのに使う。 */
@@ -9,9 +8,7 @@ export type AssessmentSectionKey =
   | ExerciseKey
   | 'engagement'
   | 'troubles'
-  | 'goals'
-  | 'ppi'
-  | 'memo';
+  | 'goals';
 
 interface AssessmentInputLike {
   assessedOn: string;
@@ -69,13 +66,6 @@ export function changedAssessmentSections(
   }
   if (!sameSet(before.troubles, after.troubles)) changed.push('troubles');
   if (!sameSet(before.wants, after.wants) || !sameCopm(before.copm, after.copm)) changed.push('goals');
-  if (
-    PPI_QUESTIONS.some(({ key }) => before.ppi[key] !== after.ppi[key])
-    || before.ppiNote !== after.ppiNote
-  ) {
-    changed.push('ppi');
-  }
-  if (before.memo !== after.memo) changed.push('memo');
 
   return changed;
 }

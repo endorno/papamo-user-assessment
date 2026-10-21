@@ -14,9 +14,6 @@ const data: CompletedAssessmentData = {
   troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
   wants: [],
   copm: [],
-  ppi: { time: 0, emo: 0, soc: 0, fut: 0, nav: 0 },
-  ppiNote: '',
-  memo: '内部メモ',
 };
 
 function inputFor(
@@ -251,18 +248,16 @@ describe('RuleBasedReportGenerator', () => {
     expect(reportContentSchema.parse(report)).toEqual(report);
   });
 
-  it('比較回のLv・困りごと・PPIの差分を決定的に生成する', async () => {
+  it('比較回のLv・困りごとの差分を決定的に生成する', async () => {
     const previousData: CompletedAssessmentData = {
       ...data,
       lv: { post: 2, eyeh: 5, hand: 7 },
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '忘れ物・なくし物が多い'],
-      ppi: { time: 5, emo: 4, soc: 3, fut: 2, nav: 1 },
     };
     const currentData: CompletedAssessmentData = {
       ...data,
       lv: { post: 5, eyeh: 6, hand: 7 },
       troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '朝の支度や着替えに時間がかかる'],
-      ppi: { time: 3, emo: 2, soc: 1, fut: 2, nav: 0 },
     };
     const report = await new RuleBasedReportGenerator().generate(inputFor(currentData, {
       seqNo: 2,
@@ -278,7 +273,6 @@ describe('RuleBasedReportGenerator', () => {
       kind: report.kind,
       levelChanges: report.levels.map(({ key, prevLv, lv, delta }) => ({ key, prevLv, lv, delta })),
       troubles: report.troubles,
-      ppi: report.ppi,
       nextDue: report.nextDue,
     }).toMatchInlineSnapshot(`
       {
@@ -304,23 +298,6 @@ describe('RuleBasedReportGenerator', () => {
           },
         ],
         "nextDue": "2026-12-01",
-        "ppi": {
-          "current": {
-            "emo": 2,
-            "fut": 2,
-            "nav": 0,
-            "soc": 1,
-            "time": 3,
-          },
-          "note": "",
-          "previous": {
-            "emo": 4,
-            "fut": 2,
-            "nav": 1,
-            "soc": 3,
-            "time": 5,
-          },
-        },
         "troubles": {
           "added": [
             "朝の支度や着替えに時間がかかる",
