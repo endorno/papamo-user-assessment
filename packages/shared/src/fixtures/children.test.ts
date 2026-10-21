@@ -69,9 +69,15 @@ describe('承認モックのフィクスチャ', () => {
       copmAreas: report.copm.map(({ text, areas }) => ({ text, areas })),
       focusAreas: report.focusAreas.map(({ item, source, goalText }) => ({ item, source, goalText })),
       gradeOutlook: report.gradeOutlook?.milestones.map(({ label, gradesAhead }) => `${label}・約${gradesAhead}学年先`) ?? null,
+      areaMenus: report.coach.areaMenus.map(({ item, goals, menus }) => `${item}：${goals.join('／')}：${menus.map(({ name }) => name).join('・')}`),
     }))).toMatchInlineSnapshot(`
       [
         {
+          "areaMenus": [
+            "視覚：板書を写すのが間に合うようになる：1-2 三角タッチ_兄弟ver・6-1 四角タッチ（数字4つ）_一人ver・指で色タッチ",
+            "眼球運動：板書を写すのが間に合うようになる：ボールタッチ_5秒追って・風船タッチ・綱渡り_頭の上にタオル",
+            "目と手の連携：板書を写すのが間に合うようになる：ティッシュキャッチ_大人が投げる・ボールキャッチ_色んな投げ方・タオルでお手玉",
+          ],
           "copmAreas": [
             {
               "areas": [
@@ -151,6 +157,11 @@ describe('承認モックのフィクスチャ', () => {
           ],
         },
         {
+          "areaMenus": [
+            "視覚：板書を写すのが間に合うようになる：1-2 三角タッチ_兄弟ver・6-1 四角タッチ（数字4つ）_一人ver・指で色タッチ",
+            "眼球運動：板書を写すのが間に合うようになる：ボールタッチ_5秒追って・風船タッチ・綱渡り_頭の上にタオル",
+            "目と手の連携：板書を写すのが間に合うようになる：ティッシュキャッチ_大人が投げる・ボールキャッチ_色んな投げ方・タオルでお手玉",
+          ],
           "copmAreas": [
             {
               "areas": [
@@ -230,6 +241,7 @@ describe('承認モックのフィクスチャ', () => {
           ],
         },
         {
+          "areaMenus": [],
           "copmAreas": [
             {
               "areas": [],

@@ -77,6 +77,16 @@ export interface ReportAbility {
 /** ピラミッドで色を付ける理由。both＝目標と測定・お困りごとの両方。 */
 export type PyramidSource = 'both' | 'measured' | 'goal';
 
+/** コーチ向け「領域ごとのメニュー」の1件。属性は分かっているものだけ入る。 */
+export interface ReportAreaMenu {
+  name: string;
+  difficulty?: string;
+  form?: string;
+  equipment?: string;
+  parentBurden?: string;
+  category?: string;
+}
+
 /** 保護者向けレポート2枚目の「最重要にすべき領域」。下の段から並べる。 */
 export interface ReportFocusArea {
   item: string;
@@ -225,6 +235,17 @@ export interface ReportContent {
       mostImportant: { text: string; importance: number } | null;
       lowSatisfaction: string[];
     };
+    /**
+     * 目標と課題から導き出した領域ごとのメニュー（コーチ向け「方針とメニューの方向性」）。
+     * 目標の「優先する領域」に挙がった領域を、ピラミッドの下の段から並べる。goals は重要度順の目標の文言。
+     */
+    areaMenus: {
+      item: string;
+      tier: number;
+      goals: string[];
+      aim: string;
+      menus: ReportAreaMenu[];
+    }[];
   };
 }
 

@@ -1585,10 +1585,6 @@
   opacity: 0.7;
 }
 
-.sheetTabCoach {
-  background: var(--violet);
-}
-
 .sheetCard {
   display: flex;
   flex: 1;
@@ -1846,33 +1842,6 @@
 
 .numberCell small {
   font-size: 0.7rem !important;
-}
-
-.numberedHeading {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 22px 0 9px !important;
-  font-size: 1rem !important;
-}
-
-/* 見出しには「アルゴリズム調整中」のタグ（span）も入るため、番号の丸はクラスで指定する。 */
-.headingNumber {
-  display: inline-grid;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--green);
-  color: #fff;
-  font-size: 0.8rem;
-}
-
-.numberedHeading small {
-  color: var(--mute);
-  font-size: 0.8rem;
-  font-weight: 400;
 }
 
 .reportBox {
@@ -2537,7 +2506,7 @@
   outline-offset: -3px;
 }
 
-/* 概要タブから、レポート末尾のコーチ向けメニュー提案へ送る入口。 */
+/* 概要タブから、レポート先頭のコーチ用の紙面（領域ごとのメニュー）へ送る入口。 */
 .nextLessonCard {
   display: grid;
   gap: 8px;
@@ -2554,9 +2523,9 @@
   justify-self: start;
 }
 
-/* --- レポート：コーチ向けの紙面（design-mock-v2 のコーチ用「3か月・6か月に当てるメニュー」） --- */
+/* --- レポート：コーチ向けの紙面（コーチ用レポート v14。先頭の2枚） --- */
 
-/* 保護者向けの2枚との切れ目。画面だけに出す。 */
+/* コーチ用の紙面と、その後ろの本体（保護者向けの2枚）との切れ目。画面だけに出す。 */
 .audienceDivider {
   display: flex;
   align-items: center;
@@ -2567,7 +2536,7 @@
 .audienceDivider::before,
 .audienceDivider::after {
   flex: 1;
-  border-top: 2px dashed var(--violet);
+  border-top: 2px dashed var(--report-tab);
   content: '';
 }
 
@@ -2577,10 +2546,10 @@
   gap: 2px;
   margin: 0;
   padding: 8px 20px;
-  border: 1.5px solid var(--violet);
+  border: 1.5px solid var(--report-tab);
   border-radius: 999px;
-  background: var(--violet-soft);
-  color: var(--violet-ink);
+  background: var(--green-soft);
+  color: var(--green-ink);
 }
 
 .audienceDivider small {
@@ -2588,179 +2557,254 @@
   font-size: 0.74rem;
 }
 
-.coachSheet .sheetCard {
-  border-color: var(--violet);
+/* 画面では、レポートを開いて最初に見るコーチ用の紙面を内容の高さにする（PDFの高さは採寸時に付く）。 */
+.reportPage :global(.sheet).coachSheet {
+  min-height: 0;
 }
 
-.coachSheet .reportSheetHeader {
-  border-bottom-color: var(--violet);
+/* コーチ用の紙面はタブを持たず、カード上端いっぱいの見出しバーで始める。 */
+.coachSheet .coachCard {
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px solid var(--coach-header);
+  border-radius: var(--r-lg);
 }
 
-/* PDFだけを見ても保護者向けと取り違えないよう、紙面の頭に帯を置く。 */
-.coachSheetBand {
-  margin: 0 0 12px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: var(--violet);
+.coachSheetHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 12px 20px;
+  background: var(--coach-header);
   color: #fff;
-  font-size: 0.82rem;
+}
+
+.reportPage :global(.sheet) .coachSheetHeader h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+/* 誤って家庭に渡さないための小ラベル。 */
+.coachSheetHeader > span {
+  padding: 1px 10px;
+  border: 1px solid rgb(255 255 255 / 60%);
+  border-radius: 999px;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
-.coachSubheading {
-  margin: 16px 0 0;
-  color: var(--ink2);
-  font-size: 0.92rem;
+.coachCardBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 16px 20px 18px;
 }
 
 .coachNote {
-  margin: 8px 0 0;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
   color: var(--mute);
   font-size: 0.76rem;
+  text-align: center;
   text-wrap: pretty;
 }
 
-.cautionBox {
-  margin-top: 12px;
-  padding: 9px 12px;
-  border-left: 4px solid #c9a227;
+/* --- 方針とメニューの方向性：目標と課題から導き出した領域ごとのメニュー --- */
+
+.reportPage :global(.sheet) .areaMenuHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  padding: 8px 12px;
   border-radius: 8px;
-  background: #f3eedd;
+  background: var(--coach-band);
+  color: var(--coach-ink);
+  font-size: 0.94rem;
+}
+
+.areaMenus {
+  display: grid;
+  gap: 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reportPage :global(.sheet) .areaMenus > li {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--coach-line);
+}
+
+.reportPage :global(.sheet) .areaMenuTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.areaMenuTitle strong {
+  font-size: 0.96rem;
+}
+
+.areaMenuTitle > span:last-child {
+  font-weight: 700;
+}
+
+.areaMenuNumber {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--coach-header);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.reportPage :global(.sheet) .areaMenuAim {
+  margin: 6px 0 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--coach-band);
+  color: var(--ink2);
   font-size: 0.8rem;
 }
 
-.cautionBox strong {
-  color: #6f5a10;
+.reportPage :global(.sheet) .areaMenus ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.cautionBox p {
-  margin: 3px 0 0;
-  color: var(--ink2);
-  text-wrap: pretty;
-}
-
-.focusSummary {
+.reportPage :global(.sheet) .areaMenus ul li {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  margin: 12px 0 0;
+  align-items: center;
+  gap: 3px 6px;
+  margin: 4px 0 0;
   font-size: 0.82rem;
 }
 
-.focusSummary b {
-  margin-right: 5px;
+/* 「・」はメニュー名に付ける（行の要素の間隔を空けないため）。 */
+.areaMenus ul li > span:first-child::before {
+  color: var(--mute);
+  content: '・';
+}
+
+.areaMenus ul li small {
+  color: var(--mute);
+  font-size: 0.72rem;
+}
+
+/* メニューの属性（難易度・実施形態・道具・親の負担）。色は変更依頼の指定値。 */
+.menuTag {
+  padding: 0 7px;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.menuTag[data-kind='difficulty'] {
+  background: var(--menu-difficulty-bg);
+  color: var(--menu-difficulty);
+}
+
+.menuTag[data-kind='alone'] {
+  background: var(--menu-alone-bg);
+  color: var(--menu-alone);
+}
+
+.menuTag[data-kind='withParent'] {
+  background: var(--menu-with-parent-bg);
+  color: var(--menu-with-parent);
+}
+
+.menuTag[data-kind='equipment'] {
+  background: var(--menu-equipment-bg);
+  color: var(--menu-equipment);
+}
+
+.menuTag[data-kind='burden'] {
+  background: var(--menu-burden-bg);
+  color: var(--menu-burden);
+}
+
+/* --- 観察された様子・つまずき方 --- */
+
+.observationSheet .coachCard {
+  border-color: var(--observation-header);
+}
+
+.observationSheet .coachSheetHeader {
+  background: var(--observation-header);
+}
+
+.observationSheet .coachCardBody {
+  background: var(--observation-body);
+}
+
+.observationCards {
+  display: grid;
+  gap: 10px;
+}
+
+.observationCards > section {
+  padding: 10px 14px;
+  border: 1px solid var(--observation-line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.84rem;
+}
+
+.reportPage :global(.sheet) .observationTitle {
+  margin: 0;
+  color: var(--ink2);
+}
+
+.observationTitle strong {
+  margin-right: 4px;
   color: var(--green-ink);
 }
 
-.menuPlan {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+.reportPage :global(.sheet) .observationCards ul {
+  margin: 4px 0 0;
 }
 
-.menuPlan h3 {
-  margin: 0;
-  font-size: 0.92rem;
+.reportPage :global(.sheet) .observationEmpty {
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-size: 0.8rem;
 }
 
-.menuPlan3,
-.menuPlan6 {
-  padding: 12px 14px;
-  border-radius: 12px;
-  font-size: 0.82rem;
-}
-
-.menuPlan3 {
-  border: 1px solid #9bc4b6;
-  background: #eaf3ef;
-}
-
-.menuPlan6 {
-  border: 1px solid #9bb8ce;
-  background: #eaf0f5;
-}
-
-.menuGroup,
-.menuGroupDomain {
-  margin-top: 10px;
-}
-
-.menuGroupDomain {
+.reportPage :global(.sheet) .observationFree {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
   padding-top: 8px;
   border-top: 1px dashed var(--line);
 }
 
-.menuGroupDomain small {
-  display: block;
-  margin-top: 5px;
-  color: var(--ink2);
-  font-weight: 700;
-}
-
-.roleBadge {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 7px;
-  border-radius: 6px;
-  background: var(--green);
-  color: #fff;
-  font-size: 0.7rem;
-}
-
-.roleBadge[data-role='next'] {
-  background: var(--orange);
-}
-
-.roleBadge[data-role='keep'] {
-  background: var(--mute);
-}
-
-.goalFocus {
-  margin-top: 12px;
-  font-size: 0.82rem;
-}
-
-.goalFocus > p:first-child {
-  margin: 0;
-}
-
-/* 4列あるため、スマホ幅では列を潰さず枠の中で横にずらして読ませる。 */
-.wantTable {
-  min-width: 540px;
-}
-
-.wantWarning {
-  margin: 6px 0 0;
-  color: #6f5a10;
-  font-size: 0.76rem;
-  text-wrap: pretty;
-}
-
-.wantStatus {
+.observationFree span {
+  flex: 0 0 auto;
   padding: 0 8px;
-  border-radius: 6px;
-  background: var(--green-soft);
-  color: var(--green-ink);
+  border-radius: 4px;
+  background: #8a948f;
+  color: #fff;
   font-size: 0.72rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.wantStatus[data-status='foundationFirst'] {
-  background: #f3eedd;
-  color: #6f5a10;
-}
-
-.wantStatus[data-status='unmeasured'] {
-  background: var(--line2);
-  color: var(--ink2);
-}
-
-@media (max-width: 640px) {
-  .menuPlan {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* いま見ているセクションをジャンプナビで示す。 */

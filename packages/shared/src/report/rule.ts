@@ -1,5 +1,6 @@
 import {
   activeExerciseKeys,
+  AREA_MENU_PLANS,
   bandName,
   bandOf,
   COACH_CAUTIONS,
@@ -37,10 +38,12 @@ import {
   type TuningKey,
 } from '../master';
 import { addMonthsClamped, nextDueDate } from '../domain/date';
+import { goalsByImportance } from './goal-order';
 import type {
   CoachFocusRole,
   DomainVerdict,
   PyramidSource,
+  ReportAreaMenu,
   ReportContent,
   ReportDomainHit,
   ReportGenerator,
@@ -65,9 +68,10 @@ const FOCUS_MENU_COUNT: Record<CoachFocusRole, { month3: number; month6: number 
 /** 支える種目が上限のこの割合以下なら「土台が届いていない」とみなす。 */
 const WANT_FOUNDATION_RATIO = 0.3;
 
-/** 種目ごとの基盤（①②③）と「最重要にすべき領域」に出す数。 */
+/** 種目ごとの基盤（①②③）と「最重要にすべき領域」、コーチ向けの領域ごとのメニューに出す数。 */
 const FOUNDATION_COUNT = 3;
 const FOCUS_AREA_COUNT = 3;
+const AREA_MENU_COUNT = 3;
 
 /** 最重要にすべき領域を選ぶ順（暫定）。目標と測定の両方に出た要素を先にする。 */
 const PYRAMID_SOURCE_ORDER: PyramidSource[] = ['both', 'measured', 'goal'];
@@ -90,6 +94,19 @@ function foundationsOf(key: ExerciseKey): string[] {
 function goalAreasOf(text: string): string[] {
   const want = WANT_ITEMS.find((item) => wantToGoalText(item.text) === text.trim());
   return want ? foundationsOf(want.axis) : [];
+}
+
+/**
+ * 領域に当てるメニュー。仮マスタ（AREA_MENU_PLANS）に無い領域は、その領域にあたる照合の追加メニューか、
+ * その領域を土台に持つ種目のメニューから名前だけを出す（属性は分からない）。
+ */
+function areaMenusOf(item: string): ReportAreaMenu[] {
+  const plan = AREA_MENU_PLANS[item as PyramidItem];
+  if (plan?.menus) return plan.menus.slice(0, AREA_MENU_COUNT).map((menu) => ({ ...menu }));
+  const domain = NEURO_DOMAINS.find((candidate) => candidate.pyramid === item);
+  const exercise = EXERCISES.find((candidate) => foundationsOf(candidate.key).includes(item));
+  const names = domain ? DOMAIN_MENUS[domain.id] ?? [] : exercise ? EXERCISE_MENUS[exercise.key].base : [];
+  return names.slice(0, AREA_MENU_COUNT).map((name) => ({ name }));
 }
 
 /** 学年が上がったときの見通し。いまの学年より先の時期だけを、何学年先かとともに返す。 */
@@ -353,8 +370,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       if (measured) return 'measured';
       return goal ? 'goal' : null;
     };
-    // 重要度の高い目標を先にする（同じ重要度なら入力順）。
-    const goalsByImportance = [...copm].sort((first, second) => second.importance - first.importance);
+    const copmByImportance = goalsByImportance(copm);
     const pyramidCells = PYRAMID_TIERS.flatMap((row) => row.items.map((item, position) => ({ item, tier: row.tier, position })));
     const byPosition = (first: { tier: number; position: number }, second: { tier: number; position: number }) => (
       first.tier - second.tier || first.position - second.position
@@ -375,9 +391,22 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         source,
         ...PYRAMID_ELEMENT_COPY[item as PyramidItem],
         // 結びつく目標（COPM）が無ければ、選んだ「できるようになりたいこと」の文言で代える。
-        goalText: goalsByImportance.find((goal) => goal.areas.includes(item))?.text
+        goalText: copmByImportance.find((goal) => goal.areas.includes(item))?.text
           ?? selectedWants.find((want) => want.areas.includes(item))?.goalText
           ?? null,
+      }));
+
+    // コーチ向けの領域ごとのメニュー。【暫定】目標の「優先する領域」だけを、ピラミッドの下の段から並べる
+    // （測定・お困りごとだけで色が付いた領域は出さない。変更依頼 2026-10-19 の仕様）。
+    const goalAreaItems = unique(copm.flatMap((goal) => goal.areas));
+    const areaMenus = pyramidCells
+      .filter((cell) => goalAreaItems.includes(cell.item))
+      .map(({ item, tier }) => ({
+        item,
+        tier,
+        goals: copmByImportance.filter((goal) => goal.areas.includes(item)).map((goal) => goal.text),
+        aim: AREA_MENU_PLANS[item as PyramidItem]?.aim ?? '',
+        menus: areaMenusOf(item),
       }));
 
     // --- 3か月・6か月の見通し ---
@@ -397,7 +426,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
           .slice(0, 6)
       : undefined;
     const gradeOutlook = gradeOutlookOf(input.child.gradeCode);
-    const tuningKeys: TuningKey[] = ['priorityRule', 'abilityCopy', 'focusAreas', 'pyramidSources'];
+    const tuningKeys: TuningKey[] = ['priorityRule', 'abilityCopy', 'focusAreas', 'pyramidSources', 'areaMenus'];
     if (input.previous) tuningKeys.push('comparison');
     if (engagement.some((axis) => axis.prevLevel !== undefined)) tuningKeys.push('engagementDelta');
     if (copm.length) tuningKeys.push('goalAreas');
@@ -405,7 +434,8 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     if (domainHits.length) tuningKeys.push('riskCopy');
     if (gradeOutlook) tuningKeys.push('gradeOutlook');
 
-    // --- コーチ向け（plan・wantPackages・copmFocus はレポート末尾のメニュー提案に使う） ---
+    // --- コーチ向け（areaMenus はレポート先頭の「方針とメニューの方向性」に使う。plan・wantPackages・copmFocus は
+    // 旧メニュー提案の表示をやめたが、ロジックの整理が済むまで残す） ---
     // 主軸＝最小Lv／次点＝2番目／維持＝最大Lv（モックの low / mid / high）。
     const coachFocus = unique([sorted[0], sorted[1], sorted.at(-1)].filter((key): key is ExerciseKey => key !== undefined))
       .map((key, index) => ({ key, role: COACH_FOCUS_ROLES[index]! }));
@@ -568,6 +598,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
             .filter((goal) => goal.performance >= 6 && goal.satisfaction <= 4)
             .map((goal) => goal.text),
         },
+        areaMenus,
       },
     };
   }

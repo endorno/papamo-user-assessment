@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router';
 import {
   REPORT_DISCLAIMER,
   RISK_DISCLAIMER,
+  goalsByImportance,
   reportFileTitle,
   reportResponseSchema,
   troubleProfileOf,
@@ -16,7 +17,7 @@ import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
 import { useDriveSave, type DriveSaveTask } from '../app/DriveSaveContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
-import { COACH_MENU_ANCHOR, GoalFocus, LessonMenuPlan, hasGoalFocus } from '../components/CoachMenu';
+import { AreaMenuPlan, COACH_MENU_ANCHOR, ObservationNotes } from '../components/CoachMenu';
 import { DriveSaveDoneMark, DriveSaveFailedMark, DriveSaveProgress, DriveSaveSpinner } from '../components/DriveSaveProgress';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
@@ -66,23 +67,31 @@ function TuningTag({ report, section }: { report: ParsedReport; section: TuningK
   return <span className={styles.tuningTag} title={note.note} data-print-hidden>アルゴリズム調整中：{note.label}</span>;
 }
 
-/** 紙面の左上のタブ。PDFだけを見ても、誰向けの何枚目かが分かるようにする。 */
-function SheetTab({ page, audience = 'parent' }: { page: number; audience?: ReportAudience }) {
+/** 保護者向けの紙面の左上のタブ。PDFだけを見ても、どの紙面の何枚目かが分かるようにする。 */
+function SheetTab({ page }: { page: number }) {
+  return <p className={styles.sheetTab}>本体（ご家庭説明用）<span>｜</span>Page {page}</p>;
+}
+
+/**
+ * コーチ向けの紙面の見出しバー。誤って家庭に渡さないよう、右端に「コーチ用」の小ラベルを残す
+ * （変更依頼の要確認②の暫定。2026-10-21）。
+ */
+function CoachSheetHeader({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <p className={audience === 'coach' ? `${styles.sheetTab} ${styles.sheetTabCoach}` : styles.sheetTab}>
-      {audience === 'coach' ? 'コーチ用' : '本体（ご家庭説明用）'}<span>｜</span>Page {page}
-    </p>
+    <header className={styles.coachSheetHeader}>
+      <h1>{icon}{children}</h1>
+      <span>コーチ用・保護者には渡さない</span>
+    </header>
   );
 }
 
-/** 番号つき見出し。コーチ向けの紙面だけで使う（保護者向けは v10 に合わせて番号を振らない）。 */
-function NumberedHeading({ number, children }: { number?: number | undefined; children: ReactNode }) {
-  return <h2 className={styles.numberedHeading}>{number === undefined ? null : <span className={styles.headingNumber}>{number}</span>}{children}</h2>;
-}
-
-/** 番号つき見出しが2つ以上あるときだけ連番を振る（「1」だけだと続きがあるように見えるため）。 */
-function headingNumber(position: number, count: number) {
-  return count >= 2 ? position : undefined;
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" />
+    </svg>
+  );
 }
 
 function ReportFooter() {
@@ -178,7 +187,7 @@ export function ReportPage() {
       .catch((caught) => setError(caught instanceof Error ? caught.message : '読み込みに失敗しました。'));
   }, [id, session]);
 
-  // 子どもページからメニュー提案へ直接来たときは、読み込みを待ってから末尾の紙面まで送る。
+  // 子どもページからメニューへ直接来たときは、読み込みを待ってからコーチ用の紙面まで送る。
   useEffect(() => {
     if (!report || hash !== `#${COACH_MENU_ANCHOR}`) return;
     document.getElementById(COACH_MENU_ANCHOR)?.scrollIntoView();
@@ -256,10 +265,8 @@ export function ReportPage() {
   // 総合点はその回に記録した種目（Lv0 を含む）だけで出す。未開放の種目を分母に入れると低く見えてしまうため。
   const levelTotal = report.levels.reduce((sum, level) => sum + level.lv, 0);
   const levelMax = report.levels.reduce((sum, level) => sum + level.maxLv, 0);
-  // 目標は親御さんにとっての重要度が高い順に並べる（同じ重要度なら入力順）。
-  const goalsByImportance = [...report.copm].sort((first, second) => second.importance - first.importance);
-  // コーチ向けの紙面はメニューが必ず入り、目標への当て方は入力があったときだけ加わる。
-  const coachHeadingCount = (hasGoalFocus(report) ? 1 : 0) + 1;
+  // 目標は親御さんにとっての重要度が高い順に並べる（同じ重要度なら入力順）。コーチ向けの目標の番号もこの順。
+  const copmByImportance = goalsByImportance(report.copm);
 
   return (
     <div className={styles.pageFrame}>
@@ -270,8 +277,8 @@ export function ReportPage() {
             <div>
               <strong>レポート</strong>
               <span>{currentDrive
-                ? '保護者向けPDFは1〜2枚目です。コーチ向け（末尾のメニュー提案まで）は、保護者向けと一緒にGoogleドライブへ自動で保存します。'
-                : '保護者向けPDFは1〜2枚目、コーチ向けPDFは末尾のメニュー提案までを含みます。'}</span>
+                ? '先頭の2枚はコーチ用です。保護者向けPDFはその後ろの本体2枚だけで、コーチ向け（全4枚）は保護者向けと一緒にGoogleドライブへ自動で保存します。'
+                : '先頭の2枚はコーチ用です。保護者向けPDFはその後ろの本体2枚だけ、コーチ向けPDFは全4枚を含みます。'}</span>
             </div>
             <div>
               {/* 一覧へはロゴとパンくずで戻れる。子どもページはスマホでパンくずが隠れるため、ボタンでも置く。 */}
@@ -301,6 +308,29 @@ export function ReportPage() {
               <Link className={styles.secondaryButton} to={`/assessments/${id}`}>入力画面を開く</Link>
             </div>
           ) : null}
+
+          {/* コーチ向けの紙面は先頭に置く（コーチ用レポート v14）。保護者向けPDFからは外す（data-coach-only）。 */}
+          <section className={`sheet ${styles.coachSheet}`} id={COACH_MENU_ANCHOR} aria-label="コーチ向け 方針とメニューの方向性" data-coach-only>
+            <div className={`${styles.sheetCard} ${styles.coachCard}`}>
+              <CoachSheetHeader icon={<span aria-hidden="true">◎</span>}>方針とメニューの方向性</CoachSheetHeader>
+              <div className={styles.coachCardBody}>
+                <h2 className={styles.areaMenuHeading}>◆ 目標と課題から導き出した領域ごとのメニュー<TuningTag report={report} section="areaMenus" /></h2>
+                <AreaMenuPlan report={report} />
+              </div>
+            </div>
+          </section>
+          <section className={`sheet ${styles.coachSheet} ${styles.observationSheet}`} aria-label="コーチ向け 観察された様子・つまずき方" data-coach-only>
+            <div className={`${styles.sheetCard} ${styles.coachCard}`}>
+              <CoachSheetHeader icon={<SearchIcon />}>観察された様子・つまずき方</CoachSheetHeader>
+              <div className={styles.coachCardBody}>
+                <ObservationNotes report={report} />
+              </div>
+            </div>
+          </section>
+          {/* ここから本体。切れ目は画面だけに出す。 */}
+          <div className={styles.audienceDivider} data-print-hidden>
+            <p><strong>ここからは本体（ご家庭説明用）</strong><small>保護者向けPDFは、ここから下の2枚です</small></p>
+          </div>
 
           {/* Page 1：スコア（育ちマップと、種目ごとのできている力／次に高めたい力） */}
           <section className={`sheet ${styles.parentSheet}`} aria-label="レポート1ページ目">
@@ -439,7 +469,7 @@ export function ReportPage() {
                         <tr><th>遂行度</th><th>満足度</th></tr>
                       </thead>
                       <tbody>
-                        {goalsByImportance.map((goal) => (
+                        {copmByImportance.map((goal) => (
                           <tr key={goal.text}>
                             <td><strong>{goal.text}</strong></td>
                             <td><small>{goal.memo}</small></td>
@@ -517,32 +547,6 @@ export function ReportPage() {
             </div>
           </section>
 
-          {/* ここからはコーチ向け。切れ目は画面だけに出し、紙面は保護者向けPDFから外す（data-coach-only）。 */}
-          <div className={styles.audienceDivider} data-print-hidden>
-            <p><strong>ここからはコーチ向け</strong><small>保護者向けPDFには入りません</small></p>
-          </div>
-          <section className={`sheet ${styles.coachSheet}`} id={COACH_MENU_ANCHOR} aria-label="コーチ向け メニュー提案" data-coach-only>
-            <SheetTab page={3} audience="coach" />
-            <div className={styles.sheetCard}>
-              <p className={styles.coachSheetBand}>コーチ用・保護者には渡さない</p>
-              <header className={styles.reportSheetHeader}>
-                <div>
-                  <h1>{childName}のメニュー提案</h1>
-                  <p>育ちマップ・第{report.header.seqNo}回{report.header.prevAssessedOn ? `（${formatJapaneseDate(report.header.prevAssessedOn)}との比較）` : '（初回）'}</p>
-                </div>
-                <p>{childName}<br />{report.header.grade}（{report.header.ageHint}）<br />{formatJapaneseDate(report.header.assessedOn)}・担当 {report.header.coachName}</p>
-              </header>
-              <NumberedHeading number={headingNumber(1, coachHeadingCount)}>3か月・6か月に当てるメニュー</NumberedHeading>
-              <LessonMenuPlan report={report} />
-              {hasGoalFocus(report) ? (
-                <>
-                  <NumberedHeading number={headingNumber(2, coachHeadingCount)}>目標への当て方</NumberedHeading>
-                  <GoalFocus report={report} />
-                </>
-              ) : null}
-              <ReportFooter />
-            </div>
-          </section>
         </div>
       </main>
     </div>

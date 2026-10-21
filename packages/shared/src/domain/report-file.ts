@@ -11,7 +11,7 @@ export function honorificLabel(honorific: Honorific) {
   return HONORIFIC_LABELS[honorific] ?? '';
 }
 
-/** 保護者向けはコーチ向けの紙面を外した2枚、コーチ向けは末尾のメニュー提案まで含める。 */
+/** 保護者向けはコーチ用の紙面を外した本体の2枚、コーチ向けは先頭のコーチ用2枚と本体2枚の4枚。 */
 export type ReportAudience = 'parent' | 'coach';
 
 /**

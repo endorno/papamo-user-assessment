@@ -382,6 +382,38 @@ describe('RuleBasedReportGenerator', () => {
       expect(reportContentSchema.parse(report)).toEqual(report);
     });
 
+    it('コーチ向けの領域ごとのメニューは、目標の優先する領域だけをピラミッドの下の段から並べる', async () => {
+      const goalData: CompletedAssessmentData = {
+        ...data,
+        lv: { post: 12, eyeh: 3, hand: 9 },
+        wants: ['w12'],
+        copm: [
+          { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
+          { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
+        ],
+      };
+      const report = await new RuleBasedReportGenerator().generate(inputFor(goalData));
+      const { areaMenus } = report.coach;
+
+      // 測定・お困りごとだけで色が付いた領域（身体の位置など）は出さない。
+      expect(areaMenus.map(({ item, tier, goals }) => ({ item, tier, goals }))).toEqual([
+        { item: '固有覚', tier: 1, goals: ['字をきれいに書けるようになる'] },
+        { item: 'ボディイメージ', tier: 3, goals: ['字をきれいに書けるようになる'] },
+        { item: '運動のコントロール', tier: 3, goals: ['字をきれいに書けるようになる'] },
+      ]);
+      // 仮マスタに属性つきのメニューがある領域はそれを、無い領域は照合の追加メニューから名前だけを出す。
+      expect(areaMenus[0]?.menus[2]).toEqual({ name: '3人綱引き', difficulty: '筋トレ系', form: '親子で', equipment: 'その他の道具', category: '筋力が弱い、低緊張／引く' });
+      expect(areaMenus[1]?.menus).toEqual([{ name: 'どこをタッチされた?' }, { name: '体の色んなところにボールを挟んでパス' }, { name: 'タオルの船' }]);
+      expect(areaMenus.every(({ aim, menus }) => aim.length > 0 && menus.length > 0)).toBe(true);
+      expect(report.tuning.map(({ key }) => key)).toContain('areaMenus');
+      expect(reportContentSchema.parse(report)).toEqual(report);
+    });
+
+    it('目標が無ければ、領域ごとのメニューは空にする', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, wants: ['w12'], copm: [] }));
+      expect(report.coach.areaMenus).toEqual([]);
+    });
+
     it('学年が上がったときの見通しは、いまの学年より先の時期だけを学年差つきで出す', async () => {
       const outlookOf = async (gradeCode: ReportInput['child']['gradeCode']) => (
         await new RuleBasedReportGenerator().generate(inputFor(data, { gradeCode }))

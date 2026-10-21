@@ -195,31 +195,53 @@ describe('レポート', () => {
     expect(screen.queryByRole('region', { name: 'レポート3ページ目' })).not.toBeInTheDocument();
   });
 
-  it('保護者向けの2枚のあとに、コーチ向けの切れ目とメニュー提案を置く', async () => {
+  it('先頭にコーチ用の2枚（方針とメニューの方向性・観察された様子）を置き、切れ目のあとに本体の2枚を続ける', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
-    const coachSheet = await screen.findByRole('region', { name: 'コーチ向け メニュー提案' });
-    const lastParentSheet = screen.getByRole('region', { name: 'レポート2ページ目' });
-    expect(lastParentSheet.compareDocumentPosition(coachSheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // 切れ目は画面だけに出し、紙面は保護者向けPDFから外す目印を付ける。
-    expect(screen.getByText('ここからはコーチ向け').closest('[data-print-hidden]')).not.toBeNull();
-    expect(coachSheet).toHaveAttribute('data-coach-only');
-    expect(coachSheet).toHaveTextContent('コーチ用｜Page 3');
-    expect(coachSheet).toHaveTextContent('コーチ用・保護者には渡さない');
-    // コーチ向けは、誰が作ったレポートかが分かるよう担当を出したままにする。
-    expect(coachSheet).toHaveTextContent('担当 さとうコーチ');
-    expect(within(coachSheet).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      '13か月・6か月に当てるメニュー',
-      '2目標への当て方',
-    ]);
-    expect(coachSheet).toHaveTextContent('主軸');
-    expect(coachSheet).toHaveTextContent('対応するメニューパッケージ');
-    // 保護者向けの紙面にはメニュー提案を出さない。
-    expect(lastParentSheet).not.toHaveTextContent('当てるメニュー');
+    const menuSheet = await screen.findByRole('region', { name: 'コーチ向け 方針とメニューの方向性' });
+    const observationSheet = screen.getByRole('region', { name: 'コーチ向け 観察された様子・つまずき方' });
+    const firstParentSheet = screen.getByRole('region', { name: 'レポート1ページ目' });
+    expect(menuSheet.compareDocumentPosition(observationSheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(observationSheet.compareDocumentPosition(firstParentSheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 切れ目は画面だけに出し、コーチ用の紙面は保護者向けPDFから外す目印を付ける。
+    expect(screen.getByText('ここからは本体（ご家庭説明用）').closest('[data-print-hidden]')).not.toBeNull();
+    for (const sheet of [menuSheet, observationSheet]) {
+      expect(sheet).toHaveAttribute('data-coach-only');
+      // 誤って家庭に渡さないよう、見出しバーに小ラベルを残す。
+      expect(sheet).toHaveTextContent('コーチ用・保護者には渡さない');
+    }
+    expect(within(menuSheet).getByRole('heading', { level: 1 })).toHaveTextContent('方針とメニューの方向性');
+    // 旧メニュー提案（主軸・次点・維持、目標への当て方）と、名前・担当のヘッダーは出さない。
+    expect(menuSheet).not.toHaveTextContent('主軸');
+    expect(menuSheet).not.toHaveTextContent('対応するメニューパッケージ');
+    expect(menuSheet).not.toHaveTextContent('担当');
+
+    // 目標の「優先する領域」を、ピラミッドの下の段から並べる。番号は本体の目標表の並び（重要度順）。
+    expect(menuSheet).toHaveTextContent('◆ 目標と課題から導き出した領域ごとのメニュー');
+    const areas = within(menuSheet).getAllByRole('listitem').filter((item) => item.parentElement?.tagName === 'OL');
+    expect(areas.map((area) => area.querySelector('strong')?.textContent)).toEqual(['前庭覚', '姿勢', 'バランス']);
+    expect(areas[1]).toHaveTextContent('対応する目標：①姿勢よく座れるようになる');
+    expect(areas[1]).toHaveTextContent('座る・立つを、力まずに保てるようにする。');
+    expect(areas[1]).toHaveTextContent('Wのポーズ中級親子で道具なし筋力が弱い、低緊張／お腹の力');
+    expect(within(areas[1]!).getByText('親子で')).toHaveAttribute('data-kind', 'withParent');
+
+    // 観察メモは、どの種目にも記録が無ければ残すよう促す。
+    expect(observationSheet).toHaveTextContent('見えた動作のチェックも自由記入もありません。');
   });
 
-  it('子どもページからメニュー提案へ来たときは、読み込み後に末尾の紙面まで送る', async () => {
+  it('観察された様子は、実施した種目ごとに見えた動作と自由記入を出す', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const observationSheet = await screen.findByRole('region', { name: 'コーチ向け 観察された様子・つまずき方' });
+    const lineWalk = within(observationSheet).getByRole('region', { name: 'ラインウォーク' });
+    expect(lineWalk).toHaveTextContent('ラインウォーク（姿勢制御/動的バランス）／Lv5/30');
+    expect(lineWalk).toHaveTextContent('指示理解の難しさ');
+    expect(within(observationSheet).getByRole('region', { name: 'お手玉キャッチ' })).toHaveTextContent('見えた動作の選択はありません。');
+  });
+
+  it('子どもページからメニューへ来たときは、読み込み後にコーチ用の紙面まで送る', async () => {
     const scrollIntoView = vi.fn();
     // jsdom には要素のスクロールがないため、差し替えて呼ばれたかだけを見る。
     Element.prototype.scrollIntoView = scrollIntoView;
@@ -229,7 +251,7 @@ describe('レポート', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderWithProviders(<ReportPage />, { route: '/reports/assessment-1#coach-menu', path: '/reports/:id' });
 
-    const coachSheet = await screen.findByRole('region', { name: 'コーチ向け メニュー提案' });
+    const coachSheet = await screen.findByRole('region', { name: 'コーチ向け 方針とメニューの方向性' });
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledOnce());
     expect(scrollIntoView.mock.contexts[0]).toBe(coachSheet);
   });
@@ -284,8 +306,9 @@ describe('レポート', () => {
     // 画面の2枚をそのまま送り、操作ボタンやコーチ向けの紙面、暫定の目印など保護者に渡さないものは含めない。
     expect(html).toContain('はるとくんのスコア');
     expect(html).toContain('発達ピラミッドから見る、育てるべき領域');
-    expect(html).not.toContain('はるとくんのメニュー提案');
-    expect(html).not.toContain('ここからはコーチ向け');
+    expect(html).not.toContain('方針とメニューの方向性');
+    expect(html).not.toContain('観察された様子・つまずき方');
+    expect(html).not.toContain('ここからは本体');
     expect(html).not.toContain('アルゴリズム調整中');
     // 同じお名前のお子さまと同じフォルダに保存しても上書きしないよう、IDの末尾4文字を入れる。
     expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回</title>');
@@ -294,7 +317,7 @@ describe('レポート', () => {
     expect(savedFileNames).toEqual(['育ちマップ_はるとくん_7K3Q_第2回.pdf']);
     expect(screen.getByRole('button', { name: '保護者向けPDF' })).toBeEnabled();
     // 画面ではコーチ向けの紙面を出したままにする。
-    expect(screen.getByRole('region', { name: 'コーチ向け メニュー提案' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'コーチ向け 方針とメニューの方向性' })).toBeInTheDocument();
   });
 
   it('Googleドライブの版が古ければ、開いたときに保護者向けとコーチ向けを1回だけ保存する', async () => {
@@ -306,11 +329,12 @@ describe('レポート', () => {
     expect(driveRequests).toHaveLength(1);
     const body = driveRequests[0]!;
     expect(body.generatedAt).toBe(report.generatedAt);
-    // 保護者向けにはコーチ向けの紙面を入れず、コーチ向けには末尾のメニュー提案まで入れる。
+    // 保護者向けにはコーチ用の紙面を入れず、コーチ向けには先頭のコーチ用の2枚と本体の2枚を入れる。
     expect(body.parentHtml).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回</title>');
-    expect(body.parentHtml).not.toContain('はるとくんのメニュー提案');
+    expect(body.parentHtml).not.toContain('方針とメニューの方向性');
     expect(body.coachHtml).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回_コーチ用</title>');
-    expect(body.coachHtml).toContain('はるとくんのメニュー提案');
+    expect(body.coachHtml).toContain('方針とメニューの方向性');
+    expect(body.coachHtml).toContain('はるとくんのスコア');
     // 保存状態の案内は紙面に入れない。
     expect(body.parentHtml).not.toContain('Googleドライブに保存');
     expect(screen.getByRole('link', { name: 'フォルダを開く' })).toHaveAttribute('href', 'https://drive.google.com/drive/folders/child-folder');
@@ -484,10 +508,11 @@ describe('レポート', () => {
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const [, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/report/pdf'))!;
     const { html } = JSON.parse(String(init?.body)) as { html: string };
+    expect(html).toContain('方針とメニューの方向性');
+    expect(html).toContain('観察された様子・つまずき方');
     expect(html).toContain('はるとくんのスコア');
-    expect(html).toContain('はるとくんのメニュー提案');
-    // 画面だけの切れ目は入れず、紙面の帯でコーチ用と分かるようにする。
-    expect(html).not.toContain('ここからはコーチ向け');
+    // 画面だけの切れ目は入れず、見出しバーの小ラベルでコーチ用と分かるようにする。
+    expect(html).not.toContain('ここからは本体');
     expect(html).toContain('コーチ用・保護者には渡さない');
     expect(html).toContain('<title>育ちマップ_はるとくん_7K3Q_第2回_コーチ用</title>');
     expect(savedFileNames).toEqual(['育ちマップ_はるとくん_7K3Q_第2回_コーチ用.pdf']);

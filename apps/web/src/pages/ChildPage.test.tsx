@@ -206,7 +206,7 @@ describe('子どもページ', () => {
     expect(within(goals).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('コーチ向けのメニュー提案はレポート末尾へ案内し、振り返りと計画のタブは置かない', async () => {
+  it('コーチ向けのメニューはレポート先頭へ案内し、振り返りと計画のタブは置かない', async () => {
     const latestReport = await new RuleBasedReportGenerator().generate({
       child: { name: 'ゆい', honorific: 'chan', grade: '小学2年生', gradeCode: 'e2', ageHint: '7〜8歳', ageGroup: 'sch', joinedMonth: '2025-06' },
       coach: { displayName: 'さとうコーチ' },
@@ -237,7 +237,7 @@ describe('子どもページ', () => {
     renderChildPage('plan');
 
     const nextLesson = await screen.findByRole('region', { name: '次のレッスンに向けて' });
-    expect(within(nextLesson).getByRole('link', { name: 'メニュー提案を見る' })).toHaveAttribute('href', '/reports/assessment-1#coach-menu');
+    expect(within(nextLesson).getByRole('link', { name: 'メニューを見る' })).toHaveAttribute('href', '/reports/assessment-1#coach-menu');
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['概要', '登録・共有']);
     expect(screen.getByRole('tab', { name: '概要' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('link', { name: '最新のレポート' })).toHaveAttribute('href', '/reports/assessment-1');

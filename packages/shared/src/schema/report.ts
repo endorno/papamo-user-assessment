@@ -240,6 +240,20 @@ export const reportContentSchema = z.object({
       mostImportant: z.object({ text: z.string(), importance: copmScoreSchema }).nullable(),
       lowSatisfaction: z.array(z.string()),
     }),
+    areaMenus: z.array(z.object({
+      item: z.string(),
+      tier: z.number().int(),
+      goals: z.array(z.string()),
+      aim: z.string(),
+      menus: z.array(z.object({
+        name: z.string(),
+        difficulty: z.string().optional(),
+        form: z.string().optional(),
+        equipment: z.string().optional(),
+        parentBurden: z.string().optional(),
+        category: z.string().optional(),
+      })),
+    })),
   }),
 });
 

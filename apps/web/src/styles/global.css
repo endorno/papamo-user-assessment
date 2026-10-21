@@ -40,6 +40,25 @@
   --report-schedule-bg: #eff5fc;
   --report-schedule-line: #bfd5ee;
   --report-schedule-ink: #2a5ea8;
+
+  /* コーチ用レポート（v14・2026-10-21）。変更依頼の指定値。 */
+  --coach-header: #6e56a6;
+  --coach-ink: #4b3a74;
+  --coach-band: #f6f4fa;
+  --coach-line: #d6cdec;
+  --menu-difficulty: #b45309;
+  --menu-difficulty-bg: #fff7ed;
+  --menu-alone: #6d28d9;
+  --menu-alone-bg: #f5f3ff;
+  --menu-with-parent: #be185d;
+  --menu-with-parent-bg: #fdf2f8;
+  --menu-equipment: #5b4e8c;
+  --menu-equipment-bg: #f7f5fc;
+  --menu-burden: #4c1d95;
+  --menu-burden-bg: #ede9fe;
+  --observation-header: #1f3a3a;
+  --observation-body: #f7f9f8;
+  --observation-line: #e4e7e5;
   --r: 10px;
   --r-lg: 16px;
 

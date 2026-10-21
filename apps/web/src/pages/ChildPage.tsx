@@ -453,8 +453,8 @@ export function ChildPage() {
                 {report && latestCompleted?.reportAvailable ? (
                   <section className={`${styles.panel} ${styles.nextLessonCard}`} aria-labelledby="next-lesson-title">
                     <h2 id="next-lesson-title">次のレッスンに向けて</h2>
-                    <p>3か月・6か月に当てるメニューは、第{latestCompleted.seqNo}回レポートの末尾（コーチ向け）にあります。</p>
-                    <Link className={styles.secondaryButton} to={`/reports/${latestCompleted.id}#${COACH_MENU_ANCHOR}`}>メニュー提案を見る</Link>
+                    <p>目標と課題から導き出した領域ごとのメニューと観察メモは、第{latestCompleted.seqNo}回レポートの先頭（コーチ向け）にあります。</p>
+                    <Link className={styles.secondaryButton} to={`/reports/${latestCompleted.id}#${COACH_MENU_ANCHOR}`}>メニューを見る</Link>
                   </section>
                 ) : null}
 
