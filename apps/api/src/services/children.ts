@@ -4,6 +4,7 @@ import { ulid } from 'ulid';
 import {
   formatShareCode,
   generateShareCode,
+  isNextCopmGoal,
   MAX_ACTIVE_CHILDREN_PER_COACH,
   normalizeShareCode,
   reportContentSchema,
@@ -72,7 +73,7 @@ function assessmentProgressFrom(row: {
     unlockExt: input.unlockExt,
     lv: input.data.lv,
     troubles: input.data.troubles,
-    goals: done ? input.data.copm.map((goal) => goal.text) : [],
+    goals: done ? input.data.copm.filter(isNextCopmGoal).map((goal) => goal.text) : [],
     hasUnreportedChanges: hasUnreportedChanges(row, reportInput),
   };
 }

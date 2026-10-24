@@ -85,6 +85,7 @@ export const COPM_FIELDS = [
 ] as const;
 
 export const COPM_MAX = 4;
+export const COPM_RECORD_MAX = COPM_MAX * 2;
 export const COPM_SCORE_MIN = 1;
 export const COPM_SCORE_MAX = 10;
 export const COPM_SCORE_DEFAULT = 5;

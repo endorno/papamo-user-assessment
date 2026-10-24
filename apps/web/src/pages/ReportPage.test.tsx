@@ -72,6 +72,20 @@ afterEach(() => {
 });
 
 describe('レポート', () => {
+  it('次の3か月の目標を先に並べて明示し、選ばなかった目標の採点も残す', async () => {
+    const next = { ...firstReport.copm[0]!, continueNext: true };
+    const ended = { ...firstReport.copm[1]!, continueNext: false, importance: 10, areas: [] };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: { ...firstReport, copm: [ended, next] }, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+    const sheet = await screen.findByRole('region', { name: 'レポート2ページ目' });
+    const rows = within(within(sheet).getAllByRole('table')[0]!).getAllByRole('row').slice(2);
+    expect(rows[0]).toHaveTextContent(next.text);
+    expect(rows[0]).toHaveTextContent('次の3か月の目標');
+    expect(rows[1]).toHaveTextContent(ended.text);
+    expect(rows[1]).not.toHaveTextContent('次の3か月の目標');
+    expect(rows[1]).toHaveTextContent(String(ended.performance));
+    expect(sheet).not.toHaveTextContent('今回の振り返り');
+  });
   it('初回レポートは保護者向けの2枚で、1枚目にスコアと種目ごとの力を出す', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
@@ -154,8 +168,8 @@ describe('レポート', () => {
     expect(within(goalTable).getAllByRole('row')[1]).toHaveTextContent('遂行度満足度');
     const goalRows = within(goalTable).getAllByRole('row').slice(2);
     expect(goalRows.map((row) => row.textContent)).toEqual([
-      '姿勢よく座れるようになる933①前庭覚②姿勢③バランス',
-      '自分で決めた目標455—',
+      '次の3か月の目標姿勢よく座れるようになる933①前庭覚②姿勢③バランス',
+      '次の3か月の目標自分で決めた目標455—',
     ]);
 
     // 困りごとの背景は、優先して見る土台をピラミッドの要素名で出す。

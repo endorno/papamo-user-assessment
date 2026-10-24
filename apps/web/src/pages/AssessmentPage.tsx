@@ -9,6 +9,7 @@ import {
   changedAssessmentSections,
   COPM_FIELDS,
   COPM_MAX,
+  COPM_RECORD_MAX,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
   ENGAGEMENT_AXES,
@@ -16,6 +17,8 @@ import {
   emptyCopmGoal,
   EXERCISES,
   hasPartialCopmBaseline,
+  isNextCopmGoal,
+  previousCopmGoal,
   ladderLabel,
   MIN_EXERCISE_LEVEL,
   TEXT_LIMITS,
@@ -418,9 +421,16 @@ export function AssessmentPage() {
   function addCopmGoal(text: string) {
     setShowGoalCandidates(false);
     const current = formRef.current;
-    if (!current || current.data.copm.length >= COPM_MAX) return;
+    if (!current || current.data.copm.length >= COPM_RECORD_MAX) return;
     focusGoalIndexRef.current = current.data.copm.length;
-    updateData((data) => ({ ...data, copm: [...data.copm, emptyCopmGoal(text)] }));
+    updateData((data) => ({
+      ...data,
+      copm: [...data.copm, {
+        ...emptyCopmGoal(text),
+        id: crypto.randomUUID(),
+        continueNext: data.copm.filter(isNextCopmGoal).length < COPM_MAX,
+      }],
+    }));
   }
 
   function removeCopmGoal(index: number) {
@@ -434,7 +444,9 @@ export function AssessmentPage() {
     if (!current) return;
     const before = current.data;
     const { data, goalsNotAdded } = applySurveyAnswers(before, answers);
-    updateData(() => data);
+    updateData(() => ({ ...data, copm: data.copm.map((goal) => (
+      before.copm.includes(goal) ? goal : { ...goal, id: crypto.randomUUID() }
+    )) }));
     const notAdded = goalsNotAdded.length
       ? `目標欄に空きがなく、${goalsNotAdded.map((text) => `「${text}」`).join('')}は入れていません。`
       : '';
@@ -557,6 +569,7 @@ export function AssessmentPage() {
   }
 
   const exercises = EXERCISES.filter((exercise) => exercise.core || form.unlockExt);
+  const nextGoalCount = form.data.copm.filter(isNextCopmGoal).length;
   const missingExercises = exercises.filter((exercise) => form.data.lv[exercise.key] === undefined);
   const completionIssues = [
     ...missingExercises.map((exercise) => ({ target: sectionId(exercise.key), label: `${exercise.name}のLv` })),
@@ -769,19 +782,21 @@ export function AssessmentPage() {
             </section>
 
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-goals" data-assessment-section aria-labelledby="goals-title">
-              <div className={styles.sectionHeader}><div><h2 id="goals-title">4.ご家族・本人の目標</h2><p className={styles.muted}>最大{COPM_MAX}つ。3か月後に同じ設問で採点し直し、差分を見ます</p></div></div>
+              <div className={styles.sectionHeader}><div><h2 id="goals-title">4.ご家族・本人の目標</h2><p className={styles.muted}>記録は最大{COPM_RECORD_MAX}件。次の3か月に取り組む目標を最大{COPM_MAX}つ選びます</p></div></div>
 
               <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
+              <p className={styles.infoNote} id="copm-next-help">チェックした目標を、ピラミッド・メニュー提案・次回への引き継ぎに使います。前回からの目標は文言を変えずに採点し、内容を変える場合は新しく追加してください。チェックを外しても今回の記録は残ります。</p>
+              <p className={styles.copmNextCount} role="status">次の3か月の目標：{nextGoalCount} / {COPM_MAX}件{nextGoalCount >= COPM_MAX ? '（入れ替えるときは、先にほかの目標のチェックを外してください）' : ''}</p>
               {firstInTool ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}
 
               {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。「目標を追加」から、候補を選ぶか自由に書いてください。</p> : null}
               {form.data.copm.map((goal, index) => {
-                const previous = assessment.previous?.copm.find((candidate) => candidate.text === goal.text);
+                const previous = previousCopmGoal(goal, assessment.previous?.copm ?? []);
                 return (
-                  <div className={styles.copmRow} key={index}>
+                  <div className={styles.copmRow} key={goal.id ?? index}>
                     <div className={styles.formField}>
                       <label htmlFor={`copm-text-${index}`}>目標 {index + 1}</label>
-                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} maxLength={TEXT_LIMITS.copmText} disabled={assessment.readOnly} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} maxLength={TEXT_LIMITS.copmText} disabled={assessment.readOnly} readOnly={Boolean(previous)} aria-describedby={previous ? 'copm-next-help' : undefined} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
                     <div className={styles.formField}>
                       <label htmlFor={`copm-memo-${index}`}>メモ</label>
@@ -813,12 +828,16 @@ export function AssessmentPage() {
                           onChange={(value) => updateCopmGoal(index, (current) => ({ ...current, [field.key]: value }))}
                         />
                       ))}
-                      {assessment.readOnly ? null : <button className={styles.textDangerButton} type="button" onClick={() => removeCopmGoal(index)}>この目標を削除</button>}
+                      {assessment.readOnly || previous ? null : <button className={styles.textDangerButton} type="button" onClick={() => removeCopmGoal(index)}>この目標を削除</button>}
                     </div>
+                    <label className={styles.copmNextOption}>
+                      <input type="checkbox" checked={isNextCopmGoal(goal)} disabled={assessment.readOnly || (!isNextCopmGoal(goal) && nextGoalCount >= COPM_MAX)} aria-describedby="copm-next-help" onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, continueNext: event.target.checked }))} />
+                      次の3か月の目標にする
+                    </label>
                   </div>
                 );
               })}
-              {!assessment.readOnly && form.data.copm.length < COPM_MAX ? (
+              {!assessment.readOnly && form.data.copm.length < COPM_RECORD_MAX ? (
                 <div className={styles.inlineActions}>
                   <button className={styles.secondaryButton} type="button" aria-haspopup="dialog" onClick={() => setShowGoalCandidates(true)}>目標を追加</button>
                 </div>

@@ -152,11 +152,21 @@ describe('applySurveyAnswers', () => {
   });
 
   it('同じ文言の目標は重ねず、目標欄に空きが無ければ入れずに返す', () => {
-    const manual = ['球技が上手になる', 'a', 'b', 'c'].map((text) => emptyCopmGoal(text));
+    const manual = ['球技が上手になる', 'a', 'b', 'c', 'd', 'e', 'f', 'g'].map((text, index) => ({
+      ...emptyCopmGoal(text), continueNext: index < 4,
+    }));
     const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, copm: manual }, answers);
 
     expect(data.copm).toEqual(manual);
     expect(goalsNotAdded).toEqual(['階段を昇り降りできるようになりたい']);
+  });
+
+  it('次の目標が4件あっても8件まで記録し、追加分は未選択にする', () => {
+    const manual = ['球技が上手になる', 'a', 'b', 'c'].map((text) => emptyCopmGoal(text));
+    const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, copm: manual }, answers);
+    expect(data.copm).toHaveLength(5);
+    expect(data.copm[4]).toMatchObject({ text: '階段を昇り降りできるようになりたい', continueNext: false });
+    expect(goalsNotAdded).toEqual([]);
   });
 
   it('置き換わる手入力があるときだけ知らせる', () => {

@@ -31,6 +31,8 @@ const reportLevelSchema = z.object({
 });
 
 const copmReportSchema = z.object({
+  id: z.string().optional(),
+  continueNext: z.boolean().optional(),
   text: z.string(),
   memo: z.string(),
   areas: z.array(z.string()),

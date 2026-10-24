@@ -53,4 +53,12 @@ describe('レポートへ未反映の変更', () => {
     current.data.observations.eyeh = [];
     expect(changedAssessmentSections(reported, current)).toEqual([]);
   });
+
+  it('次の目標のチェック変更は未反映として扱い、旧データの未指定とチェックありは同じとみなす', () => {
+    const current = clone(reported);
+    current.data.copm[0]!.continueNext = true;
+    expect(changedAssessmentSections(reported, current)).toEqual([]);
+    current.data.copm[0]!.continueNext = false;
+    expect(changedAssessmentSections(reported, current)).toEqual(['goals']);
+  });
 });

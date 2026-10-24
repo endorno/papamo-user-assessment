@@ -12,9 +12,11 @@ vi.mock('../auth/SupabaseAuthProvider', () => ({ useAuth: () => auth }));
 
 import {
   assessmentPatchRequestSchema,
+  emptyCopmGoal,
   SURVEY_SHEET_COLUMNS,
   SURVEY_SHEET_HEADER,
   type SurveySheetHeader,
+  type AssessmentData,
 } from '@papamo/shared';
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -504,6 +506,56 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
     expect(within(goals).queryByLabelText('前回の遂行度')).not.toBeInTheDocument();
     expect(within(goals).getByText('前回 3')).toBeInTheDocument();
+    expect(within(goals).getByLabelText('目標 1')).toHaveAttribute('readonly');
+    expect(within(goals).queryByRole('button', { name: 'この目標を削除' })).not.toBeInTheDocument();
+  });
+
+  it('前回4件と新規4件を表示し、次の目標を4件まで入れ替えて自動保存する', async () => {
+    const previousGoals = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`前の目標${index}`), id: `old-${index}` }));
+    const nextGoals = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`新しい目標${index}`), id: `new-${index}`, continueNext: true }));
+    const current = {
+      ...assessment, seqNo: 2, prevAssessmentId: 'assessment-0',
+      data: { ...assessment.data, copm: [...previousGoals.map((goal) => ({ ...goal, continueNext: false })), ...nextGoals] },
+      previous: { id: 'assessment-0', seqNo: 1, assessedOn: '2026-06-12', status: 'done', lv: {}, troubles: [], engagement: {}, copm: previousGoals },
+    };
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      const data = init?.method === 'PATCH' ? (JSON.parse(String(init.body)) as { data: AssessmentData }).data : current.data;
+      return jsonResponse({ assessment: { ...current, data } });
+    });
+    renderAssessmentPage();
+    const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    expect(within(goals).getByLabelText('目標 1')).toHaveAttribute('readonly');
+    expect(within(goals).getByLabelText('目標 5')).not.toHaveAttribute('readonly');
+    expect(within(goals).getAllByRole('button', { name: 'この目標を削除' })).toHaveLength(4);
+    expect(within(goals).queryByRole('button', { name: '目標を追加' })).not.toBeInTheDocument();
+    const checks = within(goals).getAllByRole('checkbox', { name: '次の3か月の目標にする' });
+    expect(checks).toHaveLength(8);
+    expect(checks[0]).toBeDisabled();
+    fireEvent.click(checks[4]!);
+    expect(checks[0]).toBeEnabled();
+    fireEvent.click(checks[0]!);
+    expect(within(goals).getByRole('status')).toHaveTextContent('4 / 4件');
+    await waitFor(() => {
+      const patch = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PATCH');
+      expect(patch).toBeDefined();
+      const body = assessmentPatchRequestSchema.parse(JSON.parse(String(patch?.[1]?.body)));
+      expect(body.data.copm?.[0]?.continueNext).toBe(true);
+      expect(body.data.copm?.[4]?.continueNext).toBe(false);
+    }, { timeout: 2000 });
+  });
+
+  it('目標が4件選ばれていても新しい行を追加でき、追加した行は未選択にする', async () => {
+    const copm = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`目標${index}`), id: `goal-${index}` }));
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ assessment: { ...assessment, data: { ...assessment.data, copm } } }));
+    renderAssessmentPage();
+    const goals = await screen.findByRole('region', { name: '4.ご家族・本人の目標' });
+    fireEvent.click(within(goals).getByRole('button', { name: '目標を追加' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: '目標を追加' })).getByRole('button', { name: '候補を使わずに書く' }));
+    expect(within(goals).getByLabelText('目標 5')).toHaveValue('');
+    const checks = within(goals).getAllByRole('checkbox', { name: '次の3か月の目標にする' });
+    expect(checks[4]).not.toBeChecked();
+    expect(checks[4]).toBeDisabled();
+    expect(within(goals).getByRole('status')).toHaveTextContent('4 / 4件');
   });
 
   it('実施日を消しても、保存できない値にはしない', async () => {

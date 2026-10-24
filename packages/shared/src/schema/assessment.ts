@@ -10,6 +10,7 @@ import {
 import { ENGAGEMENT_AXES, ENGAGEMENT_LEVEL_COUNT } from '../master/engagement';
 import {
   COPM_MAX,
+  COPM_RECORD_MAX,
   COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
@@ -63,6 +64,7 @@ const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
  * （入力欄だけ上限なしにすると、超えた時点で自動保存が止まるため）。
  */
 export const TEXT_LIMITS = {
+  copmId: 100,
   copmText: 100,
   copmMemo: 300,
   observationNote: 500,
@@ -107,19 +109,26 @@ const copmBaselineSchema = z.object({
 // 下書きでは文言が空の行も保存する（「目標を追加」した直後の行で自動保存を止めないため）。
 // 空のまま残っている行は、レポートを作るときに止める。
 const copmGoalSchema = z.object({
+  id: z.string().min(1).max(TEXT_LIMITS.copmId).optional(),
   text: z.string().max(TEXT_LIMITS.copmText),
   memo: z.string().max(TEXT_LIMITS.copmMemo).default(''),
   performance: copmScoreSchema,
   satisfaction: copmScoreSchema,
   importance: copmScoreSchema,
   baseline: copmBaselineDraftSchema.optional(),
+  // 追加前の目標はすべて継続していたため、未指定は継続として扱う。
+  continueNext: z.boolean().optional(),
 });
-const copmSchema = z.array(copmGoalSchema).max(COPM_MAX);
-// レポートに載せる回は、文言の前後の空白を落として1文字以上を求める（前回との突き合わせは文言の一致で行うため）。
+const copmSchema = z.array(copmGoalSchema).max(COPM_RECORD_MAX)
+  .refine((goals) => goals.filter(isNextCopmGoal).length <= COPM_MAX, `次の3か月の目標は最大${COPM_MAX}つです。`)
+  .refine((goals) => hasNoDuplicates(goals.flatMap((goal) => goal.id ? [goal.id] : [])), DUPLICATE_MESSAGE);
+// レポートに載せる回は、文言の前後の空白を落として1文字以上を求める。
 const completedCopmSchema = z.array(copmGoalSchema.extend({
   text: z.string().trim().min(1, '目標の文言を入力してください。').max(TEXT_LIMITS.copmText),
   baseline: copmBaselineSchema.optional(),
-})).max(COPM_MAX);
+})).max(COPM_RECORD_MAX)
+  .refine((goals) => goals.filter(isNextCopmGoal).length <= COPM_MAX, `次の3か月の目標は最大${COPM_MAX}つです。`)
+  .refine((goals) => hasNoDuplicates(goals.flatMap((goal) => goal.id ? [goal.id] : [])), DUPLICATE_MESSAGE);
 
 const troubleSchema = z.enum(TROUBLE_ITEMS as [string, ...string[]]);
 const troublesSchema = z.array(troubleSchema).refine(hasNoDuplicates, DUPLICATE_MESSAGE);
@@ -285,6 +294,18 @@ export function emptyCopmGoal(text = ''): CopmGoal {
     satisfaction: COPM_SCORE_DEFAULT,
     importance: COPM_SCORE_DEFAULT,
   };
+}
+
+/** 次の3か月に取り組み、次回に引き継ぐ目標。旧データは全件を対象にする。 */
+export function isNextCopmGoal(goal: { continueNext?: boolean }): boolean {
+  return goal.continueNext !== false;
+}
+
+/** 新しい目標を同じ文言で追加しても、別の目標として比較する。ID追加前の記録だけ文言で照合する。 */
+export function previousCopmGoal(goal: CopmGoal, previous: readonly CopmGoal[]): CopmGoal | undefined {
+  return previous.find((candidate) => isNextCopmGoal(candidate) && (
+    goal.id ? candidate.id === goal.id : !candidate.id && candidate.text === goal.text
+  ));
 }
 
 export type CopmBaselineKey = keyof NonNullable<CopmGoal['baseline']>;

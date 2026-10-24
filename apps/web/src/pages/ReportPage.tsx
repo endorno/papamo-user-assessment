@@ -5,6 +5,8 @@ import {
   REPORT_DISCLAIMER,
   RISK_DISCLAIMER,
   goalsByImportance,
+  isNextCopmGoal,
+  COPM_MAX,
   reportFileTitle,
   reportResponseSchema,
   troubleProfileOf,
@@ -265,7 +267,7 @@ export function ReportPage() {
   // 総合点はその回に記録した種目（Lv0 を含む）だけで出す。未開放の種目を分母に入れると低く見えてしまうため。
   const levelTotal = report.levels.reduce((sum, level) => sum + level.lv, 0);
   const levelMax = report.levels.reduce((sum, level) => sum + level.maxLv, 0);
-  // 目標は親御さんにとっての重要度が高い順に並べる（同じ重要度なら入力順）。コーチ向けの目標の番号もこの順。
+  // 次の3か月の目標を先にし、それぞれ重要度順に並べる。コーチ向けの目標の番号もこの順。
   const copmByImportance = goalsByImportance(report.copm);
 
   return (
@@ -404,7 +406,7 @@ export function ReportPage() {
           </section>
 
           {/* Page 2：発達ピラミッドから見る、育てるべき領域 */}
-          <section className={`sheet ${styles.parentSheet}`} aria-label="レポート2ページ目">
+          <section className={`sheet ${styles.parentSheet} ${report.copm.length > COPM_MAX ? styles.expandedGoalsSheet : ''}`} aria-label="レポート2ページ目">
             <SheetTab page={2} />
             <div className={styles.sheetCard}>
               <header className={styles.reportSheetHeader}>
@@ -469,9 +471,9 @@ export function ReportPage() {
                         <tr><th>遂行度</th><th>満足度</th></tr>
                       </thead>
                       <tbody>
-                        {copmByImportance.map((goal) => (
-                          <tr key={goal.text}>
-                            <td><strong>{goal.text}</strong></td>
+                        {copmByImportance.map((goal, index) => (
+                          <tr key={goal.id ?? index}>
+                            <td>{isNextCopmGoal(goal) ? <span className={styles.nextGoalTag}>次の3か月の目標</span> : null}<strong>{goal.text}</strong></td>
                             <td><small>{goal.memo}</small></td>
                             <td className={styles.numberCell}>{goal.importance}</td>
                             <td className={styles.numberCell}>{goal.performance}{goal.previous ? <small>前回 {goal.previous.performance}</small> : null}</td>

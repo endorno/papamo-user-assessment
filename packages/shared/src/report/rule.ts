@@ -36,6 +36,7 @@ import {
   type TuningKey,
 } from '../master';
 import { addMonthsClamped, nextDueDate } from '../domain/date';
+import { isNextCopmGoal, previousCopmGoal } from '../schema/assessment';
 import { goalsByImportance } from './goal-order';
 import type {
   CoachFocusRole,
@@ -306,12 +307,9 @@ export class RuleBasedReportGenerator implements ReportGenerator {
     ]);
 
     // --- 目標（COPM） ---
-    const previousCopm = new Map(
-      (input.previous?.data.copm ?? []).map((goal) => [goal.text, goal]),
-    );
     const copm = data.copm.map(({ baseline, ...goal }) => {
-      const previousGoal = previousCopm.get(goal.text);
-      const areas = goalAreasOf(goal.text);
+      const previousGoal = previousCopmGoal(goal, input.previous?.data.copm ?? []);
+      const areas = isNextCopmGoal(goal) ? goalAreasOf(goal.text) : [];
       // 前回の回が無い初回は、ツール導入前（Excel）の採点を前回として並べる（既存会員の目標の変化を見せるため）。
       const previous = previousGoal
         ? {
@@ -422,7 +420,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       .map(({ key, exercises }) => toCaution(key, exercises))
       .concat(toCaution('parentBelief', []));
     // 重要度が同じなら入力順で先の目標を採る。
-    const mostImportantGoal = data.copm.reduce<(typeof data.copm)[number] | null>(
+    const mostImportantGoal = data.copm.filter(isNextCopmGoal).reduce<(typeof data.copm)[number] | null>(
       (best, goal) => (best === null || goal.importance > best.importance ? goal : best),
       null,
     );
@@ -544,6 +542,7 @@ export class RuleBasedReportGenerator implements ReportGenerator {
         copmFocus: {
           mostImportant: mostImportantGoal ? { text: mostImportantGoal.text, importance: mostImportantGoal.importance } : null,
           lowSatisfaction: data.copm
+            .filter(isNextCopmGoal)
             .filter((goal) => goal.performance >= 6 && goal.satisfaction <= 4)
             .map((goal) => goal.text),
         },

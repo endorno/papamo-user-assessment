@@ -7,6 +7,7 @@ import {
   assessmentPatchRequestSchema,
   childCreateRequestSchema,
   emptyCopmGoal,
+  isNextCopmGoal,
   hasPartialCopmBaseline,
   TEXT_LIMITS,
   parseStoredAssessmentData,
@@ -15,6 +16,18 @@ import {
 } from './assessment';
 
 describe('アセスメント入力スキーマ', () => {
+  it('目標は8件まで記録でき、次の3か月に選べる目標は4件まで', () => {
+    const copm = Array.from({ length: 8 }, (_, index) => ({
+      ...emptyCopmGoal(`目標${index}`), id: `goal-${index}`, continueNext: index < 4,
+    }));
+    const input = { data: { copm }, updatedAt: '2026-10-24T00:00:00.000Z' };
+    expect(assessmentPatchRequestSchema.safeParse(input).success).toBe(true);
+    expect(assessmentPatchRequestSchema.safeParse({ ...input, data: { copm: [...copm, { ...emptyCopmGoal('9件目'), continueNext: false }] } }).success).toBe(false);
+    expect(assessmentPatchRequestSchema.safeParse({ ...input, data: { copm: copm.map((goal, index) => ({ ...goal, continueNext: index < 5 })) } }).success).toBe(false);
+    expect(assessmentPatchRequestSchema.safeParse({ ...input, data: { copm: copm.map((goal) => ({ ...goal, id: 'duplicate' })) } }).success).toBe(false);
+    expect(isNextCopmGoal(emptyCopmGoal('旧データ'))).toBe(true);
+    expect(assessmentPatchRequestSchema.safeParse({ ...input, data: { copm: copm.map((goal) => ({ ...goal, continueNext: false })) } }).success).toBe(true);
+  });
   it('子ども登録では性別を省くと「選ばない」になる', () => {
     expect(childCreateRequestSchema.parse({
       name: 'ひなた',

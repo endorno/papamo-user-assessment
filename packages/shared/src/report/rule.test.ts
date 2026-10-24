@@ -43,6 +43,33 @@ function inputFor(
 }
 
 describe('RuleBasedReportGenerator', () => {
+  it('終了する目標の今回の採点と差分は残し、ピラミッド・方針・メニューには選択した目標だけを使う', async () => {
+    const ended = { id: 'ended', text: '姿勢よく座れるようになる', memo: '今回で終了', performance: 7, satisfaction: 3, importance: 10, continueNext: false };
+    const next = { id: 'next', text: '字をきれいに書けるようになる', memo: '', performance: 3, satisfaction: 4, importance: 8, continueNext: true };
+    const generator = new RuleBasedReportGenerator();
+    const report = await generator.generate(inputFor({ ...data, copm: [ended, next] }, {
+      seqNo: 2,
+      previous: { seqNo: 1, assessedOn: '2026-06-01', unlockExt: false, data: { ...data, copm: [{ ...ended, continueNext: true, performance: 3 }] } },
+    }));
+    const onlyNext = await generator.generate(inputFor({ ...data, copm: [next] }));
+    expect(report.copm[0]).toMatchObject({ text: ended.text, areas: [], performanceDelta: 4, previous: { performance: 3 } });
+    expect(report.pyramid).toEqual(onlyNext.pyramid);
+    expect(report.focusAreas).toEqual(onlyNext.focusAreas);
+    expect(report.coach.areaMenus).toEqual(onlyNext.coach.areaMenus);
+    expect(report.coach.copmFocus).toEqual({ mostImportant: { text: next.text, importance: 8 }, lowSatisfaction: [] });
+    expect(reportContentSchema.parse(report)).toEqual(report);
+  });
+
+  it('同じ文言でもIDの違う新しい目標や、前回で終了した目標とは比較しない', async () => {
+    const goal = { text: '縄跳びを10回跳ぶ', memo: '', performance: 7, satisfaction: 7, importance: 5 };
+    for (const previousGoal of [{ ...goal, id: 'old' }, { ...goal, id: 'new', continueNext: false }]) {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, copm: [{ ...goal, id: 'new' }] }, {
+        seqNo: 2,
+        previous: { seqNo: 1, assessedOn: '2026-06-01', unlockExt: false, data: { ...data, copm: [previousGoal] } },
+      }));
+      expect(report.copm[0]?.previous).toBeUndefined();
+    }
+  });
   it('同じLvでは種目定義順で優先テーマを決める', async () => {
     const report = await new RuleBasedReportGenerator().generate(inputFor(data));
 

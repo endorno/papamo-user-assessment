@@ -1,6 +1,7 @@
 import { applyD1Migrations, type D1Migration } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { emptyCopmGoal, type AssessmentData } from '@papamo/shared';
 
 import { createChild, getChildForCoach, importChild, setArchiveState } from './children';
 import { upsertCoach } from './coaches';
@@ -64,6 +65,65 @@ async function saveCompletedInput(
 }
 
 describe('アセスメントサービス', () => {
+  it('前回4件の採点と新しい4件を保存し、選択した目標だけを今期の目標と次回に引き継ぐ', async () => {
+    const { coach, child } = await createFixture('目標の入れ替え');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const original = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`前の目標${index}`), id: `old-${index}` }));
+    const saved = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), copm: original }, updatedAt: first.updatedAt,
+    });
+    await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    const next = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`新しい目標${index}`), id: `new-${index}`, continueNext: true }));
+    const copm = [...original.map((goal) => ({ ...goal, continueNext: false, performance: 8 })), ...next];
+    const secondSaved = await patchAssessment(testEnv, second.id, coach.id, {
+      data: { ...completedInput(), copm }, updatedAt: second.updatedAt,
+    });
+    const result = await completeAssessment(testEnv, second.id, coach, secondSaved.updatedAt);
+    expect(result.report.copm).toHaveLength(8);
+    expect(result.report.copm[0]).toMatchObject({ performance: 8, performanceDelta: 3, continueNext: false });
+    const detail = await getChildForCoach(testEnv, child.id, coach.id);
+    expect(detail?.assessments.at(-1)?.goals).toEqual(next.map((goal) => goal.text));
+    const third = await createAssessment(testEnv, child.id, coach.id, false);
+    expect((JSON.parse(third.data) as AssessmentData).copm).toEqual(next);
+    expect((await getAssessment(testEnv, second.id, coach.id)).data.copm).toHaveLength(8);
+  });
+
+  it.each([true, false])('引き継いだ目標の変更・削除は拒否し、採点・メモ・次の目標の選択は変更できる（IDあり: %s）', async (withId) => {
+    const { coach, child } = await createFixture('文言を固定');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const goal = { ...emptyCopmGoal('縄跳びを10回跳ぶ'), ...(withId ? { id: 'rope-10' } : {}) };
+    const saved = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), copm: [goal] }, updatedAt: first.updatedAt,
+    });
+    await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    for (const copm of [[{ ...goal, text: '縄跳びを15回跳ぶ' }], []]) {
+      await expect(patchAssessment(testEnv, second.id, coach.id, {
+        data: { ...completedInput(), copm }, updatedAt: second.updatedAt,
+      })).rejects.toMatchObject({ code: 'validation' });
+    }
+    const next = { ...emptyCopmGoal('縄跳びを15回跳ぶ'), id: 'rope-15' };
+    const secondSaved = await patchAssessment(testEnv, second.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...goal, performance: 8, satisfaction: 7, memo: '10回できた', continueNext: false }, next] }, updatedAt: second.updatedAt,
+    });
+    expect(secondSaved.data.copm[0]).toMatchObject({ performance: 8, memo: '10回できた' });
+    const changedNew = await patchAssessment(testEnv, second.id, coach.id, {
+      data: { ...secondSaved.data, copm: [secondSaved.data.copm[0]!, { ...next, text: '縄跳びを20回跳ぶ' }] }, updatedAt: secondSaved.updatedAt,
+    });
+    expect(changedNew.data.copm[1]?.text).toBe('縄跳びを20回跳ぶ');
+  });
+
+  it('次の目標を0件にしても記録を完了でき、次回には引き継がない', async () => {
+    const { coach, child } = await createFixture('目標なし');
+    const first = await createAssessment(testEnv, child.id, coach.id, false);
+    const saved = await patchAssessment(testEnv, first.id, coach.id, {
+      data: { ...completedInput(), copm: [{ ...emptyCopmGoal('今回で終了'), continueNext: false }] }, updatedAt: first.updatedAt,
+    });
+    await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
+    const second = await createAssessment(testEnv, child.id, coach.id, false);
+    expect((JSON.parse(second.data) as AssessmentData).copm).toEqual([]);
+  });
   it('下書きを完了してレポートを作り、後続回ができると前回を編集できない', async () => {
     const coach = await upsertCoach(testEnv, {
       id: crypto.randomUUID(),

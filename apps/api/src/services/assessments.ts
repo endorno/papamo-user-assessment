@@ -6,6 +6,8 @@ import {
   assessmentDataDraftSchema,
   changedAssessmentSections,
   hasPartialCopmBaseline,
+  isNextCopmGoal,
+  previousCopmGoal,
   parseStoredAssessmentData,
   parseStoredCompletedData,
   withoutExtExerciseInput,
@@ -210,9 +212,9 @@ function writableMutationCondition(
 // 保護者と確認する入力（お困りごと・目標）は前回の回から引き継ぎ、変わったところだけ直してもらう。
 // その場で観察する入力（Lv・見えた動作・取り組みの発達）は毎回まっさらにする。
 function initialData(previous: CompletedAssessmentData | null): AssessmentData {
-  // 目標は前回の COPM を引き継ぐ。初回は空欄から始める。
+  // 前回に選んだ次の3か月の目標だけを引き継ぐ。終了した目標は前回の記録に残す。
   // ツール導入前の採点は初回だけのもの。2回目からはツールの前回の回と比べるので引き継がない。
-  const copm = previous?.copm.map(({ baseline: _baseline, ...goal }) => ({ ...goal })) ?? [];
+  const copm = previous?.copm.filter(isNextCopmGoal).map(({ baseline: _baseline, ...goal }) => ({ ...goal })) ?? [];
   return {
     lv: {},
     observations: {},
@@ -363,6 +365,21 @@ export async function patchAssessment(
   );
   if (assessment.prevAssessmentId && data.copm.some((goal) => goal.baseline)) {
     throw new AssessmentServiceError('validation', 'ツール導入前の採点は、ツールで初めてのアセスメントでだけ入力できます。');
+  }
+  if (assessment.prevAssessmentId) {
+    const previous = await previousForReport(env, assessment);
+    // 引き継いだ目標は今回の採点を残す。終了するときは削除せず、次の目標のチェックを外す。
+    const remaining = [...data.copm];
+    for (const goal of parseData(assessment.data).copm) {
+      if (!previousCopmGoal(goal, previous?.data.copm ?? [])) continue;
+      const index = remaining.findIndex((candidate) => (
+        goal.id ? candidate.id === goal.id : !candidate.id && candidate.text === goal.text
+      ));
+      if (index < 0 || remaining[index]?.text !== goal.text) {
+        throw new AssessmentServiceError('validation', '前回から引き継いだ目標の文言は変更・削除できません。内容を変える場合は新しい目標を追加してください。');
+      }
+      remaining.splice(index, 1);
+    }
   }
   await writeAssessmentInput(env, assessment, coachId, {
     assessedOn: input.assessedOn ?? assessment.assessedOn,

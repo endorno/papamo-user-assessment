@@ -51,7 +51,10 @@ function saveCompletedInput(
       lv: { post: 3, eyeh: 4, hand: 5 },
       observations: {},
       troubles: ['よく物にぶつかる・つまずく'],
-      copm: goal ? [{ text: goal, memo: '', performance: 3, satisfaction: 3, importance: 8 }] : [],
+      copm: [
+        ...(JSON.parse(assessment.data) as { copm: { text: string; memo: string; performance: number; satisfaction: number; importance: number }[] }).copm.map((previous) => ({ ...previous, continueNext: false })),
+        ...(goal ? [{ text: goal, memo: '', performance: 3, satisfaction: 3, importance: 8 }] : []),
+      ],
     },
     updatedAt: assessment.updatedAt,
   });

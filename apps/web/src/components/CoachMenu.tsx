@@ -8,7 +8,7 @@ import styles from '../styles/page.module.css';
 /** 子どもページからコーチ向けの紙面へ直接飛ぶためのアンカー。 */
 export const COACH_MENU_ANCHOR = 'coach-menu';
 
-const CIRCLED_NUMBERS = ['①', '②', '③', '④', '⑤'];
+const CIRCLED_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'];
 
 /** 対応する目標の番号は、保護者向けの目標表（重要度順）の並びにそろえる。 */
 function goalNumber(report: ReportContent, text: string) {
@@ -20,7 +20,7 @@ function goalNumber(report: ReportContent, text: string) {
 export function AreaMenuPlan({ report }: { report: ReportContent }) {
   const { areaMenus } = report.coach;
   if (!areaMenus.length) {
-    return <p className={styles.muted}>目標の「優先する領域」がまだないため、領域ごとのメニューを出せません。目標（COPM）を入力すると、ここに並びます。</p>;
+    return <p className={styles.muted}>次の3か月の目標に「優先する領域」がまだないため、領域ごとのメニューを出せません。目標（COPM）を入力し、次の3か月の目標に選ぶと、ここに並びます。</p>;
   }
   return (
     <>

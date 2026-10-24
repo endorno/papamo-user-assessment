@@ -28,6 +28,8 @@ function sameCopm(first: AssessmentData['copm'], second: AssessmentData['copm'])
     const other = second[index];
     return other !== undefined
       && goal.text === other.text
+      && goal.id === other.id
+      && (goal.continueNext !== false) === (other.continueNext !== false)
       && goal.memo === other.memo
       && goal.performance === other.performance
       && goal.satisfaction === other.satisfaction

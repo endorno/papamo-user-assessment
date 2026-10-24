@@ -1,7 +1,7 @@
-import { COPM_MAX, WANT_ITEMS, wantById, wantToGoalText } from '../master/goals';
+import { COPM_MAX, COPM_RECORD_MAX, WANT_ITEMS, wantById, wantToGoalText } from '../master/goals';
 import { SURVEY_SHEET_COLUMNS, SURVEY_SHEET_HEADER, type SurveySheetHeader } from '../master/survey-form';
 import { TROUBLE_ITEMS } from '../master/troubles';
-import { emptyCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/assessment';
+import { emptyCopmGoal, isNextCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/assessment';
 
 /**
  * チェックボックスの回答の区切り。Googleフォームは選んだ選択肢を「, 」でつないで1つのセルに入れる。
@@ -227,11 +227,12 @@ export function applySurveyAnswers(data: AssessmentData, answers: SurveyAnswers)
   const goalsNotAdded: string[] = [];
   for (const text of surveyGoalTexts(answers)) {
     if (copm.some((goal) => goal.text === text)) continue;
-    if (copm.length >= COPM_MAX) {
+    if (copm.length >= COPM_RECORD_MAX) {
       goalsNotAdded.push(text);
       continue;
     }
-    copm.push(emptyCopmGoal(text));
+    const goal = emptyCopmGoal(text);
+    copm.push(copm.filter(isNextCopmGoal).length < COPM_MAX ? goal : { ...goal, continueNext: false });
   }
   next.copm = copm;
   return { data: next, goalsNotAdded };
