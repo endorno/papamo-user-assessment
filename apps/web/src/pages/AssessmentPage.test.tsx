@@ -530,9 +530,14 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     expect(within(goals).queryByRole('button', { name: '目標を追加' })).not.toBeInTheDocument();
     const checks = within(goals).getAllByRole('checkbox', { name: '次の3か月の目標にする' });
     expect(checks).toHaveLength(8);
-    expect(checks[0]).toBeDisabled();
-    fireEvent.click(checks[4]!);
     expect(checks[0]).toBeEnabled();
+    fireEvent.click(checks[0]!);
+    expect(checks[0]).not.toBeChecked();
+    expect(within(goals).getByRole('alert')).toHaveTextContent('次の3か月の目標は最大4件です。ほかの目標のチェックを外してから選んでください。');
+    expect(checks[0]).toHaveAttribute('aria-describedby', 'copm-next-help copm-next-limit-0');
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+    fireEvent.click(checks[4]!);
+    expect(within(goals).queryByRole('alert')).not.toBeInTheDocument();
     fireEvent.click(checks[0]!);
     expect(within(goals).getByRole('status')).toHaveTextContent('4 / 4件');
     await waitFor(() => {
@@ -554,7 +559,10 @@ describe('アセスメント入力：保存が止まらないこと', () => {
     expect(within(goals).getByLabelText('目標 5')).toHaveValue('');
     const checks = within(goals).getAllByRole('checkbox', { name: '次の3か月の目標にする' });
     expect(checks[4]).not.toBeChecked();
-    expect(checks[4]).toBeDisabled();
+    expect(checks[4]).toBeEnabled();
+    fireEvent.click(checks[4]!);
+    expect(checks[4]).not.toBeChecked();
+    expect(within(goals).getByRole('alert')).toHaveTextContent('次の3か月の目標は最大4件です。');
     expect(within(goals).getByRole('status')).toHaveTextContent('4 / 4件');
   });
 

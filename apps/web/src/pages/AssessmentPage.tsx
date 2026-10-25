@@ -169,6 +169,7 @@ export function AssessmentPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showSurveyImport, setShowSurveyImport] = useState(false);
   const [showGoalCandidates, setShowGoalCandidates] = useState(false);
+  const [copmLimitGoalIndex, setCopmLimitGoalIndex] = useState<number | null>(null);
   const [confirmRevert, setConfirmRevert] = useState(false);
   const [reverting, setReverting] = useState(false);
 
@@ -417,6 +418,17 @@ export function AssessmentPage() {
     }), delay);
   }
 
+  function toggleNextCopmGoal(index: number, checked: boolean) {
+    const current = formRef.current;
+    if (!current || assessmentRef.current?.readOnly) return;
+    if (checked && current.data.copm.filter(isNextCopmGoal).length >= COPM_MAX) {
+      setCopmLimitGoalIndex(index);
+      return;
+    }
+    setCopmLimitGoalIndex(null);
+    updateCopmGoal(index, (goal) => ({ ...goal, continueNext: checked }));
+  }
+
   // 候補から選んだ仮の文言（候補を使わないときは空）で目標を足し、すぐ書き換えられるよう文言欄へカーソルを移す。
   function addCopmGoal(text: string) {
     setShowGoalCandidates(false);
@@ -434,6 +446,7 @@ export function AssessmentPage() {
   }
 
   function removeCopmGoal(index: number) {
+    setCopmLimitGoalIndex(null);
     updateData((data) => ({ ...data, copm: data.copm.filter((_, position) => position !== index) }));
   }
 
@@ -792,6 +805,7 @@ export function AssessmentPage() {
               {form.data.copm.length === 0 ? <p className={styles.muted}>目標はまだ登録されていません。「目標を追加」から、候補を選ぶか自由に書いてください。</p> : null}
               {form.data.copm.map((goal, index) => {
                 const previous = previousCopmGoal(goal, assessment.previous?.copm ?? []);
+                const showLimit = copmLimitGoalIndex === index && nextGoalCount >= COPM_MAX && !isNextCopmGoal(goal);
                 return (
                   <div className={styles.copmRow} key={goal.id ?? index}>
                     <div className={styles.formField}>
@@ -831,9 +845,10 @@ export function AssessmentPage() {
                       {assessment.readOnly || previous ? null : <button className={styles.textDangerButton} type="button" onClick={() => removeCopmGoal(index)}>この目標を削除</button>}
                     </div>
                     <label className={styles.copmNextOption}>
-                      <input type="checkbox" checked={isNextCopmGoal(goal)} disabled={assessment.readOnly || (!isNextCopmGoal(goal) && nextGoalCount >= COPM_MAX)} aria-describedby="copm-next-help" onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, continueNext: event.target.checked }))} />
+                      <input type="checkbox" checked={isNextCopmGoal(goal)} disabled={assessment.readOnly} aria-describedby={`copm-next-help${showLimit ? ` copm-next-limit-${index}` : ''}`} onChange={(event) => toggleNextCopmGoal(index, event.target.checked)} />
                       次の3か月の目標にする
                     </label>
+                    {showLimit ? <p className={`${styles.fieldError} ${styles.copmNextLimit}`} id={`copm-next-limit-${index}`} role="alert">次の3か月の目標は最大{COPM_MAX}件です。ほかの目標のチェックを外してから選んでください。</p> : null}
                   </div>
                 );
               })}

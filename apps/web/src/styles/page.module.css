@@ -2017,6 +2017,12 @@
   font-weight: 700;
 }
 
+.copmNextLimit {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
 @media (pointer: coarse) {
   .copmNextOption {
     min-height: 44px;
