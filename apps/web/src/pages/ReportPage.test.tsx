@@ -163,7 +163,7 @@ describe('レポート', () => {
 
     // 目標は重要度の高い順。現在の状態は遂行度・満足度の2段の見出しにする。
     const goalTable = within(sheet).getAllByRole('table')[0]!;
-    expect(goalTable).toHaveTextContent('親御さんにとっての重要度');
+    expect(goalTable).toHaveTextContent('ご家庭の重要度');
     expect(within(goalTable).getByRole('columnheader', { name: '現在の状態 （10段階）' })).toHaveAttribute('colspan', '2');
     expect(within(goalTable).getAllByRole('row')[1]).toHaveTextContent('遂行度満足度');
     const goalRows = within(goalTable).getAllByRole('row').slice(2);

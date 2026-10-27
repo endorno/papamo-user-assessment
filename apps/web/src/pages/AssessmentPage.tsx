@@ -797,7 +797,7 @@ export function AssessmentPage() {
             <section className={`${styles.panel} ${styles.assessmentSection}`} id="assessment-goals" data-assessment-section aria-labelledby="goals-title">
               <div className={styles.sectionHeader}><div><h2 id="goals-title">4.ご家族・本人の目標</h2><p className={styles.muted}>記録は最大{COPM_RECORD_MAX}件。次の3か月に取り組む目標を最大{COPM_MAX}つ選びます</p></div></div>
 
-              <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>親御さんにとっての重要度</b>は、取り組む順番を決めるために使います。</p>
+              <p className={styles.infoNote}>「できる／できない」ではなく、<b>いまどれくらいできているか（遂行度）</b>と<b>その状態にどれくらい納得しているか（満足度）</b>を分けて聞きます。<b>ご家庭の重要度</b>は、取り組む順番を決めるために使います。</p>
               <p className={styles.infoNote} id="copm-next-help">チェックした目標を、ピラミッド・メニュー提案・次回への引き継ぎに使います。前回からの目標は文言を変えずに採点し、内容を変える場合は新しく追加してください。チェックを外しても今回の記録は残ります。</p>
               <p className={styles.copmNextCount} role="status">次の3か月の目標：{nextGoalCount} / {COPM_MAX}件{nextGoalCount >= COPM_MAX ? '（入れ替えるときは、先にほかの目標のチェックを外してください）' : ''}</p>
               {firstInTool ? <p className={styles.infoNote}>これまで Excel で採点していた目標は、<b>前回の遂行度・満足度</b>も選んでください。レポートで前回と並べて表示します。新しく立てた目標は空欄のままにします。</p> : null}

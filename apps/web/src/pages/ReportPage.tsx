@@ -475,7 +475,7 @@ export function ReportPage() {
                         <tr>
                           <th rowSpan={2}>目標</th>
                           <th rowSpan={2}>メモ</th>
-                          <th rowSpan={2}>親御さんにとっての重要度<small>（10段階）</small></th>
+                          <th rowSpan={2}>ご家庭の重要度<small>（10段階）</small></th>
                           <th colSpan={2}>現在の状態<small>（10段階）</small></th>
                           <th rowSpan={2}>優先する領域</th>
                         </tr>
