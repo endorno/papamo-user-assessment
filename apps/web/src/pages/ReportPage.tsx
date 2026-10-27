@@ -112,6 +112,17 @@ function deltaLabel(delta: number | undefined) {
   return delta > 0 ? `（▲${delta}）` : delta < 0 ? `（▼${Math.abs(delta)}）` : '（±0）';
 }
 
+/** 目標の採点。前回から上がったときだけ赤い▲で差を添える（下がったときは「前回 N」で読める）。 */
+function CopmScore({ score, previous, delta }: { score: number; previous: number | undefined; delta: number | undefined }) {
+  return (
+    <>
+      {score}
+      {delta !== undefined && delta > 0 ? <span className={styles.copmRise}>▲{delta}</span> : null}
+      {previous === undefined ? null : <small>前回 {previous}</small>}
+    </>
+  );
+}
+
 function pyramidSourceOf(report: ParsedReport, item: string): PyramidSource | 'none' {
   const goal = report.pyramid.goalItems.includes(item);
   const measured = report.pyramid.highlighted.includes(item);
@@ -476,8 +487,8 @@ export function ReportPage() {
                             <td>{isNextCopmGoal(goal) ? <span className={styles.nextGoalTag}>次の3か月の目標</span> : null}<strong>{goal.text}</strong></td>
                             <td><small>{goal.memo}</small></td>
                             <td className={styles.numberCell}>{goal.importance}</td>
-                            <td className={styles.numberCell}>{goal.performance}{goal.previous ? <small>前回 {goal.previous.performance}</small> : null}</td>
-                            <td className={styles.numberCell}>{goal.satisfaction}{goal.previous ? <small>前回 {goal.previous.satisfaction}</small> : null}</td>
+                            <td className={styles.numberCell}><CopmScore score={goal.performance} previous={goal.previous?.performance} delta={goal.performanceDelta} /></td>
+                            <td className={styles.numberCell}><CopmScore score={goal.satisfaction} previous={goal.previous?.satisfaction} delta={goal.satisfactionDelta} /></td>
                             <td>
                               {goal.areas.length
                                 ? <ol className={styles.goalAreas}>{goal.areas.map((area, index) => <li key={area}>{circled(index)}{area}</li>)}</ol>

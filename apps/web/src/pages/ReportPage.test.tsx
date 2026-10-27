@@ -207,6 +207,18 @@ describe('レポート', () => {
     expect(screen.queryByRole('region', { name: 'レポート3ページ目' })).not.toBeInTheDocument();
   });
 
+  it('目標の遂行度・満足度が前回から上がったときだけ、点数の横に▲で差を添える', async () => {
+    const goal = { ...report.copm[0]!, satisfaction: 2, satisfactionDelta: -1 };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: { ...report, copm: [goal] }, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    const secondSheet = await screen.findByRole('region', { name: 'レポート2ページ目' });
+    const cells = within(within(secondSheet).getByText('姿勢よく座れるようになる').closest('tr')!).getAllByRole('cell');
+    expect(cells[3]).toHaveTextContent('6▲3前回 3');
+    expect(cells[4]).toHaveTextContent('2前回 3');
+    expect(cells[4]).not.toHaveTextContent('▲');
+  });
+
   it('先頭にコーチ用の2枚（方針とメニューの方向性・観察された様子）を置き、切れ目のあとに本体の2枚を続ける', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();

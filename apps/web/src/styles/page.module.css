@@ -1844,6 +1844,14 @@
   font-size: 0.7rem !important;
 }
 
+/* 目標の採点が前回から上がったことを、点数の横の赤い▲でひと目で伝える。 */
+.copmRise {
+  margin-left: 2px;
+  color: var(--report-rise);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .reportBox {
   padding: 13px 15px;
   border: 1px solid var(--line);

@@ -40,6 +40,8 @@
   --report-schedule-bg: #eff5fc;
   --report-schedule-line: #bfd5ee;
   --report-schedule-ink: #2a5ea8;
+  /* 目標の採点が前回から上がった印（赤の▲）。白地でコントラスト比 5.2。 */
+  --report-rise: #cc2f26;
 
   /* コーチ用レポート（v14・2026-10-21）。変更依頼の指定値。 */
   --coach-header: #6e56a6;
