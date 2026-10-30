@@ -1,12 +1,12 @@
 import type { GradeSnapshot } from '../domain/grade';
-import type { AgeGroup, CoachCautionKey, EngagementKey, ExerciseKey, TuningKey } from '../master';
+import type { AgeGroup, EngagementKey, ExerciseKey, TuningKey } from '../master';
 import type { CompletedAssessmentData, CopmGoal, Honorific } from '../schema';
 
 export interface ChildSnapshot {
   name: string;
   honorific: Honorific;
   grade: string;
-  /** 実施日時点の学年。「学年が上がると」の見通しで、いまから何学年先かを数えるのに使う。 */
+  /** 実施日時点の学年。年齢との比較（M3）と学年ラダー（M6）に使う。 */
   gradeCode: GradeSnapshot['code'];
   ageHint: string;
   ageGroup: AgeGroup;
@@ -45,37 +45,38 @@ export interface ReportLevel {
   ladderLabel: string;
 }
 
-/** 困りごと × 実測の照合結果。verdict はモックの分類をそのまま使う。 */
-export type DomainVerdict = '強く一致' | '一致' | '未測定' | '不一致';
-
-export interface ReportDomainHit {
-  id: number;
-  title: string;
-  parentLabel: string;
-  parentText: string;
-  pyramid: string;
-  troubles: string[];
-  verdict: DomainVerdict;
-  priorityKey: ExerciseKey;
-  priorityName: string;
-  priorityParentName: string;
-  priorityLv: number;
-  priorityMaxLv: number;
-  /** 主軸種目をその回に記録したか。未開放の4・5種目目なら false（priorityLv は 0 を入れる）。 */
-  priorityMeasured: boolean;
-}
-
-/** 保護者向けレポート1枚目の、種目ごとの「できている力／次に高めたい力」。 */
+/** 保護者向けレポート1枚目の、種目ごとの「できている力／次に高めたい力」（M1・M2）。 */
 export interface ReportAbility {
   key: ExerciseKey;
-  can: string;
-  next: string;
-  /** その種目を支えるピラミッドの要素（①②③）。 */
-  foundations: string[];
+  /** 通過した最後の帯の力の名前。通過した帯がなければ null。 */
+  can: string | null;
+  /** 取り組み中の帯の力の名前。最後の帯まで通過していれば null。 */
+  next: string | null;
+  /** 取り組み中の帯のブロック（①②③）。 */
+  blocks: string[];
 }
 
-/** ピラミッドで色を付ける理由。both＝目標と測定・お困りごとの両方。 */
-export type PyramidSource = 'both' | 'measured' | 'goal';
+/** ピラミッドで色を付ける理由。goal＝目標ブロック（赤い塗り）／issue＝課題ブロック（青い太枠）／both＝両方。 */
+export type PyramidSource = 'both' | 'goal' | 'issue';
+
+/** 困りごとの背景にありそうな力。チェックされたお困りごとをドメインごとに1行にまとめる。 */
+export interface ReportTroubleBackground {
+  id: number;
+  /** 背景にありそうな力。 */
+  parentLabel: string;
+  /** 優先して見る土台（ブロック）。 */
+  block: string;
+  /** 表面に見える困りごと（チェックした項目）。 */
+  troubles: string[];
+}
+
+/** 今の困りごとが続いた場合に起こりうること（M3・M6）。 */
+export interface ReportRisks {
+  /** 測定の裏づけ。到達率が学年の目安より下の種目。expectedLv は目安の到達率を Lv に直したもの。 */
+  evidence: { key: ExerciseKey; name: string; lv: number; maxLv: number; expectedLv: number }[];
+  /** 学年が上がったときの懸念。いまの段階の1つ先・3つ先のうち、お困りごとのカテゴリに合う項目がある段階だけ。 */
+  stages: { label: string; theme: string; demand: string; gradesAhead: number; concerns: string[] }[];
+}
 
 /** コーチ向け「領域ごとのメニュー」の1件。属性は分かっているものだけ入る。 */
 export interface ReportAreaMenu {
@@ -89,13 +90,13 @@ export interface ReportAreaMenu {
 
 /** 保護者向けレポート2枚目の「最重要にすべき領域」。下の段から並べる。 */
 export interface ReportFocusArea {
-  item: string;
+  block: string;
   tier: number;
   source: PyramidSource;
   definition: string;
   effect: string;
-  /** この領域に結びつく目標のうち、重要度がいちばん高いもの。結びつく目標が無ければ null。 */
-  goalText: string | null;
+  /** このブロックを優先する領域に持つ目標（目標表の並び）。目標由来でなければ空。 */
+  goals: string[];
 }
 
 export interface ReportTuningNote {
@@ -125,8 +126,6 @@ export interface ReportContent {
   /** 当日の様子（指示理解の難しさなど）による測定条件の注記。 */
   conditionNotes: { key: ExerciseKey; name: string; notes: string[] }[];
   upcomingExercises: { key: ExerciseKey; name: string; parentName: string; about: string }[];
-  priorities: { key: ExerciseKey; parentName: string; lv: number; maxLv: number; grow: string; build: string[] }[];
-  strengths: { key: ExerciseKey; parentName: string; lv: number; maxLv: number }[];
   engagement: {
     key: EngagementKey;
     title: string;
@@ -141,77 +140,32 @@ export interface ReportContent {
   troubles: {
     current: string[];
     byCategory: { id: string; icon: string; title: string; items: string[] }[];
-    gone?: string[];
-    stayed?: string[];
-    added?: string[];
   };
-  domainHits: ReportDomainHit[];
-  rootDomain: { id: number; title: string; parentLabel: string; parentText: string } | null;
-  /** 力加減の基準（固有覚）についての注記を出すか。 */
-  proprioceptionNote: boolean;
-  /** emphasis は text の中で太字にするキーフレーズ。 */
-  risks: { text: string; emphasis: string }[];
-  /** 学年が上がったときの見通し。先の時期が無い（中学卒業以上）ときは null。 */
-  gradeOutlook: {
-    milestones: { label: string; theme: string; gradesAhead: number }[];
-    summary: string;
-  } | null;
+  troubleBackgrounds: ReportTroubleBackground[];
+  /** 裏づけも懸念もなければ null（項目ごと出さない）。 */
+  risks: ReportRisks | null;
   pyramid: {
     rows: { tier: number; items: string[] }[];
-    /** 測定・お困りごと由来で色を付ける要素。 */
-    highlighted: string[];
-    /** 目標由来で色を付ける要素。 */
-    goalItems: string[];
-    root: string;
-    rootTierLabel: string;
-    related: string[];
-    sourceKey: ExerciseKey;
+    /** 目標ブロック（M5）。赤い塗り。 */
+    goalBlocks: string[];
+    /** 課題ブロック（M4）。青い太枠。 */
+    issueBlocks: string[];
   };
   focusAreas: ReportFocusArea[];
-  link: { lowestKey: ExerciseKey; text: string };
-  roadmap: {
-    month3Build: string[];
-    month3Changes: string[];
-    month6Links: string[];
-    month6Changes: string[];
-  };
   // ツール導入前の採点（baseline）は previous に移して返す。
   copm: (Omit<CopmGoal, 'baseline'> & {
-    /** 目標の達成のために優先する領域（ピラミッドの要素）。結びつけられない目標は空。 */
+    /** 優先する領域（M5。段の低い順のブロック3つまで）。次の3か月の目標だけが持ち、語彙表に当たらなければ空。 */
     areas: string[];
     previous?: { performance: number; satisfaction: number; importance?: number };
     performanceDelta?: number;
     satisfactionDelta?: number;
   })[];
-  growthSigns: string[];
-  watchPoints: string[];
   nextDue: string;
   /** 6か月レビューの目安日。 */
   nextReview: string;
   tuning: ReportTuningNote[];
   coach: {
-    strategies: {
-      key: ExerciseKey;
-      lv: number;
-      band: string;
-      nextLv: number;
-      nextLabel: string;
-      observations: string[];
-      note: string;
-    }[];
-    /** 3か月・6か月に当てるメニュー。主軸＝最小Lv／次点＝2番目／維持＝最大Lv。 */
-    plan: {
-      focus: {
-        key: ExerciseKey;
-        role: CoachFocusRole;
-        lv: number;
-        maxLv: number;
-        month3: string[];
-        month6: string[];
-      }[];
-      domainMenus: { id: number; title: string; region: string; menus: string[] }[];
-    };
-    /** 全種目の見えた動作・自由記入・測定条件（優先テーマ以外も含む）。 */
+    /** 観察された様子。見えた動作のチェックか自由記入がある種目だけ。 */
     exerciseNotes: {
       key: ExerciseKey;
       lv: number;
@@ -219,26 +173,20 @@ export interface ReportContent {
       conditions: string[];
       note: string;
     }[];
-    cautions: { key: CoachCautionKey; title: string; text: string; exercises: ExerciseKey[] }[];
-    copmFocus: {
-      mostImportant: { text: string; importance: number } | null;
-      lowSatisfaction: string[];
-    };
     /**
-     * 目標と課題から導き出した領域ごとのメニュー（コーチ向け「方針とメニューの方向性」）。
-     * 目標の「優先する領域」に挙がった領域を、ピラミッドの下の段から並べる。goals は重要度順の目標の文言。
+     * 方針とメニューの方向性。目標ブロックと課題ブロックのすべてを、最重要にすべき領域と同じ順（両方→目標だけ→課題だけ、
+     * 段の低い順）に並べる。goals は目標表の並びの目標の文言。
      */
     areaMenus: {
-      item: string;
+      block: string;
       tier: number;
+      source: PyramidSource;
       goals: string[];
       aim: string;
       menus: ReportAreaMenu[];
     }[];
   };
 }
-
-export type CoachFocusRole = 'main' | 'next' | 'keep';
 
 export interface ReportGenerator {
   readonly id: string;

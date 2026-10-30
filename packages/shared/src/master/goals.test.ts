@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { EXERCISES } from './exercises';
 import { WANT_GROUPS, WANT_ITEMS, wantById, wantToGoalText } from './goals';
 
 describe('できるようになりたいことマスタ', () => {
@@ -9,7 +8,6 @@ describe('できるようになりたいことマスタ', () => {
     expect(new Set(WANT_ITEMS.map((item) => item.id)).size).toBe(WANT_ITEMS.length);
     for (const item of WANT_ITEMS) {
       expect(WANT_GROUPS, item.id).toContain(item.group);
-      expect(EXERCISES.map((exercise) => exercise.key), item.id).toContain(item.axis);
     }
   });
 

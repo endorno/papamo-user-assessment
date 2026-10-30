@@ -110,11 +110,11 @@ describe('レポート', () => {
     expect(screen.getByRole('img', { name: '5種目の到達レベル' })).not.toHaveTextContent('半年目以降');
     expect(screen.queryByText('今回')).not.toBeInTheDocument();
 
+    // 帯の上限まで届いた帯の力が「できている力」、取り組み中の帯の力が「次に高めたい力」。その下に取り組み中の帯のブロック。
     const abilities = within(hero).getByRole('region', { name: /実施した種目ごとの、できている力／次に高めたい力/ });
-    expect(abilities).toHaveTextContent('ラインウォークLv5/30');
-    expect(abilities).toHaveTextContent('できている力狭い足場で体の軸を保ち、頭を動かしても崩れない');
-    expect(abilities).toHaveTextContent('次に高めたい力体の軸を安定させる');
-    expect(abilities).toHaveTextContent('①前庭覚②姿勢③バランス');
+    // ラインウォーク Lv5 はまだ通過した帯がないので、できている力を出さない。
+    expect(abilities).toHaveTextContent('ラインウォークLv5/30次に高めたい力体の軸を保ったまま動く力（目を閉じても保てる）①バランス②姿勢③眼球運動');
+    expect(abilities).toHaveTextContent('お手玉キャッチLv5/30できている力飛んでくるものを目で捉えて、タイミングを合わせる力次に高めたい力自分の動きの結果を見て、手を合わせる力');
     // 当日の様子の注記は、その種目のところに添える。
     expect(abilities).toHaveTextContent('当日の様子（指示理解の難しさ）');
     // 優先テーマ・強みのカードと、未測定の注記は出さない。
@@ -149,38 +149,47 @@ describe('レポート', () => {
     const focus = within(sheet).getByRole('region', { name: /最重要にすべき領域/ });
     const focusItems = within(focus).getAllByRole('listitem');
     expect(focusItems).toHaveLength(3);
+    // 両方に当たる姿勢と、目標だけの前庭覚・姿勢調整を選び、下の段から並べる。
+    expect(focusItems.map((item) => item.querySelector('strong')?.textContent)).toEqual(['前庭覚', '姿勢', '姿勢調整']);
     expect(focusItems[0]).toHaveTextContent('1前庭覚重力の向きと体の傾きを感じ取る');
-    expect(focusItems[0]).toHaveTextContent('目標「姿勢よく座れるようになる」などの達成に近づきます。');
+    expect(focusItems[0]).toHaveTextContent('ここが育つと姿勢が崩れるまでの時間が延びる／疲れにくくなるため、目標「姿勢よく座れるようになる」の達成に近づきます。');
 
-    // ピラミッドは5段で、上の段ほど狭い。目標由来と測定・お困りごと由来を描き分け、凡例を上に置く。
-    expect(sheet).toHaveTextContent('該当なし目標から必要測定・お困りごと両方');
+    // ピラミッドは5段で、上の段ほど狭い。目標ブロック（赤い塗り）と課題ブロック（青い太枠）を描き分け、凡例を上に置く。
+    expect(sheet).toHaveTextContent('いまは該当なし目標から必要になる力アセスメント結果・お困りごとから出ている課題両方に当たる');
     const pyramidRows = sheet.querySelectorAll('[class*="pyramidRow"]');
     expect(pyramidRows).toHaveLength(5);
     expect(pyramidRows[0]?.className).toMatch(/pyramidTier5/);
     expect(pyramidRows[4]?.className).toMatch(/pyramidTier1/);
-    expect(within(sheet).getByText('前庭覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidBoth/);
-    expect(within(sheet).getByText('視覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidNone/);
+    expect(within(sheet).getByText('前庭覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidGoal/);
+    expect(within(sheet).getByText('姿勢', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidBoth/);
+    expect(within(sheet).getByText('視覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidIssue/);
+    expect(within(sheet).getByText('聴覚', { selector: '[class*="pyramidCell"]' }).className).toMatch(/pyramidNone/);
 
-    // 目標は重要度の高い順。現在の状態は遂行度・満足度の2段の見出しにする。
+    // 目標は重要度の高い順。現在の状態は遂行度・満足度の2段の見出しにする。優先する領域は保護者向けには出さない。
     const goalTable = within(sheet).getAllByRole('table')[0]!;
+    expect(goalTable).not.toHaveTextContent('優先する領域');
     expect(goalTable).toHaveTextContent('ご家庭の重要度');
     expect(within(goalTable).getByRole('columnheader', { name: '現在の状態 （10段階）' })).toHaveAttribute('colspan', '2');
     expect(within(goalTable).getAllByRole('row')[1]).toHaveTextContent('遂行度満足度');
     const goalRows = within(goalTable).getAllByRole('row').slice(2);
     expect(goalRows.map((row) => row.textContent)).toEqual([
-      '次の3か月の目標姿勢よく座れるようになる933①前庭覚②姿勢③バランス',
-      '次の3か月の目標自分で決めた目標455—',
+      '次の3か月の目標姿勢よく座れるようになる933',
+      '次の3か月の目標自分で決めた目標455',
     ]);
 
-    // 困りごとの背景は、優先して見る土台をピラミッドの要素名で出す。
+    // 困りごとの背景は、お困りごとをドメインごとに1行にまとめ、優先して見る土台をブロックの名前で出す。
     const backgroundTable = within(sheet).getAllByRole('table')[1]!;
-    expect(backgroundTable).toHaveTextContent('姿勢がすぐ崩れる／机に伏せる・寝転がる');
-    expect(backgroundTable).toHaveTextContent('ボディイメージ');
+    expect(within(backgroundTable).getAllByRole('row').slice(1).map((row) => row.textContent)).toEqual([
+      '🏠忘れ物・なくし物が多いまわりとの位置関係をつかむ力身体の位置',
+      '🧍姿勢がすぐ崩れる／机に伏せる・寝転がる自分の体の位置と力加減をつかむ力ボディイメージ',
+    ]);
 
+    // 測定の裏づけ（学年の目安より下の種目）と、1つ先の段階でお困りごとのカテゴリに合う懸念。
     const risk = within(sheet).getByRole('region', { name: /今の困りごとが続いた場合に起こりうること/ });
-    expect(within(risk).getByText('疲れやすくなる').tagName).toBe('STRONG');
-    expect(risk).toHaveTextContent('小6ごろ約5学年先（自立への移行）');
-    expect(risk).toHaveTextContent('高校ごろ約9学年先（自己実現と将来設計）');
+    expect(risk).toHaveTextContent('測定の裏づけ小学1年生の目安と比べて、到達が低めの種目があります：ラインウォーク Lv5/30（目安 Lv10ごろ）／お手玉キャッチ Lv5/30（目安 Lv10ごろ）／グーパータッチ Lv5/30（目安 Lv10ごろ）');
+    expect(risk).toHaveTextContent('小2ごろ約1学年先（自己効力感の形成）「自分はできる」という自信を育てる時期です。このまま土台が細いままだと、忘れ物が増えるといったことが起きやすくなります。');
+    expect(risk).not.toHaveTextContent('小4ごろ');
+    expect(risk).toHaveTextContent('必ずこうなるという意味ではありません。');
 
     const schedule = within(sheet).getByRole('region', { name: '次回の振り返りスケジュール' });
     expect(schedule).toHaveTextContent('3か月レビュー2026年9月1日ごろ');
@@ -213,7 +222,8 @@ describe('レポート', () => {
     renderReportPage();
 
     const secondSheet = await screen.findByRole('region', { name: 'レポート2ページ目' });
-    const cells = within(within(secondSheet).getByText('姿勢よく座れるようになる').closest('tr')!).getAllByRole('cell');
+    const goalTable = within(secondSheet).getAllByRole('table')[0]!;
+    const cells = within(within(goalTable).getByText('姿勢よく座れるようになる').closest('tr')!).getAllByRole('cell');
     expect(cells[3]).toHaveTextContent('6▲3前回 3');
     expect(cells[4]).toHaveTextContent('2前回 3');
     expect(cells[4]).not.toHaveTextContent('▲');
@@ -241,20 +251,47 @@ describe('レポート', () => {
     expect(menuSheet).not.toHaveTextContent('対応するメニューパッケージ');
     expect(menuSheet).not.toHaveTextContent('担当');
 
-    // 目標の「優先する領域」を、ピラミッドの下の段から並べる。番号は本体の目標表の並び（重要度順）。
+    // 目標ごとの優先する領域（保護者向けには出さない）。番号は本体の目標表の並び（重要度順）。
+    expect(menuSheet).toHaveTextContent('◆ 目標ごとの優先する領域');
+    const goalAreaTable = within(menuSheet).getByRole('table');
+    expect(within(goalAreaTable).getAllByRole('row').slice(1).map((row) => row.textContent)).toEqual(['①姿勢よく座れるようになる①前庭覚②姿勢③姿勢調整']);
+
+    // 目標ブロックと課題ブロックのすべてを、両方→目標だけ→課題だけ、それぞれ下の段から並べる。
     expect(menuSheet).toHaveTextContent('◆ 目標と課題から導き出した領域ごとのメニュー');
-    const areas = within(menuSheet).getAllByRole('listitem').filter((item) => item.parentElement?.tagName === 'OL');
-    expect(areas.map((area) => area.querySelector('strong')?.textContent)).toEqual(['前庭覚', '姿勢', 'バランス']);
+    const areas = [...menuSheet.querySelectorAll('[class*="areaMenus"] > li')] as HTMLElement[];
+    expect(areas.map((area) => area.querySelector('strong')?.textContent)).toEqual(['前庭覚', '姿勢', '姿勢調整', 'ボディイメージ']);
     expect(areas[1]).toHaveTextContent('対応する目標：①姿勢よく座れるようになる');
+    expect(areas[3]).toHaveTextContent('対応する目標：なし（アセスメント・お困りごとから挙がった課題）');
     expect(areas[1]).toHaveTextContent('座る・立つを、力まずに保てるようにする。');
-    expect(areas[1]).toHaveTextContent('Wのポーズ中級親子で道具なし筋力が弱い、低緊張／お腹の力');
+    expect(areas[1]).toHaveTextContent('おしり(お尻)歩き初級一人でも道具なし筋力が弱い、低緊張／体幹・全身');
     expect(within(areas[1]!).getByText('親子で')).toHaveAttribute('data-kind', 'withParent');
+    expect(within(areas[1]!).getAllByText('一人でも')[0]).toHaveAttribute('data-kind', 'alone');
 
     // 観察メモは、どの種目にも記録が無ければ残すよう促す。
     expect(observationSheet).toHaveTextContent('見えた動作のチェックも自由記入もありません。');
   });
 
-  it('観察された様子は、実施した種目ごとに見えた動作と自由記入を出す', async () => {
+  it('領域が8つを超える回は、方針とメニューの方向性を均等に分けて通し番号で続ける', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    renderReportPage();
+
+    // 初回のはるとくんは、目標ブロック3つと課題ブロック8つ（両方に当たる姿勢を1つと数えて10）。
+    expect(firstReport.coach.areaMenus).toHaveLength(10);
+    const firstSheet = await screen.findByRole('region', { name: 'コーチ向け 方針とメニューの方向性' });
+    const nextSheet = screen.getByRole('region', { name: 'コーチ向け 方針とメニューの方向性（つづき2/2）' });
+    const numbersOf = (sheet: HTMLElement) => [...sheet.querySelectorAll('[class*="areaMenuNumber"]')].map((number) => number.textContent);
+    expect(numbersOf(firstSheet)).toEqual(['1', '2', '3', '4', '5']);
+    expect(numbersOf(nextSheet)).toEqual(['6', '7', '8', '9', '10']);
+    // 目標ごとの優先する領域は1枚目だけ、並べ方の説明は最後の紙面だけに出す。どちらも保護者向けPDFからは外す。
+    expect(within(firstSheet).getByRole('table')).toBeInTheDocument();
+    expect(within(nextSheet).queryByRole('table')).not.toBeInTheDocument();
+    expect(firstSheet).not.toHaveTextContent('両方に当たるもの → 目標だけ → 課題だけ');
+    expect(nextSheet).toHaveTextContent('両方に当たるもの → 目標だけ → 課題だけ');
+    expect(nextSheet).toHaveAttribute('data-coach-only');
+    expect(nextSheet).toHaveTextContent('コーチ用・保護者には渡さない');
+  });
+
+  it('観察された様子は、記録のある種目だけ見えた動作と自由記入を出す', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: firstReport, childId: 'child-1', assessmentId: 'assessment-1', hasUnreportedChanges: false, readOnly: false, drive: null }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     renderReportPage();
 
@@ -262,7 +299,7 @@ describe('レポート', () => {
     const lineWalk = within(observationSheet).getByRole('region', { name: 'ラインウォーク' });
     expect(lineWalk).toHaveTextContent('ラインウォーク（姿勢制御/動的バランス）／Lv5/30');
     expect(lineWalk).toHaveTextContent('指示理解の難しさ');
-    expect(within(observationSheet).getByRole('region', { name: 'お手玉キャッチ' })).toHaveTextContent('見えた動作の選択はありません。');
+    expect(within(observationSheet).queryByRole('region', { name: 'お手玉キャッチ' })).not.toBeInTheDocument();
   });
 
   it('子どもページからメニューへ来たときは、読み込み後にコーチ用の紙面まで送る', async () => {

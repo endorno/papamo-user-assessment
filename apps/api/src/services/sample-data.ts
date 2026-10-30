@@ -47,7 +47,7 @@ const SAMPLE_GOALS = [
   '学校や園で疲れにくくなってほしい',
 ];
 const LONG_PROFILE_GRADES: GradeCode[] = ['e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
-const ALL_GRADES: GradeCode[] = ['k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3'];
+const ALL_GRADES: GradeCode[] = ['k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3', 'h1', 'h2', 'h3'];
 const HONORIFICS: Honorific[] = ['kun', 'chan', 'san'];
 const GENDERS: Gender[] = ['boy', 'girl', 'unspecified'];
 const UINT32_RANGE = 4_294_967_296;

@@ -24,8 +24,8 @@ export function gradeAt(
   if (baseIndex + offset >= GRADES.length) {
     return {
       code: 'graduated',
-      name: '中学卒業以上',
-      ageHint: '15歳以上',
+      name: '高校卒業以上',
+      ageHint: '18歳以上',
       ageGroup: 'sch',
       graduated: true,
     };

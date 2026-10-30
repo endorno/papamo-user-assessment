@@ -15,7 +15,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run --config vitest.config.ts",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "menu-catalog": "node scripts/menu-catalog.mjs"
   },
   "dependencies": {
     "zod": "^3.25.76"

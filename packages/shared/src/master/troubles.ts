@@ -4,6 +4,7 @@ import { NEURO_DOMAINS, type NeuroDomain } from './domains';
  * お子さまのお困りごと（5カテゴリ × 6項目）。就学・未就学で共通のセット。
  * 「事前アンケート項目一覧」のシート①を移植した（2026-10-11）。並び順もシートどおり。
  * 各項目は内部で神経ドメイン（`domain` = NEURO_DOMAINS の id）に紐づき、レポートの見立てに使う。
+ * カテゴリ（A〜E）は学年が上がったときの懸念の選び方に、ドメインはブロックへの変換に使う（仕様の付録D）。
  * シートの「発達ピラミッド」「育てたい力」はドメインから一意に決まるため持たず、troubleProfileOf で引く。
  *
  * 文言は保存値そのもの（事前アンケート（Googleフォーム）の選択肢も同じ文言にする）なので、
@@ -60,7 +61,7 @@ export const TROUBLE_ITEMS: readonly string[] = TROUBLE_CATEGORIES.flatMap(
 
 /**
  * 困りごと1項目に紐づく情報（レコメンドなどで使う）。
- * 発達ピラミッド＝`domain.pyramid`、育てたい力＝`domain.parentLabel`、主に支える種目＝`domain.priorityKey`。
+ * 優先して見る土台（ブロック）＝`domain.block`、背景にありそうな力＝`domain.parentLabel`、主に見る種目＝`domain.priorityKey`。
  */
 export interface TroubleProfile {
   text: string;

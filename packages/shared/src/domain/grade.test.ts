@@ -9,12 +9,18 @@ describe('学年の自動進級', () => {
     expect(gradeAt(child, '2027-04-01').name).toBe('小学2年生');
   });
 
-  it('中学3年生を超えたら卒業以上で止める', () => {
+  it('中学3年生の次は高校1年生に進む', () => {
     const child = { gradeCode: 'j3' as const, gradeBaseYear: 2026 };
     expect(gradeAt(child, '2026-04-01').name).toBe('中学3年生');
+    expect(gradeAt(child, '2027-04-01').name).toBe('高校1年生');
+  });
+
+  it('高校3年生を超えたら卒業以上で止める', () => {
+    const child = { gradeCode: 'h3' as const, gradeBaseYear: 2026 };
+    expect(gradeAt(child, '2026-04-01').name).toBe('高校3年生');
     expect(gradeAt(child, '2027-04-01')).toMatchObject({
       code: 'graduated',
-      name: '中学卒業以上',
+      name: '高校卒業以上',
       graduated: true,
     });
   });

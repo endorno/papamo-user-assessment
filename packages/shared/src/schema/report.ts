@@ -1,11 +1,9 @@
 import { z } from 'zod';
 
 import {
-  COACH_CAUTIONS,
   ENGAGEMENT_AXES,
   ENGAGEMENT_LEVEL_COUNT,
   TUNING_NOTES,
-  type CoachCautionKey,
   type EngagementKey,
   type TuningKey,
 } from '../master';
@@ -16,7 +14,7 @@ import {
   storedLevelSchema,
 } from './assessment';
 
-const pyramidSourceSchema = z.enum(['both', 'measured', 'goal']);
+const pyramidSourceSchema = z.enum(['both', 'goal', 'issue']);
 
 const reportLevelSchema = z.object({
   key: exerciseKeySchema,
@@ -68,9 +66,9 @@ export const reportContentSchema = z.object({
   levels: z.array(reportLevelSchema),
   abilities: z.array(z.object({
     key: exerciseKeySchema,
-    can: z.string(),
-    next: z.string(),
-    foundations: z.array(z.string()),
+    can: z.string().nullable(),
+    next: z.string().nullable(),
+    blocks: z.array(z.string()),
   })),
   conditionNotes: z.array(z.object({
     key: exerciseKeySchema,
@@ -82,20 +80,6 @@ export const reportContentSchema = z.object({
     name: z.string(),
     parentName: z.string(),
     about: z.string(),
-  })),
-  priorities: z.array(z.object({
-    key: exerciseKeySchema,
-    parentName: z.string(),
-    lv: storedLevelSchema,
-    maxLv: z.number().int().positive(),
-    grow: z.string(),
-    build: z.array(z.string()),
-  })),
-  strengths: z.array(z.object({
-    key: exerciseKeySchema,
-    parentName: z.string(),
-    lv: storedLevelSchema,
-    maxLv: z.number().int().positive(),
   })),
   engagement: z.array(z.object({
     key: z.enum(ENGAGEMENT_AXES.map((axis) => axis.key) as [EngagementKey, ...EngagementKey[]]),
@@ -116,64 +100,43 @@ export const reportContentSchema = z.object({
       title: z.string(),
       items: z.array(z.string()),
     })),
-    gone: z.array(z.string()).optional(),
-    stayed: z.array(z.string()).optional(),
-    added: z.array(z.string()).optional(),
   }),
-  domainHits: z.array(z.object({
+  troubleBackgrounds: z.array(z.object({
     id: z.number().int(),
-    title: z.string(),
     parentLabel: z.string(),
-    parentText: z.string(),
-    pyramid: z.string(),
+    block: z.string(),
     troubles: z.array(z.string()),
-    verdict: z.enum(['強く一致', '一致', '未測定', '不一致']),
-    priorityKey: exerciseKeySchema,
-    priorityName: z.string(),
-    priorityParentName: z.string(),
-    priorityLv: storedLevelSchema,
-    priorityMaxLv: z.number().int().positive(),
-    priorityMeasured: z.boolean(),
   })),
-  rootDomain: z.object({
-    id: z.number().int(),
-    title: z.string(),
-    parentLabel: z.string(),
-    parentText: z.string(),
-  }).nullable(),
-  proprioceptionNote: z.boolean(),
-  risks: z.array(z.object({ text: z.string(), emphasis: z.string() })),
-  gradeOutlook: z.object({
-    milestones: z.array(z.object({ label: z.string(), theme: z.string(), gradesAhead: z.number().int().positive() })),
-    summary: z.string(),
+  risks: z.object({
+    evidence: z.array(z.object({
+      key: exerciseKeySchema,
+      name: z.string(),
+      lv: storedLevelSchema,
+      maxLv: z.number().int().positive(),
+      expectedLv: z.number().int().nonnegative(),
+    })),
+    stages: z.array(z.object({
+      label: z.string(),
+      theme: z.string(),
+      demand: z.string(),
+      gradesAhead: z.number().int().positive(),
+      concerns: z.array(z.string()),
+    })),
   }).nullable(),
   pyramid: z.object({
     rows: z.array(z.object({ tier: z.number().int(), items: z.array(z.string()) })),
-    highlighted: z.array(z.string()),
-    goalItems: z.array(z.string()),
-    root: z.string(),
-    rootTierLabel: z.string(),
-    related: z.array(z.string()),
-    sourceKey: exerciseKeySchema,
+    goalBlocks: z.array(z.string()),
+    issueBlocks: z.array(z.string()),
   }),
   focusAreas: z.array(z.object({
-    item: z.string(),
+    block: z.string(),
     tier: z.number().int(),
     source: pyramidSourceSchema,
     definition: z.string(),
     effect: z.string(),
-    goalText: z.string().nullable(),
+    goals: z.array(z.string()),
   })),
-  link: z.object({ lowestKey: exerciseKeySchema, text: z.string() }),
-  roadmap: z.object({
-    month3Build: z.array(z.string()),
-    month3Changes: z.array(z.string()),
-    month6Links: z.array(z.string()),
-    month6Changes: z.array(z.string()),
-  }),
   copm: z.array(copmReportSchema),
-  growthSigns: z.array(z.string()),
-  watchPoints: z.array(z.string()),
   nextDue: z.string(),
   nextReview: z.string(),
   tuning: z.array(z.object({
@@ -182,31 +145,6 @@ export const reportContentSchema = z.object({
     note: z.string(),
   })),
   coach: z.object({
-    strategies: z.array(z.object({
-      key: exerciseKeySchema,
-      lv: storedLevelSchema,
-      band: z.string(),
-      nextLv: z.number().int(),
-      nextLabel: z.string(),
-      observations: z.array(z.string()),
-      note: z.string(),
-    })),
-    plan: z.object({
-      focus: z.array(z.object({
-        key: exerciseKeySchema,
-        role: z.enum(['main', 'next', 'keep']),
-        lv: storedLevelSchema,
-        maxLv: z.number().int().positive(),
-        month3: z.array(z.string()),
-        month6: z.array(z.string()),
-      })),
-      domainMenus: z.array(z.object({
-        id: z.number().int(),
-        title: z.string(),
-        region: z.string(),
-        menus: z.array(z.string()),
-      })),
-    }),
     exerciseNotes: z.array(z.object({
       key: exerciseKeySchema,
       lv: storedLevelSchema,
@@ -214,19 +152,10 @@ export const reportContentSchema = z.object({
       conditions: z.array(z.string()),
       note: z.string(),
     })),
-    cautions: z.array(z.object({
-      key: z.enum(Object.keys(COACH_CAUTIONS) as [CoachCautionKey, ...CoachCautionKey[]]),
-      title: z.string(),
-      text: z.string(),
-      exercises: z.array(exerciseKeySchema),
-    })),
-    copmFocus: z.object({
-      mostImportant: z.object({ text: z.string(), importance: copmScoreSchema }).nullable(),
-      lowSatisfaction: z.array(z.string()),
-    }),
     areaMenus: z.array(z.object({
-      item: z.string(),
+      block: z.string(),
       tier: z.number().int(),
+      source: pyramidSourceSchema,
       goals: z.array(z.string()),
       aim: z.string(),
       menus: z.array(z.object({

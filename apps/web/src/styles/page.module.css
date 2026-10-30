@@ -2102,6 +2102,24 @@
   font-size: 0.82rem;
 }
 
+/* 測定の裏づけ。学年の目安より到達が低い種目。 */
+.riskEvidence {
+  margin-top: 8px;
+}
+
+.riskEvidence h3 {
+  margin: 0;
+  color: var(--red);
+  font-size: 0.88rem;
+}
+
+.reportPage :global(.sheet) .riskEvidence p {
+  margin: 4px 0 0;
+  color: var(--ink2);
+  font-size: 0.8rem;
+}
+
+
 .gradeOutlook {
   margin-top: 10px;
   padding-top: 10px;
@@ -2682,6 +2700,25 @@
   list-style: none;
 }
 
+/* 目標ごとの優先する領域。下の「領域ごとのメニュー」の見出しとの間をあける。 */
+.reportPage :global(.sheet) .areaMenuHeading + .levelTableWrap,
+.reportPage :global(.sheet) .areaMenuHeading + .muted {
+  margin: 8px 0 16px;
+}
+
+.goalAreaTable {
+  min-width: 420px;
+}
+
+.goalAreaTable td:first-child {
+  font-weight: 700;
+}
+
+.reportPage :global(.sheet) .areaMenus > li > .muted {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+}
+
 .reportPage :global(.sheet) .areaMenus > li {
   margin: 0;
   padding-left: 12px;
@@ -2825,12 +2862,6 @@
 
 .reportPage :global(.sheet) .observationCards ul {
   margin: 4px 0 0;
-}
-
-.reportPage :global(.sheet) .observationEmpty {
-  margin: 4px 0 0;
-  color: var(--mute);
-  font-size: 0.8rem;
 }
 
 .reportPage :global(.sheet) .observationFree {
@@ -3165,15 +3196,15 @@
   font-weight: 700;
 }
 
-.pyramidMeasured {
-  border: 2px solid var(--pyramid-measured-line);
+.pyramidIssue {
+  border: 2px solid var(--pyramid-issue-line);
   background: #fff;
-  color: var(--pyramid-measured-ink);
+  color: var(--pyramid-issue-ink);
   font-weight: 700;
 }
 
 .pyramidBoth {
-  border: 2px solid var(--pyramid-measured-line);
+  border: 2px solid var(--pyramid-issue-line);
   background: var(--pyramid-goal-fill);
   color: var(--pyramid-goal-ink);
   font-weight: 700;
@@ -3496,10 +3527,6 @@
   .expandedGoalsSheet .levelTable th,
   .expandedGoalsSheet .levelTable td {
     padding: 3px 7px;
-  }
-
-  .expandedGoalsSheet .goalAreas {
-    line-height: 1.3;
   }
 
   .reportPage .expandedGoalsSheet .focusAreas li {

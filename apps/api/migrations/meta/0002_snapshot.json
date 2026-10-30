@@ -467,7 +467,7 @@
         },
         "children_grade_code": {
           "name": "children_grade_code",
-          "value": "\"children\".\"grade_code\" IN ('k0', 'k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3')"
+          "value": "\"children\".\"grade_code\" IN ('k1', 'k2', 'k3', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'j1', 'j2', 'j3', 'h1', 'h2', 'h3')"
         },
         "children_joined_month_format": {
           "name": "children_joined_month_format",

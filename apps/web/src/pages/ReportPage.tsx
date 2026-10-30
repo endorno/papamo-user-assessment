@@ -7,6 +7,7 @@ import {
   goalsByImportance,
   isNextCopmGoal,
   COPM_MAX,
+  pyramidSourceOf,
   reportFileTitle,
   reportResponseSchema,
   troubleProfileOf,
@@ -19,7 +20,7 @@ import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
 import { useDriveSave, type DriveSaveTask } from '../app/DriveSaveContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
-import { AreaMenuPlan, COACH_MENU_ANCHOR, ObservationNotes } from '../components/CoachMenu';
+import { AreaMenuPlan, areaMenuSheets, COACH_MENU_ANCHOR, GoalAreaTable, ObservationNotes } from '../components/CoachMenu';
 import { DriveSaveDoneMark, DriveSaveFailedMark, DriveSaveProgress, DriveSaveSpinner } from '../components/DriveSaveProgress';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
@@ -38,18 +39,18 @@ const PYRAMID_ROW_WIDTH: Record<number, string> = {
   1: styles.pyramidTier1!,
 };
 
-/** ピラミッドの色の付け方（目標由来は塗り、測定・お困りごと由来は青い太枠）。凡例と同じ順に並べる。 */
+/** ピラミッドの色の付け方（目標ブロックは赤い塗り、課題ブロックは青い太枠）。凡例と同じ順に並べる。 */
 const PYRAMID_LEGEND: { source: PyramidSource | 'none'; label: string }[] = [
-  { source: 'none', label: '該当なし' },
-  { source: 'goal', label: '目標から必要' },
-  { source: 'measured', label: '測定・お困りごと' },
-  { source: 'both', label: '両方' },
+  { source: 'none', label: 'いまは該当なし' },
+  { source: 'goal', label: '目標から必要になる力' },
+  { source: 'issue', label: 'アセスメント結果・お困りごとから出ている課題' },
+  { source: 'both', label: '両方に当たる' },
 ];
 
 const PYRAMID_SOURCE_CLASS: Record<PyramidSource | 'none', string> = {
   none: styles.pyramidNone!,
   goal: styles.pyramidGoal!,
-  measured: styles.pyramidMeasured!,
+  issue: styles.pyramidIssue!,
   both: styles.pyramidBoth!,
 };
 
@@ -100,13 +101,6 @@ function ReportFooter() {
   return <footer className={styles.reportFooter}>へやすぽアシスト</footer>;
 }
 
-/** 文の中のキーフレーズだけを太字にする。 */
-function Emphasized({ text, emphasis }: { text: string; emphasis: string }) {
-  const index = emphasis ? text.indexOf(emphasis) : -1;
-  if (index < 0) return <>{text}</>;
-  return <>{text.slice(0, index)}<strong>{emphasis}</strong>{text.slice(index + emphasis.length)}</>;
-}
-
 function deltaLabel(delta: number | undefined) {
   if (delta === undefined) return '';
   return delta > 0 ? `（▲${delta}）` : delta < 0 ? `（▼${Math.abs(delta)}）` : '（±0）';
@@ -123,12 +117,9 @@ function CopmScore({ score, previous, delta }: { score: number; previous: number
   );
 }
 
-function pyramidSourceOf(report: ParsedReport, item: string): PyramidSource | 'none' {
-  const goal = report.pyramid.goalItems.includes(item);
-  const measured = report.pyramid.highlighted.includes(item);
-  if (goal && measured) return 'both';
-  if (measured) return 'measured';
-  return goal ? 'goal' : 'none';
+/** 学年ラダーの「求められる力」を、「〜時期です。」で終わる一文にする。 */
+function stageDemandSentence(demand: string) {
+  return demand.endsWith('時期') ? `${demand}です。` : `${demand}が求められる時期です。`;
 }
 
 /**
@@ -322,16 +313,31 @@ export function ReportPage() {
             </div>
           ) : null}
 
-          {/* コーチ向けの紙面は先頭に置く（コーチ用レポート v14）。保護者向けPDFからは外す（data-coach-only）。 */}
-          <section className={`sheet ${styles.coachSheet}`} id={COACH_MENU_ANCHOR} aria-label="コーチ向け 方針とメニューの方向性" data-coach-only>
-            <div className={`${styles.sheetCard} ${styles.coachCard}`}>
-              <CoachSheetHeader icon={<span aria-hidden="true">◎</span>}>方針とメニューの方向性</CoachSheetHeader>
-              <div className={styles.coachCardBody}>
-                <h2 className={styles.areaMenuHeading}>◆ 目標と課題から導き出した領域ごとのメニュー<TuningTag report={report} section="areaMenus" /></h2>
-                <AreaMenuPlan report={report} />
+          {/* コーチ向けの紙面は先頭に置く（コーチ用レポート v14）。保護者向けPDFからは外す（data-coach-only）。
+              領域が多い回は「方針とメニューの方向性」を複数枚に分ける。 */}
+          {areaMenuSheets(report.coach.areaMenus).map(({ areas, start }, index, sheets) => (
+            <section
+              className={`sheet ${styles.coachSheet}`}
+              id={index === 0 ? COACH_MENU_ANCHOR : undefined}
+              aria-label={index === 0 ? 'コーチ向け 方針とメニューの方向性' : `コーチ向け 方針とメニューの方向性（つづき${index + 1}/${sheets.length}）`}
+              data-coach-only
+              key={start}
+            >
+              <div className={`${styles.sheetCard} ${styles.coachCard}`}>
+                <CoachSheetHeader icon={<span aria-hidden="true">◎</span>}>方針とメニューの方向性{index === 0 ? null : <small>（つづき）</small>}</CoachSheetHeader>
+                <div className={styles.coachCardBody}>
+                  {index === 0 ? (
+                    <>
+                      <h2 className={styles.areaMenuHeading}>◆ 目標ごとの優先する領域</h2>
+                      <GoalAreaTable report={report} />
+                    </>
+                  ) : null}
+                  <h2 className={styles.areaMenuHeading}>◆ 目標と課題から導き出した領域ごとのメニュー{index === 0 ? <TuningTag report={report} section="areaMenus" /> : <small>（つづき）</small>}</h2>
+                  <AreaMenuPlan report={report} areas={areas} start={start} last={index === sheets.length - 1} />
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          ))}
           <section className={`sheet ${styles.coachSheet} ${styles.observationSheet}`} aria-label="コーチ向け 観察された様子・つまずき方" data-coach-only>
             <div className={`${styles.sheetCard} ${styles.coachCard}`}>
               <CoachSheetHeader icon={<SearchIcon />}>観察された様子・つまずき方</CoachSheetHeader>
@@ -366,18 +372,21 @@ export function ReportPage() {
                   <small>（実施した{report.levels.length}種目の合計）</small>
                 </p>
                 <section className={styles.abilityList} aria-labelledby="ability-title">
-                  <h2 id="ability-title">実施した種目ごとの、できている力／次に高めたい力<TuningTag report={report} section="abilityCopy" /></h2>
+                  <h2 id="ability-title">実施した種目ごとの、できている力／次に高めたい力</h2>
                   {report.abilities.map((ability) => {
                     const level = report.levels.find((candidate) => candidate.key === ability.key);
                     const conditions = report.conditionNotes.find((note) => note.key === ability.key)?.notes ?? [];
                     return (
                       <div className={styles.abilityItem} key={ability.key}>
                         <p className={styles.abilityName}><strong>{level?.name}</strong>Lv{level?.lv}/{level?.maxLv}{deltaLabel(level?.delta)}</p>
-                        <p><span className={styles.abilityCan}>できている力</span>{ability.can}</p>
-                        <p><span className={styles.abilityNext}>次に高めたい力</span>{ability.next}</p>
-                        <p className={styles.foundationChips} aria-label="支える土台">
-                          {ability.foundations.map((item, index) => <span key={item}>{circled(index)}{item}</span>)}
-                        </p>
+                        {/* Lv0 など通過した段階がなければ「できている力」を、上限まで届いていれば「次に高めたい力」を出さない。 */}
+                        {ability.can ? <p><span className={styles.abilityCan}>できている力</span>{ability.can}</p> : null}
+                        {ability.next ? <p><span className={styles.abilityNext}>次に高めたい力</span>{ability.next}</p> : null}
+                        {ability.blocks.length ? (
+                          <p className={styles.foundationChips} aria-label="つながる土台">
+                            {ability.blocks.map((block, index) => <span key={block}>{circled(index)}{block}</span>)}
+                          </p>
+                        ) : null}
                         {conditions.length ? <small className={styles.abilityCondition}>※ 当日の様子（{conditions.join('・')}）の影響を受けている可能性があります。次回あらためて確認します。</small> : null}
                       </div>
                     );
@@ -423,32 +432,33 @@ export function ReportPage() {
               <header className={styles.reportSheetHeader}>
                 <h1>発達ピラミッドから見る、育てるべき領域</h1>
               </header>
-              <section className={styles.focusAreas} aria-labelledby="focus-areas-title">
-                <h2 id="focus-areas-title" className={styles.reportHeading}>最重要にすべき領域<TuningTag report={report} section="focusAreas" /></h2>
-                <p className={styles.reportNote}>いま取り組むと効果が大きい{report.focusAreas.length}つ。下の土台にあたるものから順に並べています。</p>
-                <ol>
-                  {report.focusAreas.map((area, index) => (
-                    <li key={area.item}>
-                      <p><span className={styles.focusNumber}>{index + 1}</span><strong>{area.item}</strong><small>{area.definition}</small></p>
-                      <p>
-                        {area.goalText
-                          ? <>ここが育つと{area.effect}ため、目標「<strong>{area.goalText}</strong>」などの達成に近づきます。</>
-                          : <>ここが育つと、{area.effect}ことが期待できます。</>}
-                      </p>
-                    </li>
-                  ))}
-                </ol>
-              </section>
+              {report.focusAreas.length ? (
+                <section className={styles.focusAreas} aria-labelledby="focus-areas-title">
+                  <h2 id="focus-areas-title" className={styles.reportHeading}>最重要にすべき領域</h2>
+                  <p className={styles.reportNote}>目標とアセスメント・お困りごとの両方に当たるものを優先して、いま取り組むと効果が大きい{report.focusAreas.length}つを選びました。下の土台にあたるものから順に並べています。</p>
+                  <ol>
+                    {report.focusAreas.map((area, index) => (
+                      <li key={area.block}>
+                        <p><span className={styles.focusNumber}>{index + 1}</span><strong>{area.block}</strong><small>{area.definition}</small></p>
+                        <p>
+                          {area.goals.length
+                            ? <>ここが育つと{area.effect}ため、目標{area.goals.map((goal) => <span key={goal}>「<strong>{goal}</strong>」</span>)}の達成に近づきます。</>
+                            : <>ここが育つと、{area.effect}ことが期待できます。</>}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ) : null}
 
               <div className={styles.pyramidLegend}>
                 {PYRAMID_LEGEND.map(({ source, label }) => <span key={source}><i className={PYRAMID_SOURCE_CLASS[source]} aria-hidden="true" />{label}</span>)}
-                <TuningTag report={report} section="pyramidSources" />
               </div>
               <div className={styles.pyramid} aria-label="育ちのピラミッド">
                 {[...report.pyramid.rows].reverse().map((row) => (
                   <div className={`${styles.pyramidRow} ${PYRAMID_ROW_WIDTH[row.tier] ?? ''}`} key={row.tier}>
                     {row.items.map((item) => {
-                      const source = pyramidSourceOf(report, item);
+                      const source = pyramidSourceOf(item, report.pyramid.goalBlocks, report.pyramid.issueBlocks) ?? 'none';
                       const legend = PYRAMID_LEGEND.find((entry) => entry.source === source);
                       return (
                         <span className={`${styles.pyramidCell} ${PYRAMID_SOURCE_CLASS[source]}`} key={item}>
@@ -467,7 +477,6 @@ export function ReportPage() {
                   <h2 className={styles.reportHeading}>
                     ご家族・本人の目標
                     {report.copm.some((goal) => goal.previous) ? <TuningTag report={report} section="copmDelta" /> : null}
-                    <TuningTag report={report} section="goalAreas" />
                   </h2>
                   <div className={styles.levelTableWrap}>
                     <table className={`${styles.levelTable} ${styles.goalTable}`}>
@@ -477,7 +486,6 @@ export function ReportPage() {
                           <th rowSpan={2}>メモ</th>
                           <th rowSpan={2}>ご家庭の重要度<small>（10段階）</small></th>
                           <th colSpan={2}>現在の状態<small>（10段階）</small></th>
-                          <th rowSpan={2}>優先する領域</th>
                         </tr>
                         <tr><th>遂行度</th><th>満足度</th></tr>
                       </thead>
@@ -489,11 +497,6 @@ export function ReportPage() {
                             <td className={styles.numberCell}>{goal.importance}</td>
                             <td className={styles.numberCell}><CopmScore score={goal.performance} previous={goal.previous?.performance} delta={goal.performanceDelta} /></td>
                             <td className={styles.numberCell}><CopmScore score={goal.satisfaction} previous={goal.previous?.satisfaction} delta={goal.satisfactionDelta} /></td>
-                            <td>
-                              {goal.areas.length
-                                ? <ol className={styles.goalAreas}>{goal.areas.map((area, index) => <li key={area}>{circled(index)}{area}</li>)}</ol>
-                                : '—'}
-                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -502,17 +505,17 @@ export function ReportPage() {
                 </>
               ) : null}
 
-              {report.domainHits.length ? (
+              {report.troubleBackgrounds.length ? (
                 <>
                   <h2 className={styles.reportHeading}>困りごとの背景にありそうな力</h2>
                   <div className={styles.levelTableWrap}>
                     <table className={`${styles.levelTable} ${styles.backgroundTable}`}>
                       <thead><tr><th>表面に見える困りごと</th><th>背景にありそうな力</th><th>優先して見る土台</th></tr></thead>
                       <tbody>
-                        {report.domainHits.map((hit) => (
-                          <tr key={hit.id}>
+                        {report.troubleBackgrounds.map((row) => (
+                          <tr key={row.id}>
                             <td>
-                              {hit.troubles.map((trouble, index) => (
+                              {row.troubles.map((trouble, index) => (
                                 <span key={trouble}>
                                   {index ? '／' : null}
                                   <span className={styles.troubleIcon} title={troubleProfileOf(trouble)?.category.title} aria-hidden="true">{troubleProfileOf(trouble)?.category.icon}</span>
@@ -520,30 +523,45 @@ export function ReportPage() {
                                 </span>
                               ))}
                             </td>
-                            <td>{hit.parentLabel}</td>
-                            <td><strong>{hit.pyramid}</strong></td>
+                            <td>{row.parentLabel}</td>
+                            <td><strong>{row.block}</strong></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <section className={styles.riskCard} aria-labelledby="risk-title">
-                    <h2 id="risk-title">今の困りごとが続いた場合に起こりうること<TuningTag report={report} section="riskCopy" /></h2>
-                    <ul>{report.risks.map((risk) => <li key={risk.text}><Emphasized text={risk.text} emphasis={risk.emphasis} /></li>)}</ul>
-                    {report.gradeOutlook ? (
-                      <div className={styles.gradeOutlook}>
-                        <h3>学年が上がると、こう変わっていきます<TuningTag report={report} section="gradeOutlook" /></h3>
-                        <ul>
-                          {report.gradeOutlook.milestones.map((milestone) => (
-                            <li key={milestone.label}><strong>{milestone.label}</strong><span className={styles.gradeBadge}>約{milestone.gradesAhead}学年先</span>（{milestone.theme}）</li>
-                          ))}
-                        </ul>
-                        <p>{report.gradeOutlook.summary}</p>
-                      </div>
-                    ) : null}
-                    <small className={styles.riskDisclaimer}>※ {RISK_DISCLAIMER}</small>
-                  </section>
                 </>
+              ) : null}
+              {report.risks ? (
+                <section className={styles.riskCard} aria-labelledby="risk-title">
+                  <h2 id="risk-title">今の困りごとが続いた場合に起こりうること</h2>
+                  {report.risks.evidence.length ? (
+                    <div className={styles.riskEvidence}>
+                      <h3>測定の裏づけ</h3>
+                      {/* 種目が多くても2枚目に収まるよう、1段落にまとめる。 */}
+                      <p>
+                        {report.header.grade}の目安と比べて、到達が低めの種目があります：
+                        {report.risks.evidence.map((item, index) => (
+                          <span key={item.key}>{index ? '／' : null}<strong>{item.name}</strong> Lv{item.lv}/{item.maxLv}（目安 Lv{item.expectedLv}ごろ）</span>
+                        ))}
+                      </p>
+                    </div>
+                  ) : null}
+                  {report.risks.stages.length ? (
+                    <div className={styles.gradeOutlook}>
+                      <h3>学年が上がると、こう変わっていきます</h3>
+                      <ul>
+                        {report.risks.stages.map((stage) => (
+                          <li key={stage.label}>
+                            <strong>{stage.label}ごろ</strong><span className={styles.gradeBadge}>約{stage.gradesAhead}学年先</span>（{stage.theme}）
+                            <p>{stageDemandSentence(stage.demand)}このまま土台が細いままだと、{stage.concerns.join('、')}といったことが起きやすくなります。</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <small className={styles.riskDisclaimer}>※ {RISK_DISCLAIMER}</small>
+                </section>
               ) : null}
 
               {/* 日付は実施日から3か月・6か月後の目安。予定を決めたものではないので「ごろ」と書き、曜日は付けない。 */}

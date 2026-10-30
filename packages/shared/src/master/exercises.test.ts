@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { PYRAMID_BLOCKS } from './domains';
 import {
   activeExerciseKeys,
   bandName,
+  bandPositionOf,
   CORE_EXERCISE_KEYS,
   EXERCISES,
   EXT_EXERCISE_KEYS,
@@ -24,6 +26,35 @@ describe('種目マスタ', () => {
       const tops = exercise.bands.map((band) => band.to);
       expect([...tops].sort((a, b) => a - b), exercise.key).toEqual(tops);
     }
+  });
+
+  it('あしあとものまね・信号ゲームは Lv20、ほかは Lv30 まで', () => {
+    expect(EXERCISES.map((exercise) => [exercise.key, exercise.maxLevel])).toEqual([
+      ['post', 30], ['eyeh', 30], ['hand', 30], ['sacc', 20], ['inhi', 20],
+    ]);
+  });
+
+  it('帯の力の名前とブロックはどれも空でなく、ブロックはピラミッドの要素にある', () => {
+    for (const exercise of EXERCISES) {
+      for (const band of exercise.bands) {
+        expect(band.ability, `${exercise.key} ${band.name}`).not.toBe('');
+        expect(band.blocks.length, `${exercise.key} ${band.name}`).toBeGreaterThanOrEqual(2);
+        for (const block of band.blocks) expect(PYRAMID_BLOCKS, `${exercise.key} ${band.name}`).toContain(block);
+      }
+    }
+  });
+
+  it('帯の上限まで届いたら通過とし、次の帯を取り組み中にする', () => {
+    const position = (level: number) => {
+      const { passed, current } = bandPositionOf('post', level);
+      return [passed?.name ?? null, current?.name ?? null];
+    };
+    expect(position(0)).toEqual([null, '17cm一巡']);
+    expect(position(6)).toEqual([null, '17cm一巡']);
+    expect(position(7)).toEqual(['17cm一巡', '8.5cm一巡']);
+    expect(position(12)).toEqual(['17cm一巡', '8.5cm一巡']);
+    expect(position(14)).toEqual(['8.5cm一巡', 'VOR']);
+    expect(position(30)).toEqual(['VORc・言語負荷', null]);
   });
 
   it('レーダーの目盛り上限は全種目の上限と一致する', () => {

@@ -25,7 +25,6 @@ export const honorificSchema = z.enum(['kun', 'chan', 'san']);
 // 敬称とは連動させない（女の子でも「くん」で呼ぶなど、呼び方は家庭ごとに違うため）。
 export const genderSchema = z.enum(['boy', 'girl', 'unspecified']);
 export const gradeCodeSchema = z.enum([
-  'k0',
   'k1',
   'k2',
   'k3',
@@ -38,6 +37,9 @@ export const gradeCodeSchema = z.enum([
   'j1',
   'j2',
   'j3',
+  'h1',
+  'h2',
+  'h3',
 ]);
 
 /**
@@ -52,7 +54,7 @@ const dateSchema = z.string()
 const monthSchema = z.string()
   .regex(/^\d{4}-\d{2}$/, '年月は YYYY-MM 形式で入力してください。')
   .refine(isValidMonthString, '存在する年月を入力してください。');
-// Lv0〜 到達Lv。上限は種目ごとに持つ（現在はすべて30）。
+// Lv0〜 到達Lv。上限は種目ごとに持つ（あしあとものまね・信号ゲームは20、ほかは30）。
 const levelSchemaFor = (maxLevel: number) => z.number().int().min(MIN_EXERCISE_LEVEL).max(maxLevel);
 const lvFields = Object.fromEntries(EXERCISES.map((exercise) => [
   exercise.key,

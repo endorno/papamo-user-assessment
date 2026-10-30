@@ -22,12 +22,12 @@ describe('お困りごとマスタ', () => {
     for (const text of TROUBLE_ITEMS) expect(domainIds, text).toContain(troubleDomainOf(text));
   });
 
-  it('項目からカテゴリ・発達ピラミッド・育てたい力・主に支える種目を引ける', () => {
+  it('項目からカテゴリ・優先して見る土台・背景にありそうな力・主に見る種目を引ける', () => {
     const profile = troubleProfileOf('ざわざわした場所が苦手');
     expect(profile?.category).toEqual({ id: 'B', icon: '🔄', title: '落ち着き・切り替え' });
     expect(profile?.domain).toMatchObject({
       id: 5,
-      pyramid: '身体の位置',
+      block: '身体の位置',
       parentLabel: 'まわりとの位置関係をつかむ力',
       priorityKey: 'eyeh',
     });

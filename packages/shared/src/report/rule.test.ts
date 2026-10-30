@@ -56,7 +56,6 @@ describe('RuleBasedReportGenerator', () => {
     expect(report.pyramid).toEqual(onlyNext.pyramid);
     expect(report.focusAreas).toEqual(onlyNext.focusAreas);
     expect(report.coach.areaMenus).toEqual(onlyNext.coach.areaMenus);
-    expect(report.coach.copmFocus).toEqual({ mostImportant: { text: next.text, importance: 8 }, lowSatisfaction: [] });
     expect(reportContentSchema.parse(report)).toEqual(report);
   });
 
@@ -70,129 +69,6 @@ describe('RuleBasedReportGenerator', () => {
       expect(report.copm[0]?.previous).toBeUndefined();
     }
   });
-  it('同じLvでは種目定義順で優先テーマを決める', async () => {
-    const report = await new RuleBasedReportGenerator().generate(inputFor(data));
-
-    expect(report.kind).toBe('first');
-    expect(report.priorities.map(({ key }) => key)).toEqual(['post', 'eyeh']);
-    expect(report.strengths.map(({ key }) => key)).toEqual(['hand']);
-    expect(report.upcomingExercises.map(({ key }) => key)).toEqual(['sacc', 'inhi']);
-    expect(report.nextDue).toBe('2026-12-01');
-    expect(report.nextReview).toBe('2027-03-01');
-    expect(reportContentSchema.parse(report)).toEqual(report);
-  });
-
-  it('5種目では優先テーマ3件・強み2件に分け、同Lvを定義順で並べる', async () => {
-    const fiveExerciseData: CompletedAssessmentData = {
-      ...data,
-      lv: { post: 8, eyeh: 8, hand: 8, sacc: 8, inhi: 8 },
-    };
-    const report = await new RuleBasedReportGenerator().generate(
-      inputFor(fiveExerciseData, { unlockExt: true }),
-    );
-
-    expect(report.priorities.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
-    expect(report.strengths.map(({ key }) => key)).toEqual(['sacc', 'inhi']);
-    expect(report.levels).toHaveLength(5);
-    expect(report.upcomingExercises).toEqual([]);
-  });
-
-  it('Lv0 の種目もいちばん低い到達として優先テーマに入れる', async () => {
-    const lowData: CompletedAssessmentData = {
-      ...data,
-      lv: { post: 6, eyeh: 0, hand: 3 },
-    };
-    const report = await new RuleBasedReportGenerator().generate(inputFor(lowData));
-
-    expect(report.priorities.map(({ key }) => key)).toEqual(['eyeh', 'hand']);
-    expect(report.strengths.map(({ key }) => key)).toEqual(['post']);
-    expect(report.link.lowestKey).toBe('eyeh');
-    expect(report.levels.find(({ key }) => key === 'eyeh')).toMatchObject({
-      lv: 0,
-      band: 'Lv0',
-      ladderLabel: '実施不可',
-    });
-    expect(report.coach.strategies[0]).toMatchObject({ key: 'eyeh', lv: 0, nextLv: 1 });
-    expect(reportContentSchema.parse(report)).toEqual(report);
-  });
-
-  it('見えた動作から測定条件の注記と力加減の所見を出す', async () => {
-    const observedData: CompletedAssessmentData = {
-      ...data,
-      observations: { post: ['指示理解の難しさ'], eyeh: ['投げる高さや方向がばらつく'], hand: [] },
-      observationNotes: { post: '後進になると振り返る動作が出る。' },
-    };
-    const report = await new RuleBasedReportGenerator().generate(inputFor(observedData));
-
-    expect(report.conditionNotes).toEqual([
-      { key: 'post', name: 'ラインウォーク', notes: ['指示理解の難しさ'] },
-    ]);
-    expect(report.proprioceptionNote).toBe(true);
-    expect(report.coach.strategies[0]).toMatchObject({
-      key: 'post',
-      observations: ['指示理解の難しさ'],
-      note: '後進になると振り返る動作が出る。',
-    });
-  });
-
-  it('子どもページ用に、当てるメニュー・注意点・目標の見立てを出す', async () => {
-    const coachData: CompletedAssessmentData = {
-      ...data,
-      // eyeh（Lv0）が最小、post が最大。
-      lv: { post: 16, eyeh: 0, hand: 3 },
-      observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
-      observationNotes: { hand: '左右の切り替えで止まる。' },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
-      copm: [
-        { text: '縄跳びが跳べる', memo: '', performance: 7, satisfaction: 3, importance: 6 },
-        { text: '字をきれいに書ける', memo: '', performance: 3, satisfaction: 3, importance: 9 },
-      ],
-    };
-    const report = await new RuleBasedReportGenerator().generate(inputFor(coachData));
-    const { coach } = report;
-
-    expect(coach.plan.focus.map(({ key, role }) => ({ key, role }))).toEqual([
-      { key: 'eyeh', role: 'main' },
-      { key: 'hand', role: 'next' },
-      { key: 'post', role: 'keep' },
-    ]);
-    expect(coach.plan.focus[0]?.month3).toHaveLength(5);
-    expect(coach.plan.focus[1]?.month3).toHaveLength(2);
-    expect(coach.plan.focus[2]?.month3).toHaveLength(1);
-    expect(coach.exerciseNotes.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
-    expect(coach.exerciseNotes[1]).toMatchObject({ key: 'eyeh', conditions: ['指示理解の難しさ'] });
-    expect(coach.cautions.map(({ key, exercises }) => ({ key, exercises }))).toEqual([
-      { key: 'levelZero', exercises: ['eyeh'] },
-      { key: 'condition', exercises: ['eyeh'] },
-      { key: 'postVor', exercises: ['post'] },
-      { key: 'parentBelief', exercises: [] },
-    ]);
-    expect(coach.copmFocus).toEqual({
-      mostImportant: { text: '字をきれいに書ける', importance: 9 },
-      lowSatisfaction: ['縄跳びが跳べる'],
-    });
-    expect(reportContentSchema.parse(report)).toEqual(report);
-  });
-
-  it('困りごとを神経ドメインへ照合し、一致の強さで並べる', async () => {
-    const hitData: CompletedAssessmentData = {
-      ...data,
-      // post が最下位かつ Lv6 以下なので、姿勢に紐づく困りごとは「強く一致」になる。
-      lv: { post: 4, eyeh: 12, hand: 11 },
-      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる', '行を読み飛ばす／読むところを見失う（絵本・教科書）'],
-    };
-    const report = await new RuleBasedReportGenerator().generate(inputFor(hitData));
-
-    expect(report.domainHits.map(({ id, verdict }) => ({ id, verdict }))).toEqual([
-      { id: 6, verdict: '強く一致' },
-      { id: 4, verdict: '未測定' },
-    ]);
-    expect(report.rootDomain?.id).toBe(6);
-    expect(report.pyramid.root).toBe('前庭覚');
-    expect(report.pyramid.rootTierLabel).toBe('いちばん下の段');
-    expect(report.pyramid.highlighted).toContain('ボディイメージ');
-  });
-
   it('取り組みの発達を前回と並べて返す', async () => {
     const current: CompletedAssessmentData = {
       ...data,
@@ -251,13 +127,14 @@ describe('RuleBasedReportGenerator', () => {
         performanceDelta: 2,
         satisfactionDelta: 2,
       },
-      { text: '縄跳びを跳べる', memo: '', areas: [], performance: 3, satisfaction: 4, importance: 6 },
+      // 前回の採点が無い目標も、語彙表で優先する領域を持つ。
+      { text: '縄跳びを跳べる', memo: '', areas: ['前庭覚', 'バランス', '姿勢'], performance: 3, satisfaction: 4, importance: 6 },
     ]);
     expect(report.tuning.map(({ key }) => key)).toContain('copmDelta');
     expect(reportContentSchema.parse(report)).toEqual(report);
   });
 
-  it('比較回のLv・困りごとの差分を決定的に生成する', async () => {
+  it('比較回のLv・困りごとを決定的に生成する', async () => {
     const previousData: CompletedAssessmentData = {
       ...data,
       lv: { post: 2, eyeh: 5, hand: 7 },
@@ -282,9 +159,16 @@ describe('RuleBasedReportGenerator', () => {
       kind: report.kind,
       levelChanges: report.levels.map(({ key, prevLv, lv, delta }) => ({ key, prevLv, lv, delta })),
       troubles: report.troubles,
+      changes3m: report.changes3m,
       nextDue: report.nextDue,
     }).toMatchInlineSnapshot(`
       {
+        "changes3m": [
+          "姿勢が崩れるまでの時間が延びる",
+          "座り直しの回数が減る",
+          "キャッチが安定してくる",
+          "投げる方向のばらつきが減る",
+        ],
         "kind": "comparison",
         "levelChanges": [
           {
@@ -308,9 +192,6 @@ describe('RuleBasedReportGenerator', () => {
         ],
         "nextDue": "2026-12-01",
         "troubles": {
-          "added": [
-            "朝の支度や着替えに時間がかかる",
-          ],
           "byCategory": [
             {
               "icon": "🧍",
@@ -333,12 +214,6 @@ describe('RuleBasedReportGenerator', () => {
             "姿勢がすぐ崩れる／机に伏せる・寝転がる",
             "朝の支度や着替えに時間がかかる",
           ],
-          "gone": [
-            "忘れ物・なくし物が多い",
-          ],
-          "stayed": [
-            "姿勢がすぐ崩れる／机に伏せる・寝転がる",
-          ],
         },
       }
     `);
@@ -346,103 +221,190 @@ describe('RuleBasedReportGenerator', () => {
     expect(reportContentSchema.parse(report)).toEqual(report);
   });
 
-  describe('保護者向け2枚構成の暫定ルール', () => {
-    it('種目ごとの力は、記録した種目ごとに固定の文言とピラミッドの基盤3つを出す', async () => {
-      const report = await new RuleBasedReportGenerator().generate(inputFor(data));
+  describe('種目ごとの力（M1・M2）', () => {
+    it('通過した最後の帯の力をできている力、取り組み中の帯の力を次に高めたい力にし、取り組み中の帯のブロックを添える', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, lv: { post: 12, eyeh: 14, hand: 16 } }));
 
-      expect(report.abilities.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
-      expect(report.abilities[0]).toEqual({
-        key: 'post',
-        can: '狭い足場で体の軸を保ち、頭を動かしても崩れない',
-        next: '体の軸を安定させる',
-        foundations: ['前庭覚', '姿勢', 'バランス'],
-      });
-      expect(report.tuning.map(({ key }) => key)).toEqual(expect.arrayContaining(['abilityCopy', 'focusAreas', 'pyramidSources']));
+      expect(report.abilities).toEqual([
+        { key: 'post', can: '体の軸を保ったまま動く力（目を閉じても保てる）', next: '支える面が狭くても、ぐらつきを小さく抑える力', blocks: ['バランス', '姿勢', '前庭覚'] },
+        { key: 'eyeh', can: '重さのあるものを扱い、どれを取るか選ぶ注意の力', next: '片手ずつを使い分け、体の中心をまたいで持ちかえる力', blocks: ['運動のコントロール', '身体の位置', '目と手の連携'] },
+        // グーパータッチ Lv16 は「視空間対応・交差」（Lv14〜16）の上限なので、その帯を通過して処理速度が取り組み中。
+        { key: 'hand', can: '体の左右を取り違えずに、空間と体を対応づける力', next: '正確さを保ったまま、速く処理する力', blocks: ['運動のコントロール', '眼球運動', '言語機能'] },
+      ]);
     });
 
-    it('目標は候補（できるようになりたいこと）の仮の文言と一致したときだけ優先する領域を持ち、ピラミッドの目標由来になる', async () => {
-      const goalData: CompletedAssessmentData = {
-        ...data,
-        lv: { post: 12, eyeh: 3, hand: 9 },
-        troubles: [],
-        // w12「字をきれいに書けるようになりたい」の仮の文言。hand が主に支える。
-        copm: [
-          { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
-          { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
-        ],
-      };
-      const report = await new RuleBasedReportGenerator().generate(inputFor(goalData));
+    it('Lv0 はできている力がなく、上限まで届いたら次に高めたい力とブロックがない', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, lv: { post: 0, eyeh: 30, hand: 5 } }));
+
+      expect(report.abilities[0]).toEqual({ key: 'post', can: null, next: '体の軸を保ったまま動く力（目を閉じても保てる）', blocks: ['バランス', '姿勢', '眼球運動'] });
+      expect(report.abilities[1]).toEqual({ key: 'eyeh', can: '見えない位置でも自分の体の位置をつかむ力', next: null, blocks: [] });
+    });
+
+    it('4・5種目目が未開放なら、その種目の力は出さない', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(data));
+      expect(report.abilities.map(({ key }) => key)).toEqual(['post', 'eyeh', 'hand']);
+      expect(report.upcomingExercises.map(({ key }) => key)).toEqual(['sacc', 'inhi']);
+    });
+  });
+
+  describe('発達ピラミッドと最重要にすべき領域（M4・M5）', () => {
+    // 小学1年生（目安 0.32）。ラインウォーク Lv5 だけが目安より下（5/30 − 0.32 < −0.12）。
+    const pyramidData: CompletedAssessmentData = {
+      ...data,
+      lv: { post: 5, eyeh: 12, hand: 9 },
+      troubles: ['姿勢がすぐ崩れる／机に伏せる・寝転がる'],
+      copm: [
+        { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
+        { text: '姿勢よく座れるようになる', memo: '', performance: 3, satisfaction: 4, importance: 9 },
+        { text: 'みんなと同じようにできてほしい', memo: '', performance: 5, satisfaction: 5, importance: 4 },
+      ],
+    };
+
+    it('目標ごとの優先する領域は語彙表で決め、当たらない目標は空にする', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(pyramidData));
 
       expect(report.copm.map(({ text, areas }) => ({ text, areas }))).toEqual([
-        { text: '字をきれいに書けるようになる', areas: ['固有覚', '運動のコントロール', 'ボディイメージ'] },
-        { text: '自分で決めた目標', areas: [] },
+        { text: '字をきれいに書けるようになる', areas: ['固有覚', '運動のコントロール', '目と手の連携'] },
+        { text: '姿勢よく座れるようになる', areas: ['前庭覚', '姿勢', '姿勢調整'] },
+        { text: 'みんなと同じようにできてほしい', areas: [] },
       ]);
-      expect(report.pyramid.goalItems).toEqual(['固有覚', '運動のコントロール', 'ボディイメージ']);
-      // 測定由来はいちばん低い種目（eyeh）の要素。ボディイメージは目標と両方に出る。
-      expect(report.pyramid.highlighted).toEqual(['身体の位置', 'ボディイメージ', '目と手の連携']);
-      expect(report.focusAreas.map(({ item, source, goalText }) => ({ item, source, goalText }))).toEqual([
-        { item: '身体の位置', source: 'measured', goalText: null },
-        { item: 'ボディイメージ', source: 'both', goalText: '字をきれいに書けるようになる' },
-        { item: '目と手の連携', source: 'measured', goalText: null },
+    });
+
+    it('目標ブロックは赤い塗り、課題ブロックは目安より下の種目の帯のブロックとお困りごとのブロック', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(pyramidData));
+
+      expect(report.pyramid.goalBlocks).toEqual(['前庭覚', '固有覚', '姿勢', '姿勢調整', '運動のコントロール', '目と手の連携']);
+      // ラインウォーク Lv5 の取り組み中の帯（17cm一巡）のブロックと、お困りごと（身体図式）のボディイメージ。
+      expect(report.pyramid.issueBlocks).toEqual(['姿勢', 'バランス', '眼球運動', 'ボディイメージ']);
+    });
+
+    it('最重要にすべき領域は 両方→目標だけ→課題だけ の順に3つ選び、下の段から並べて目標を添える', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(pyramidData));
+
+      expect(report.focusAreas.map(({ block, tier, source, goals }) => ({ block, tier, source, goals }))).toEqual([
+        { block: '前庭覚', tier: 1, source: 'goal', goals: ['姿勢よく座れるようになる'] },
+        { block: '固有覚', tier: 1, source: 'goal', goals: ['字をきれいに書けるようになる'] },
+        { block: '姿勢', tier: 2, source: 'both', goals: ['姿勢よく座れるようになる'] },
       ]);
-      expect(report.focusAreas[0]).toMatchObject({ tier: 2, definition: '自分と物の位置関係をつかむ' });
-      expect(report.tuning.map(({ key }) => key)).toContain('goalAreas');
+      expect(report.focusAreas[0]).toMatchObject({ definition: '重力の向きと体の傾きを感じ取る', effect: '姿勢が崩れるまでの時間が延びる／疲れにくくなる' });
       expect(reportContentSchema.parse(report)).toEqual(report);
     });
 
-    it('コーチ向けの領域ごとのメニューは、目標の優先する領域だけをピラミッドの下の段から並べる', async () => {
-      const goalData: CompletedAssessmentData = {
+    it('最重要にすべき領域から学習・情緒／複合運動を除く', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({
         ...data,
-        lv: { post: 12, eyeh: 3, hand: 9 },
-        copm: [
-          { text: '自分で決めた目標', memo: '', performance: 5, satisfaction: 5, importance: 4 },
-          { text: '字をきれいに書けるようになる', memo: '', performance: 2, satisfaction: 3, importance: 10 },
-        ],
-      };
-      const report = await new RuleBasedReportGenerator().generate(inputFor(goalData));
+        lv: { post: 12, eyeh: 12, hand: 12 },
+        troubles: ['順番を待てない／思いついたまま先に動く'],
+        copm: [{ text: '友だちと一緒に遊べるようになる', memo: '', performance: 2, satisfaction: 3, importance: 8 }],
+      }));
+
+      expect(report.pyramid.goalBlocks).toEqual(['聴覚', '言語機能', '学習・情緒／複合運動']);
+      expect(report.pyramid.issueBlocks).toEqual(['学習・情緒／複合運動']);
+      expect(report.focusAreas.map(({ block, source }) => ({ block, source }))).toEqual([
+        { block: '聴覚', source: 'goal' },
+        { block: '言語機能', source: 'goal' },
+      ]);
+      // 方針とメニューの方向性は除かずに、同じ並び（両方が先）ですべて出す。
+      expect(report.coach.areaMenus.map(({ block, source }) => ({ block, source }))).toEqual([
+        { block: '学習・情緒／複合運動', source: 'both' },
+        { block: '聴覚', source: 'goal' },
+        { block: '言語機能', source: 'goal' },
+      ]);
+    });
+
+    it('次の3か月の目標に選ばなかった目標は、優先する領域を持たずピラミッドに効かない', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({
+        ...pyramidData,
+        copm: pyramidData.copm.map((goal, index) => ({ ...goal, continueNext: index !== 1 })),
+      }));
+
+      expect(report.copm[1]?.areas).toEqual([]);
+      expect(report.pyramid.goalBlocks).toEqual(['固有覚', '運動のコントロール', '目と手の連携']);
+    });
+
+    it('方針とメニューの方向性は、目標ブロックと課題ブロックのすべてを最重要と同じ順に並べる', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor(pyramidData));
       const { areaMenus } = report.coach;
 
-      // 測定・お困りごとだけで色が付いた領域（身体の位置など）は出さない。
-      expect(areaMenus.map(({ item, tier, goals }) => ({ item, tier, goals }))).toEqual([
-        { item: '固有覚', tier: 1, goals: ['字をきれいに書けるようになる'] },
-        { item: 'ボディイメージ', tier: 3, goals: ['字をきれいに書けるようになる'] },
-        { item: '運動のコントロール', tier: 3, goals: ['字をきれいに書けるようになる'] },
+      expect(areaMenus.map(({ block, source, goals }) => ({ block, source, goals }))).toEqual([
+        { block: '姿勢', source: 'both', goals: ['姿勢よく座れるようになる'] },
+        { block: '前庭覚', source: 'goal', goals: ['姿勢よく座れるようになる'] },
+        { block: '固有覚', source: 'goal', goals: ['字をきれいに書けるようになる'] },
+        { block: '姿勢調整', source: 'goal', goals: ['姿勢よく座れるようになる'] },
+        { block: '運動のコントロール', source: 'goal', goals: ['字をきれいに書けるようになる'] },
+        { block: '目と手の連携', source: 'goal', goals: ['字をきれいに書けるようになる'] },
+        { block: 'バランス', source: 'issue', goals: [] },
+        { block: '眼球運動', source: 'issue', goals: [] },
+        { block: 'ボディイメージ', source: 'issue', goals: [] },
       ]);
-      // 仮マスタに属性つきのメニューがある領域はそれを、無い領域は照合の追加メニューから名前だけを出す。
-      expect(areaMenus[0]?.menus[2]).toEqual({ name: '3人綱引き', difficulty: '筋トレ系', form: '親子で', equipment: 'その他の道具', category: '筋力が弱い、低緊張／引く' });
-      expect(areaMenus[1]?.menus).toEqual([{ name: 'どこをタッチされた?' }, { name: '体の色んなところにボールを挟んでパス' }, { name: 'タオルの船' }]);
-      expect(areaMenus.every(({ aim, menus }) => aim.length > 0 && menus.length > 0)).toBe(true);
+      // 小1（対象区分 low）で到達率の中央値が 0.30（初級）なので、固有覚は low・初級のメニューを属性つきで出す。
+      expect(areaMenus[2]?.menus.map(({ name }) => name)).toEqual(['タオル綱引き_立って', '仁王立ち_押す', 'ダンゴムシ_押す']);
+      expect(areaMenus[2]?.menus[2]).toEqual({ name: 'ダンゴムシ_押す', difficulty: '初級', form: '親子で', equipment: '道具なし', parentBurden: '多', category: '筋力が弱い、低緊張／押す' });
+      expect(areaMenus.every(({ aim, menus }) => aim.length > 0 && menus.length === 3)).toBe(true);
       expect(report.tuning.map(({ key }) => key)).toContain('areaMenus');
-      expect(reportContentSchema.parse(report)).toEqual(report);
     });
 
-    it('目標が無ければ、ピラミッドの目標由来と領域ごとのメニューは空にする', async () => {
-      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, copm: [] }));
-      expect(report.pyramid.goalItems).toEqual([]);
+    it('目標も課題もなければ、ピラミッドに色を付けず領域も出さない', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, lv: { post: 12, eyeh: 12, hand: 12 }, troubles: [], copm: [] }));
+      expect(report.pyramid).toMatchObject({ goalBlocks: [], issueBlocks: [] });
+      expect(report.focusAreas).toEqual([]);
       expect(report.coach.areaMenus).toEqual([]);
+      expect(report.tuning.map(({ key }) => key)).not.toContain('areaMenus');
     });
+  });
 
-    it('学年が上がったときの見通しは、いまの学年より先の時期だけを学年差つきで出す', async () => {
-      const outlookOf = async (gradeCode: ReportInput['child']['gradeCode']) => (
-        await new RuleBasedReportGenerator().generate(inputFor(data, { gradeCode }))
-      ).gradeOutlook;
+  describe('困りごとの背景と、続いた場合に起こりうること（M3・M6）', () => {
+    it('お困りごとをドメインごとに1行にまとめ、チェックの多いドメインから並べる', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({
+        ...data,
+        troubles: ['忘れ物・なくし物が多い', 'ボールを投げる・受けるのが苦手', 'よく物にぶつかる・つまずく', '片足立ちやジャンプがふらつく', '落ち着いて座っていられない'],
+      }));
 
-      expect((await outlookOf('e5'))?.milestones).toEqual([
-        { label: '小6ごろ', theme: '自立への移行', gradesAhead: 1 },
-        { label: '高校ごろ', theme: '自己実現と将来設計', gradesAhead: 5 },
+      expect(report.troubleBackgrounds).toEqual([
+        { id: 1, parentLabel: '力の加減とタイミングを合わせる力', block: '運動のコントロール', troubles: ['ボールを投げる・受けるのが苦手', '片足立ちやジャンプがふらつく'] },
+        { id: 5, parentLabel: 'まわりとの位置関係をつかむ力', block: '身体の位置', troubles: ['忘れ物・なくし物が多い', 'よく物にぶつかる・つまずく'] },
+        { id: 2, parentLabel: '体の力を抜いて切り替える力', block: '前庭覚', troubles: ['落ち着いて座っていられない'] },
       ]);
-      expect((await outlookOf('e6'))?.milestones.map(({ label, gradesAhead }) => ({ label, gradesAhead })))
-        .toEqual([{ label: '高校ごろ', gradesAhead: 4 }]);
-      expect((await outlookOf('j3'))?.milestones.map(({ gradesAhead }) => gradesAhead)).toEqual([1]);
-      expect(await outlookOf('graduated')).toBeNull();
     });
 
-    it('起こりうることは太字にするキーフレーズを本文の中に持つ', async () => {
-      const report = await new RuleBasedReportGenerator().generate(inputFor(data));
+    it('測定の裏づけと、1つ先・3つ先の段階でお困りごとのカテゴリに合う懸念だけを出す', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({
+        ...data,
+        lv: { post: 5, eyeh: 12, hand: 9 },
+        // A（学習・見る・手を使う）と C（姿勢・身体の使い方）。
+        troubles: ['行を読み飛ばす／読むところを見失う（絵本・教科書）', '姿勢がすぐ崩れる／机に伏せる・寝転がる'],
+      }));
 
-      expect(report.risks).toHaveLength(4);
-      for (const { text, emphasis } of report.risks) expect(text).toContain(emphasis);
-      expect(report.tuning.map(({ key }) => key)).toContain('riskCopy');
+      expect(report.risks).toEqual({
+        evidence: [{ key: 'post', name: 'ラインウォーク', lv: 5, maxLv: 30, expectedLv: 10 }],
+        // 小学1年生の1つ先は小2（A が2つ）、3つ先は小4（A・C が無いので出さない）。
+        stages: [{
+          label: '小2',
+          theme: '自己効力感の形成',
+          demand: '「自分はできる」という自信を育てる時期',
+          gradesAhead: 1,
+          concerns: ['ケアレスミスが増える', '「勉強が嫌い」が始まる'],
+        }],
+      });
     });
+
+    it('裏づけも懸念もなければ、起こりうることを出さない', async () => {
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...data, lv: { post: 12, eyeh: 12, hand: 12 }, troubles: [] }));
+      expect(report.risks).toBeNull();
+    });
+  });
+
+  it('観察された様子は、見えた動作か自由記入がある種目だけ出す', async () => {
+    const report = await new RuleBasedReportGenerator().generate(inputFor({
+      ...data,
+      observations: { post: [], eyeh: ['指示理解の難しさ'], hand: [] },
+      observationNotes: { post: '  ', hand: '左右を取り違える' },
+    }));
+
+    expect(report.coach.exerciseNotes).toEqual([
+      { key: 'eyeh', lv: 5, observations: ['指示理解の難しさ'], conditions: ['指示理解の難しさ'], note: '' },
+      { key: 'hand', lv: 5, observations: [], conditions: [], note: '左右を取り違える' },
+    ]);
+    expect(report.conditionNotes).toEqual([{ key: 'eyeh', name: 'お手玉キャッチ', notes: ['指示理解の難しさ'] }]);
   });
 });
