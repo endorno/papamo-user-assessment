@@ -228,7 +228,7 @@ import type { CatalogMenu } from './menus';
 /** メニュー構築サイトの出力日。名前と属性はこの時点のもの。 */
 export const MENU_CATALOG_EXPORTED_AT = ${quote(selection.exportedAt)};
 
-/** ブロックごとのメニュー。並びがおすすめの順。1つのメニューは1つのブロックにだけ置く。 */
+/** ブロックごとのメニュー。並びがおすすめの順。同じメニューを複数のブロックに置くこともある（シニアコーチの勧めで足した綱渡りなど）。 */
 export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
 ${blocks.map(([block, menus]) => `  ${quote(block)}: [\n${menus.map((menu) => `    ${menuLiteral(menu)},`).join('\n')}\n  ],`).join('\n')}
 };

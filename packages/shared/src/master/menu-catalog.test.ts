@@ -6,9 +6,10 @@ import { BLOCK_MENUS } from './menu-catalog';
 describe('メニューのマスタ', () => {
   const menus = PYRAMID_BLOCKS.flatMap((block) => BLOCK_MENUS[block]);
 
-  it('15ブロックすべてにメニューがあり、1つのメニューは1つのブロックにだけ置く', () => {
+  it('15ブロックすべてにメニューがあり、同じブロックに同じメニューを重ねない', () => {
     expect(PYRAMID_BLOCKS.every((block) => BLOCK_MENUS[block].length > 0)).toBe(true);
-    expect(new Set(menus.map(({ id }) => id)).size).toBe(menus.length);
+    // シニアコーチの勧めで、綱渡りは前庭覚とバランスの両方に置いている。ブロックをまたぐ重複は許す。
+    expect(PYRAMID_BLOCKS.filter((block) => new Set(BLOCK_MENUS[block].map(({ id }) => id)).size !== BLOCK_MENUS[block].length)).toEqual([]);
   });
 
   it('メニュー構築サイトで検索できるよう、名前は前後に空白を持たない', () => {

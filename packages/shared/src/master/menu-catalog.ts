@@ -5,9 +5,11 @@ import type { CatalogMenu } from './menus';
 /** メニュー構築サイトの出力日。名前と属性はこの時点のもの。 */
 export const MENU_CATALOG_EXPORTED_AT = '2026-10-09';
 
-/** ブロックごとのメニュー。並びがおすすめの順。1つのメニューは1つのブロックにだけ置く。 */
+/** ブロックごとのメニュー。並びがおすすめの順。同じメニューを複数のブロックに置くこともある（シニアコーチの勧めで足した綱渡りなど）。 */
 export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
   '前庭覚': [
+    { id: 'e6ikgV4K', name: 'タオルの船_ブランケットver.', series: 'タオルの船', difficulty: '初級', audiences: ['pre', 'low'], form: '親子で', equipment: 'その他の道具', parentBurden: '多', category: '筋力が弱い、低緊張／体幹・全身' },
+    { id: '4O252q_T', name: '綱渡り', series: '綱渡り', difficulty: '初級', audiences: ['pre', 'low'], form: '一人でも', equipment: 'タオル2枚', category: 'バランス／バランス歩き' },
     { id: 'fuF6ZMcg', name: '背中合わせぶらぶら（未就学児限定）', series: '背中合わせぶらぶら', difficulty: '初級', audiences: ['pre'], form: '親子で', equipment: '道具なし', parentBurden: '多', category: '前庭覚の過敏、鈍麻があある／逆さ感覚_ぶらぶら' },
     { id: 'Mnb6EW77', name: 'お姫様抱っこぶらぶら（未就学児限定）', series: 'お姫様抱っこぶらぶら', difficulty: '初級', audiences: ['pre'], form: '親子で', equipment: '道具なし', parentBurden: '多', category: '前庭覚の過敏、鈍麻があある／逆さ感覚_ぶらぶら' },
     { id: 'WzfQ0NnW', name: 'タオル座りブランコ（未就学児限定）', series: 'タオル座りブランコ', difficulty: '初級', audiences: ['pre'], form: '親子で', equipment: 'バスタオル', parentBurden: '多', category: '前庭覚の過敏、鈍麻があある／逆さ感覚_ぶらぶら' },
@@ -31,6 +33,7 @@ export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
     { id: 'C9XscQNj', name: '壁上り', series: '壁上り', difficulty: '上級', audiences: ['low', 'high'], form: '一人でも', equipment: '道具なし', category: '筋力が弱い、低緊張／体幹・全身' },
   ],
   '触覚': [
+    { id: 'Flb_H8Wz', name: 'タオル_もじゃもじゃパス', series: 'タオル', difficulty: '初級', audiences: ['pre', 'low'], form: '親子で', equipment: 'タオル', category: '球技／キャッチ' },
     { id: 'tJ8KCgAV', name: '後ろの物は何じゃろなゲーム', series: '後ろの物は何じゃろなゲーム', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'ボール・その他の道具', category: '手のコントロール／腕が後ろ' },
     { id: 'vssbdcE-', name: 'どこをタッチされた?', series: 'どこをタッチされた?', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: '道具なし', category: 'ボディイメージが弱い／色んなゲーム' },
     { id: 'eW9nutx8', name: 'ネリネリ粘土', series: 'ネリネリ粘土', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: 'その他の道具', category: 'パッケージ／お箸パッケージ(Lv1)' },
@@ -55,6 +58,7 @@ export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
     { id: 'MRq8cDVP', name: '1･2･3･4で色んな動き', series: '1･2･3･4で色んな動き', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: '道具なし', category: 'ダンス／足出し' },
   ],
   '姿勢': [
+    { id: 'GNhjknNi', name: 'うつぶせ(うつ伏せ)キャッチボール', series: 'うつぶせキャッチボール', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'ボール・棒状の道具', category: '筋力が弱い、低緊張／引く' },
     { id: 'C6wlD5tA', name: '四つ這い(四つん這い)の背中にたくさんトイレットペーパーを積んでみよう', series: '四つ這いの背中にたくさんトイレットペーパーを積んでみよう', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'トイレットペーパー', category: '筋力が弱い、低緊張／体幹・全身' },
     { id: 'G07MDx3I', name: 'おしり(お尻)歩き', series: 'おしり歩き', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: '道具なし', category: '筋力が弱い、低緊張／体幹・全身' },
     { id: '8-YZ0f0r', name: 'ティッシュ_落とさないように', series: 'ティッシュ', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: 'ティッシュ', category: '腹圧トレーニング／腹圧トレーニング_ティッシュ' },
@@ -65,15 +69,17 @@ export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
     { id: 'WIVwgjDn', name: 'シュート対決②_プランク', series: 'シュート対決', difficulty: '上級', audiences: ['low', 'high'], form: '親子で', equipment: 'ボール・フープ', category: '筋力が弱い、低緊張／体幹・全身' },
   ],
   'バランス': [
+    { id: 'EIAwhRXd', name: '自転車のバランス', series: '自転車のバランス', difficulty: '中級', audiences: ['pre', 'low'], form: '親子で', equipment: '道具なし', parentBurden: '多', category: '三輪車・自転車を漕ぐことの苦手さがある／自転車' },
+    { id: 'mbR5tKI1', name: '膝バランス_基本の型（未就学児限定）', series: '膝バランス', difficulty: '中級', audiences: ['pre'], form: '親子で', equipment: '道具なし', parentBurden: '多', category: '幼児向け／バランス系' },
     { id: 'PcygIVXV', name: 'じゃんけんタオル', series: 'じゃんけんタオル', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'タオル', category: 'バランス／その場バランス' },
     { id: 'sKjmkItK', name: 'ておしずもう(手押し相撲)', series: 'ておしずもう', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'フープ', category: 'バランス／その場バランス' },
-    { id: '4O252q_T', name: '綱渡り', series: '綱渡り', difficulty: '初級', audiences: ['pre', 'low'], form: '一人でも', equipment: 'タオル2枚', category: 'バランス／バランス歩き' },
     { id: 'sqVgC46c', name: 'タオルの船', series: 'タオルの船', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'タオル', category: 'バランス／その場バランス' },
     { id: 'efb-TW-S', name: '片足バランス_トイレットペーパーを乗せる', series: '片足バランス', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'トイレットペーパー', category: '片足立ち／片足で静止' },
     { id: '4QZfgxsS', name: '片足タッチ_大人とバランス', series: '片足タッチ', difficulty: '中級', audiences: ['pre', 'low'], form: '親子で', equipment: '道具なし', category: '片足立ち／片足で静止' },
     { id: '4fbN8mXM', name: '片足_屈伸', series: '片足', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: '道具なし', category: '片足立ち／片足で静止' },
     { id: 'WpR3KODp', name: '片足バランス_フープキャッチ', series: '片足バランス', difficulty: '上級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'フープ', category: '片足立ち／片足で静止' },
     { id: '60fowziy', name: '足の内側を伸ばす', series: '足の内側を伸ばす', difficulty: '上級', audiences: ['low', 'high'], form: '一人でも', equipment: 'バランスボール', category: 'バランスボールのメニュー／バランスボール_ストレッチ' },
+    { id: '4O252q_T', name: '綱渡り', series: '綱渡り', difficulty: '初級', audiences: ['pre', 'low'], form: '一人でも', equipment: 'タオル2枚', category: 'バランス／バランス歩き' },
   ],
   '身体の位置': [
     { id: 'VaiTqwY-', name: 'トンネルゲーム', series: 'トンネルゲーム', difficulty: '初級', audiences: ['pre', 'low'], form: '親子で', equipment: '道具なし', category: 'ボディイメージが弱い／トンネル' },
@@ -106,6 +112,8 @@ export const BLOCK_MENUS: Record<PyramidBlock, readonly CatalogMenu[]> = {
     { id: 'x5LSQJDl', name: 'しっぽとり④_あし(足)にのせて', series: 'しっぽとり', difficulty: '上級', audiences: ['low', 'high'], form: '親子で', equipment: 'タオル', category: '片足立ち／片足で動く' },
   ],
   'ボディイメージ': [
+    { id: 'r4u9g2WY', name: '鬼のトンネルくぐり', series: '鬼のトンネルくぐり', difficulty: '初級', audiences: ['pre', 'low'], form: '親子で', equipment: '道具なし', parentBurden: '多', category: 'ボディイメージが弱い／トンネル' },
+    { id: 'p3j2bYav', name: 'ボールトンネル', series: 'ボールトンネル', difficulty: '中級', audiences: ['pre', 'low', 'high'], form: '親子で', equipment: 'ボール', category: '筋力が弱い、低緊張／体幹・全身' },
     { id: 'gVFfff8l', name: 'シンクロ③', series: 'シンクロ', difficulty: '初級', audiences: ['pre', 'low'], form: '一人でも', equipment: '道具なし', category: '模倣／シンクロ' },
     { id: '2Hqx-a7i', name: 'グーチョキパー', series: 'グーチョキパー', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: '道具なし', category: 'かけっこ／ステップ' },
     { id: '1ApJiLD7', name: 'すいえい(水泳)', series: 'すいえい', difficulty: '初級', audiences: ['pre', 'low', 'high'], form: '一人でも', equipment: '道具なし', category: '有酸素運動／ジェニトレ' },
