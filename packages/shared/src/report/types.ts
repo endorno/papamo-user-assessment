@@ -152,8 +152,8 @@ export interface ReportContent {
     issueBlocks: string[];
   };
   focusAreas: ReportFocusArea[];
-  // ツール導入前の採点（baseline）は previous に移して返す。
-  copm: (Omit<CopmGoal, 'baseline'> & {
+  // ツール導入前の採点（baseline）は previous に移して返す。選んだ候補（wantId）は判定にだけ使い、載せない。
+  copm: (Omit<CopmGoal, 'baseline' | 'wantId'> & {
     /** 優先する領域（M5。段の低い順のブロック3つまで）。次の3か月の目標だけが持ち、語彙表に当たらなければ空。 */
     areas: string[];
     previous?: { performance: number; satisfaction: number; importance?: number };

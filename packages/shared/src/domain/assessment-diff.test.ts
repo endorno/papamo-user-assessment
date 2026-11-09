@@ -47,6 +47,12 @@ describe('レポートへ未反映の変更', () => {
     expect(changedAssessmentSections(reported, current)).toEqual(['goals']);
   });
 
+  it('目標の候補を外したり付けたりしたら目標の差分にする（優先する領域が変わりうるため）', () => {
+    const current = clone(reported);
+    current.data.copm[0]!.wantId = 'w18';
+    expect(changedAssessmentSections(reported, current)).toEqual(['goals']);
+  });
+
   it('自由記入の空欄と未記入は同じとみなす', () => {
     const current = clone(reported);
     current.data.observationNotes.post = '';

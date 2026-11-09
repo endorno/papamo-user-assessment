@@ -59,6 +59,18 @@ describe('目標ブロック（M5）', () => {
     expect(goalBlocksOf('みんなと同じようにできてほしい', '縄跳びの前跳びが目安')).toEqual(['前庭覚', 'バランス', '姿勢']);
   });
 
+  it('目標の行に候補があれば、候補の文も一緒に読む', () => {
+    // 「前とび」は語彙表に無いので、候補が無ければ空。縄跳びの候補（w1）から書いた目標なら、候補の表どおりになる。
+    expect(goalBlocksOf('前とびを10回続けて跳べる')).toEqual([]);
+    expect(goalBlocksOf('前とびを10回続けて跳べる', '', 'w1')).toEqual(CANDIDATE_GOAL_BLOCKS.w1);
+    // 候補の文と目標文が同じ行に当たっても、その行の点は1回だけ。
+    for (const item of WANT_ITEMS) {
+      expect(goalBlocksOf(wantToGoalText(item.text), '', item.id), item.text).toEqual(CANDIDATE_GOAL_BLOCKS[item.id]);
+    }
+    // 目標文が別の行に当たれば、候補の行の点と合わせる（縄跳びの行＋球技の行）。
+    expect(goalBlocksOf('ボールを投げられる', '', 'w1')).toEqual(goalBlocksOf('縄跳びとボールを投げる'));
+  });
+
   it('同じ行の語がいくつ当たっても、その行の点は1回だけ足し、別の行の点は合計する', () => {
     // 行16（ぶつか）で身体の位置+3、行15（転ぶ・ころぶ・片足）で身体の位置+1 → 4点で、バランス・姿勢（3点）と並ぶ。
     // 行15を語の数だけ足すと、バランス・姿勢が9点、前庭覚が6点になって身体の位置が外れる。

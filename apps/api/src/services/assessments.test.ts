@@ -74,7 +74,8 @@ describe('アセスメントサービス', () => {
     });
     await completeAssessment(testEnv, first.id, coach, saved.updatedAt);
     const second = await createAssessment(testEnv, child.id, coach.id, false);
-    const next = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`新しい目標${index}`), id: `new-${index}`, continueNext: true }));
+    // 候補から足した目標は、候補（wantId）ごと次回に引き継ぐ。
+    const next = Array.from({ length: 4 }, (_, index) => ({ ...emptyCopmGoal(`新しい目標${index}`, index === 0 ? 'w1' : undefined), id: `new-${index}`, continueNext: true }));
     const copm = [...original.map((goal) => ({ ...goal, continueNext: false, performance: 8 })), ...next];
     const secondSaved = await patchAssessment(testEnv, second.id, coach.id, {
       data: { ...completedInput(), copm }, updatedAt: second.updatedAt,
@@ -92,7 +93,7 @@ describe('アセスメントサービス', () => {
   it.each([true, false])('引き継いだ目標の変更・削除は拒否し、採点・メモ・次の目標の選択は変更できる（IDあり: %s）', async (withId) => {
     const { coach, child } = await createFixture('文言を固定');
     const first = await createAssessment(testEnv, child.id, coach.id, false);
-    const goal = { ...emptyCopmGoal('縄跳びを10回跳ぶ'), ...(withId ? { id: 'rope-10' } : {}) };
+    const goal = { ...emptyCopmGoal('縄跳びを10回跳ぶ', 'w1'), ...(withId ? { id: 'rope-10' } : {}) };
     const saved = await patchAssessment(testEnv, first.id, coach.id, {
       data: { ...completedInput(), copm: [goal] }, updatedAt: first.updatedAt,
     });
@@ -105,9 +106,11 @@ describe('アセスメントサービス', () => {
     }
     const next = { ...emptyCopmGoal('縄跳びを15回跳ぶ'), id: 'rope-15' };
     const secondSaved = await patchAssessment(testEnv, second.id, coach.id, {
-      data: { ...completedInput(), copm: [{ ...goal, performance: 8, satisfaction: 7, memo: '10回できた', continueNext: false }, next] }, updatedAt: second.updatedAt,
+      data: { ...completedInput(), copm: [{ ...goal, wantId: undefined, performance: 8, satisfaction: 7, memo: '10回できた', continueNext: false }, next] }, updatedAt: second.updatedAt,
     });
     expect(secondSaved.data.copm[0]).toMatchObject({ performance: 8, memo: '10回できた' });
+    // 引き継いだ目標でも、候補は外せる（文言ではないため）。
+    expect(secondSaved.data.copm[0]).not.toHaveProperty('wantId');
     const changedNew = await patchAssessment(testEnv, second.id, coach.id, {
       data: { ...secondSaved.data, copm: [secondSaved.data.copm[0]!, { ...next, text: '縄跳びを20回跳ぶ' }] }, updatedAt: secondSaved.updatedAt,
     });

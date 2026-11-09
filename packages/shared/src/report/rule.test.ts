@@ -270,6 +270,14 @@ describe('RuleBasedReportGenerator', () => {
       ]);
     });
 
+    it('候補から書いた目標は候補の文も読み、候補はレポートに載せない', async () => {
+      const copm = [{ text: '前とびを10回続けて跳べる', memo: '', performance: 2, satisfaction: 3, importance: 10, wantId: 'w1' as const }];
+      const report = await new RuleBasedReportGenerator().generate(inputFor({ ...pyramidData, copm }));
+
+      expect(report.copm[0]?.areas).toEqual(['前庭覚', 'バランス', '姿勢']);
+      expect(report.copm[0]).not.toHaveProperty('wantId');
+    });
+
     it('目標ブロックは赤い塗り、課題ブロックは目安より下の種目の帯のブロックとお困りごとのブロック', async () => {
       const report = await new RuleBasedReportGenerator().generate(inputFor(pyramidData));
 

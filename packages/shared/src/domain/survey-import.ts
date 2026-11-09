@@ -1,4 +1,4 @@
-import { COPM_MAX, COPM_RECORD_MAX, WANT_ITEMS, wantById, wantToGoalText } from '../master/goals';
+import { COPM_MAX, COPM_RECORD_MAX, WANT_ITEMS, wantById, wantToGoalText, type WantId } from '../master/goals';
 import { SURVEY_SHEET_COLUMNS, SURVEY_SHEET_HEADER, type SurveySheetHeader } from '../master/survey-form';
 import { TROUBLE_ITEMS } from '../master/troubles';
 import { emptyCopmGoal, isNextCopmGoal, TEXT_LIMITS, type AssessmentData } from '../schema/assessment';
@@ -14,8 +14,8 @@ const TIMESTAMP_PATTERN = /^(\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}
 export interface SurveyAnswers {
   /** マスタの文言（保存値）。 */
   troubles: string[];
-  /** できるようになりたいことの id。仮の文言に直して目標（COPM）の文言として入れる。 */
-  wants: string[];
+  /** できるようになりたいことの id。仮の文言に直して目標（COPM）の文言として入れ、行に候補として持たせる。 */
+  wants: WantId[];
   /** 自由記載。目標（COPM）の文言として入れる。 */
   freeWants: string[];
 }
@@ -112,7 +112,7 @@ function normalize(text: string): string {
 }
 
 const TROUBLE_BY_TEXT = new Map(TROUBLE_ITEMS.map((text) => [normalize(text), text]));
-const WANT_ID_BY_TEXT = new Map<string, string>(WANT_ITEMS.map((item) => [normalize(item.text), item.id]));
+const WANT_ID_BY_TEXT = new Map<string, WantId>(WANT_ITEMS.map((item) => [normalize(item.text), item.id]));
 
 /**
  * 事前アンケートの回答シートからコピーした1人分の行を読み取る。
@@ -148,7 +148,7 @@ export function parseSurveyRow(text: string): SurveyParseResult {
   }
 
   // できるようになりたいことは目標の行に入れるため、自由記載と合わせて目標の上限（4つ）まで。先に並んでいるものを残す。
-  const wants: string[] = [];
+  const wants: WantId[] = [];
   for (const value of splitChoices(cellOf(SURVEY_SHEET_COLUMNS.wants))) {
     const id = WANT_ID_BY_TEXT.get(normalize(value));
     if (!id) {
@@ -187,13 +187,24 @@ export function hasSurveyAnswers(answers: SurveyAnswers): boolean {
   return Boolean(answers.troubles.length || answers.wants.length || answers.freeWants.length);
 }
 
-/** 目標欄に入れる文言。選んだ項目は仮の文言に直し、自由記載はそのまま使う。 */
-export function surveyGoalTexts(answers: SurveyAnswers): string[] {
-  const texts = [
-    ...answers.wants.map((id) => wantById(id)).filter((item) => item !== null).map((item) => wantToGoalText(item.text)),
-    ...answers.freeWants,
+/**
+ * 目標欄に入れる行の文言と候補。選んだ項目は仮の文言に直して候補（wantId）を持たせ、自由記載はそのまま使う。
+ * 同じ文言は1行にする（選んだ項目の行を残す）。
+ */
+export function surveyGoals(answers: SurveyAnswers): { text: string; wantId?: WantId }[] {
+  const goals = [
+    ...answers.wants.flatMap((id) => {
+      const item = wantById(id);
+      return item ? [{ text: wantToGoalText(item.text), wantId: item.id }] : [];
+    }),
+    ...answers.freeWants.map((text) => ({ text })),
   ];
-  return [...new Set(texts)];
+  return goals.filter((goal, index) => goals.findIndex((other) => other.text === goal.text) === index);
+}
+
+/** 目標欄に入れる文言（取り込む前にコーチへ見せる）。 */
+export function surveyGoalTexts(answers: SurveyAnswers): string[] {
+  return surveyGoals(answers).map(({ text }) => text);
 }
 
 export type SurveyReplacedField = 'troubles';
@@ -225,13 +236,13 @@ export function applySurveyAnswers(data: AssessmentData, answers: SurveyAnswers)
 
   const copm = [...data.copm];
   const goalsNotAdded: string[] = [];
-  for (const text of surveyGoalTexts(answers)) {
+  for (const { text, wantId } of surveyGoals(answers)) {
     if (copm.some((goal) => goal.text === text)) continue;
     if (copm.length >= COPM_RECORD_MAX) {
       goalsNotAdded.push(text);
       continue;
     }
-    const goal = emptyCopmGoal(text);
+    const goal = emptyCopmGoal(text, wantId);
     copm.push(copm.filter(isNextCopmGoal).length < COPM_MAX ? goal : { ...goal, continueNext: false });
   }
   next.copm = copm;

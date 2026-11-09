@@ -134,7 +134,12 @@ describe('applySurveyAnswers', () => {
     const { data, goalsNotAdded } = applySurveyAnswers({ ...empty, troubles: [BALL], engagement: { dur: 2 } }, answers);
 
     expect(data.troubles).toEqual([POSTURE]);
-    expect(data.copm.map(({ text }) => text)).toEqual(['球技が上手になる', '階段を昇り降りできるようになりたい']);
+    // 選んだ項目の行は、その候補を持つ（入力画面で薄く見せ、優先する領域の判定に使う）。自由記載の行は持たない。
+    expect(data.copm.map(({ text, wantId }) => ({ text, wantId }))).toEqual([
+      { text: '球技が上手になる', wantId: 'w9' },
+      { text: '階段を昇り降りできるようになりたい', wantId: undefined },
+    ]);
+    expect(data.copm[1]).not.toHaveProperty('wantId');
     // 取り込みの対象でない欄はコーチの入力のまま残す。
     expect(data.engagement).toEqual({ dur: 2 });
     expect(goalsNotAdded).toEqual([]);

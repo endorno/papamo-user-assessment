@@ -138,9 +138,10 @@ export class RuleBasedReportGenerator implements ReportGenerator {
       .filter((category) => category.items.length > 0);
 
     // --- 目標（COPM）と、目標ごとの優先する領域（M5）。次の3か月の目標だけがピラミッドに効く ---
-    const copm = data.copm.map(({ baseline, ...goal }) => {
+    // 選んだ候補（wantId）は判定にだけ使い、レポートには載せない。
+    const copm = data.copm.map(({ baseline, wantId, ...goal }) => {
       const previousGoal = previousCopmGoal(goal, input.previous?.data.copm ?? []);
-      const areas = isNextCopmGoal(goal) ? goalBlocksOf(goal.text, goal.memo) : [];
+      const areas = isNextCopmGoal(goal) ? goalBlocksOf(goal.text, goal.memo, wantId) : [];
       // 前回の回が無い初回は、ツール導入前（Excel）の採点を前回として並べる（既存会員の目標の変化を見せるため）。
       const previous = previousGoal
         ? {

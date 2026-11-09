@@ -3086,6 +3086,53 @@
   background: var(--line2);
 }
 
+/* 目標の見出しの行。選んだ候補を「目標 N」の横に薄く添え、その候補から書いた目標だと分かるようにする（2026-11-10）。 */
+.copmTextLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+}
+
+.copmWant {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--mute);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.copmWantRemove {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--mute);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.copmWantRemove:hover {
+  color: var(--ink2);
+}
+
+.copmWantRemove:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+}
+
+@media (pointer: coarse) {
+  .copmWantRemove {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .copmScores {
   display: grid;
   grid-column: 1 / -1;

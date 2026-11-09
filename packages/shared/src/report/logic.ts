@@ -12,11 +12,13 @@ import {
   PYRAMID_BLOCKS,
   pyramidTierOf,
   troubleProfileOf,
+  wantById,
   type CatalogMenu,
   type ExerciseKey,
   type MenuAudience,
   type MenuLevel,
   type PyramidBlock,
+  type WantId,
 } from '../master';
 import type { PyramidSource, ReportRisks } from './types';
 
@@ -97,11 +99,13 @@ export function issueBlocksOf(levels: readonly { key: ExerciseKey; lv: number }[
 
 /**
  * M5（目標1件分）：目標の優先する領域。目標文とメモを語彙表で読み、合計の高いブロック3つを段の低い順に返す。
+ * 目標の行に候補（wantId）があれば、候補の文も一緒に読む（候補の文と目標文が同じ語彙表の行に当たっても、その行は1回だけ）。
  * 同点は段の低いほう、それも同じなら先に点が付いたほう（語彙表の行と、行の中の並び順）を採る。
  * 語彙表のどの語にも当たらなければ空。
  */
-export function goalBlocksOf(text: string, memo = ''): PyramidBlock[] {
-  const source = `${text}\n${memo}`;
+export function goalBlocksOf(text: string, memo = '', wantId?: WantId): PyramidBlock[] {
+  const wantText = wantId ? wantById(wantId)?.text ?? '' : '';
+  const source = [wantText, text, memo].join('\n');
   const scores = new Map<PyramidBlock, number>();
   for (const row of GOAL_VOCABULARY) {
     if (!row.words.some((word) => source.includes(word))) continue;

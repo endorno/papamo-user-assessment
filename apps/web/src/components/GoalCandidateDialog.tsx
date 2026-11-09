@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef } from 'react';
 
-import { WANT_GROUPS, WANT_ITEMS, wantToGoalText } from '@papamo/shared';
+import { WANT_GROUPS, WANT_ITEMS, wantToGoalText, type WantId } from '@papamo/shared';
 import styles from '../styles/page.module.css';
 
 /**
- * 「目標を追加」で開く候補。候補は目標の文言を入れる手助けだけで、選んだことは保存しない（2026-10-21）。
- * 選ぶと仮の文言、「候補を使わずに書く」なら空の文言で onPick を呼ぶ。
+ * 「目標を追加」で開く候補。選ぶと仮の文言と候補の id、「候補を使わずに書く」なら空の文言だけで onPick を呼ぶ。
+ * 選んだ候補は目標の行に持たせ、入力画面で薄く見せて優先する領域の判定に使う（2026-11-10）。
  */
 export function GoalCandidateDialog({
   open,
@@ -14,7 +14,7 @@ export function GoalCandidateDialog({
 }: {
   open: boolean;
   onCancel: () => void;
-  onPick: (text: string) => void;
+  onPick: (text: string, wantId?: WantId) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -43,7 +43,7 @@ export function GoalCandidateDialog({
     >
       <h2 id={titleId}>目標を追加</h2>
       <p id={descriptionId}>
-        お困りごと（いま困っていること）とは別に、達成したい具体的なことを目標にします。候補を選ぶと仮の文言が入るので、ご家族の言葉に書き換えてください。
+        お困りごと（いま困っていること）とは別に、達成したい具体的なことを目標にします。候補を選ぶと仮の文言が入るので、ご家族の言葉に書き換えてください。選んだ候補は目標の上に薄く残ります。別の目標に書き換えたときは「外す」を押してください。
       </p>
       <button className={`${styles.secondaryButton} ${styles.goalFreeButton}`} type="button" onClick={() => onPick('')}>
         候補を使わずに書く
@@ -55,7 +55,7 @@ export function GoalCandidateDialog({
             {WANT_ITEMS.filter((item) => item.group === group).map((item) => {
               const text = wantToGoalText(item.text);
               return (
-                <button className={styles.goalCandidate} type="button" key={item.id} onClick={() => onPick(text)}>
+                <button className={styles.goalCandidate} type="button" key={item.id} onClick={() => onPick(text, item.id)}>
                   <span aria-hidden="true">{item.icon}</span>
                   <span>{text}</span>
                 </button>

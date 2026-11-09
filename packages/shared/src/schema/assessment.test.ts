@@ -182,8 +182,14 @@ describe('アセスメント入力スキーマ', () => {
     expect(accepts({ observations: { [EXERCISES[0]!.key]: [observation, observation] } })).toBe(false);
   });
 
-  it('できるようになりたいことは保存しない（候補は目標の文言を入れる手助けだけ）', () => {
+  it('選んだ候補は目標の行ごとに持ち、マスタに無い id と、回の単位の選択（wants）は受け付けない', () => {
     const base = { updatedAt: '2026-09-12T00:00:00.000Z' };
+    const goal = emptyCopmGoal('前とびを10回続けて跳べる', 'w1');
+    expect(goal.wantId).toBe('w1');
+    expect(emptyCopmGoal('自由に書いた目標')).not.toHaveProperty('wantId');
+    expect(assessmentPatchRequestSchema.parse({ ...base, data: { copm: [goal] } }).data.copm?.[0]?.wantId).toBe('w1');
+    // w10 は w9 に統合した欠番。
+    expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { copm: [{ ...goal, wantId: 'w10' }] } }).success).toBe(false);
     expect(assessmentPatchRequestSchema.safeParse({ ...base, data: { wants: [WANT_ITEMS[0]!.id] } }).success).toBe(false);
   });
 });

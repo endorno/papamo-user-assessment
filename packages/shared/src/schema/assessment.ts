@@ -14,6 +14,8 @@ import {
   COPM_SCORE_DEFAULT,
   COPM_SCORE_MAX,
   COPM_SCORE_MIN,
+  WANT_IDS,
+  type WantId,
 } from '../master/goals';
 import { TROUBLE_ITEMS } from '../master/troubles';
 import { isValidDateString, isValidMonthString } from '../domain/date';
@@ -120,6 +122,9 @@ const copmGoalSchema = z.object({
   baseline: copmBaselineDraftSchema.optional(),
   // 追加前の目標はすべて継続していたため、未指定は継続として扱う。
   continueNext: z.boolean().optional(),
+  // 「目標を追加」や事前アンケートで選んだ候補（できるようになりたいこと）。入力画面で目標の上に薄く出し、
+  // 優先する領域を決めるときに候補の文も読む。自由に書いた行と、コーチが外した行は持たない（2026-11-10）。
+  wantId: z.enum(WANT_IDS).optional(),
 });
 const copmSchema = z.array(copmGoalSchema).max(COPM_RECORD_MAX)
   .refine((goals) => goals.filter(isNextCopmGoal).length <= COPM_MAX, `次の3か月の目標は最大${COPM_MAX}つです。`)
@@ -287,14 +292,15 @@ export function withoutExtExerciseInput(data: AssessmentData, unlockExt: boolean
   return { ...data, lv, observations, observationNotes };
 }
 
-/** 目標（COPM）の新しい行。採点は中央の値から始める。 */
-export function emptyCopmGoal(text = ''): CopmGoal {
+/** 目標（COPM）の新しい行。採点は中央の値から始める。候補から足した行は、その候補（wantId）を持つ。 */
+export function emptyCopmGoal(text = '', wantId?: WantId): CopmGoal {
   return {
     text,
     memo: '',
     performance: COPM_SCORE_DEFAULT,
     satisfaction: COPM_SCORE_DEFAULT,
     importance: COPM_SCORE_DEFAULT,
+    ...(wantId ? { wantId } : {}),
   };
 }
 

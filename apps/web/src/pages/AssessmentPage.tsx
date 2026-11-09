@@ -23,6 +23,8 @@ import {
   MIN_EXERCISE_LEVEL,
   TEXT_LIMITS,
   TROUBLE_CATEGORIES,
+  wantById,
+  wantToGoalText,
   withCopmBaseline,
   withoutExtExerciseInput,
   type AssessmentData,
@@ -33,6 +35,7 @@ import {
   type EngagementKey,
   type ExerciseDefinition,
   type SurveyAnswers,
+  type WantId,
 } from '@papamo/shared';
 import { apiRequest, ApiClientError } from '../api/client';
 import { GuardedLink, useUnsavedChanges } from '../app/UnsavedChangesContext';
@@ -430,7 +433,8 @@ export function AssessmentPage() {
   }
 
   // 候補から選んだ仮の文言（候補を使わないときは空）で目標を足し、すぐ書き換えられるよう文言欄へカーソルを移す。
-  function addCopmGoal(text: string) {
+  // 候補から足した行は、その候補を持たせる（目標の上に薄く出し、優先する領域の判定に使う）。
+  function addCopmGoal(text: string, wantId?: WantId) {
     setShowGoalCandidates(false);
     const current = formRef.current;
     if (!current || current.data.copm.length >= COPM_RECORD_MAX) return;
@@ -438,11 +442,17 @@ export function AssessmentPage() {
     updateData((data) => ({
       ...data,
       copm: [...data.copm, {
-        ...emptyCopmGoal(text),
+        ...emptyCopmGoal(text, wantId),
         id: crypto.randomUUID(),
         continueNext: data.copm.filter(isNextCopmGoal).length < COPM_MAX,
       }],
     }));
+  }
+
+  // 目標の内容が候補から離れたときに、コーチが候補を外す。押したボタンは消えるので、文言欄へカーソルを移す。
+  function removeCopmGoalWant(index: number) {
+    updateCopmGoal(index, ({ wantId: _wantId, ...goal }) => goal);
+    document.getElementById(`copm-text-${index}`)?.focus();
   }
 
   function removeCopmGoal(index: number) {
@@ -806,11 +816,25 @@ export function AssessmentPage() {
               {form.data.copm.map((goal, index) => {
                 const previous = previousCopmGoal(goal, assessment.previous?.copm ?? []);
                 const showLimit = copmLimitGoalIndex === index && nextGoalCount >= COPM_MAX && !isNextCopmGoal(goal);
+                const want = goal.wantId ? wantById(goal.wantId) : null;
+                const textDescribedBy = [want ? `copm-want-${index}` : null, previous ? 'copm-next-help' : null].filter(Boolean).join(' ');
                 return (
                   <div className={styles.copmRow} key={goal.id ?? index}>
                     <div className={styles.formField}>
-                      <label htmlFor={`copm-text-${index}`}>目標 {index + 1}</label>
-                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} maxLength={TEXT_LIMITS.copmText} disabled={assessment.readOnly} readOnly={Boolean(previous)} aria-describedby={previous ? 'copm-next-help' : undefined} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
+                      <div className={styles.copmTextLabel}>
+                        <label htmlFor={`copm-text-${index}`}>目標 {index + 1}</label>
+                        {want ? (
+                          <span className={styles.copmWant}>
+                            <span id={`copm-want-${index}`} title="この候補から書いた目標です。優先する領域を決めるときに、候補の内容も使います。">
+                              候補：<span aria-hidden="true">{want.icon}</span>{wantToGoalText(want.text)}
+                            </span>
+                            {assessment.readOnly ? null : (
+                              <button className={styles.copmWantRemove} type="button" aria-label={`目標${index + 1}の候補を外す`} title="目標の内容が候補と別のものになったら外してください" onClick={() => removeCopmGoalWant(index)}>外す</button>
+                            )}
+                          </span>
+                        ) : null}
+                      </div>
+                      <textarea id={`copm-text-${index}`} rows={2} value={goal.text} maxLength={TEXT_LIMITS.copmText} disabled={assessment.readOnly} readOnly={Boolean(previous)} aria-describedby={textDescribedBy || undefined} onChange={(event) => updateCopmGoal(index, (current) => ({ ...current, text: event.target.value }), TEXT_SAVE_DELAY_MS)} />
                     </div>
                     <div className={styles.formField}>
                       <label htmlFor={`copm-memo-${index}`}>メモ</label>

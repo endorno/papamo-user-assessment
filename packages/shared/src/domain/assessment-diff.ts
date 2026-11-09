@@ -34,6 +34,7 @@ function sameCopm(first: AssessmentData['copm'], second: AssessmentData['copm'])
       && goal.performance === other.performance
       && goal.satisfaction === other.satisfaction
       && goal.importance === other.importance
+      && goal.wantId === other.wantId
       && goal.baseline?.performance === other.baseline?.performance
       && goal.baseline?.satisfaction === other.baseline?.satisfaction;
   });
