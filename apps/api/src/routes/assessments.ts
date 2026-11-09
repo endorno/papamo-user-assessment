@@ -6,6 +6,7 @@ import {
   reportDriveRequestSchema,
   reportPdfRequestSchema,
   reportResponseSchema,
+  type ReportAudience,
   type ReportDriveEvent,
 } from '@papamo/shared';
 import { Hono } from 'hono';
@@ -158,7 +159,7 @@ assessmentsRoutes.post('/:id/report/pdf', async (context) => {
     return serviceError(context, caught);
   }
   try {
-    const [pdf] = await context.get('renderPdf')(context.env, [parsed.data.html]);
+    const [pdf] = await context.get('renderPdf')(context.env, parsed.data.html, [{ pages: 'all' }]);
     if (!pdf) throw new Error('PDFが作られませんでした。');
     return context.body(pdf, 200, {
       'Content-Type': 'application/pdf',
@@ -191,24 +192,33 @@ function lapTimer() {
   };
 }
 
-/** PDFを2つ作って Drive に保存し、段階に入るたびに send で知らせる。失敗も最後の行で知らせる（例外は投げない）。 */
+/**
+ * PDFを2つ作って Drive に保存し、段階に入るたびに send で知らせる。失敗も最後の行で知らせる（例外は投げない）。
+ * 紙面（コーチ向けのHTML）は1回だけ読み込んで採寸し、保護者向けはそこからコーチ用の紙面を除いたページを書き出す。
+ */
 async function saveReportToDrive(
   context: AppContext,
   drive: DriveConnection,
-  input: { assessmentId: string; generatedAt: string; parentHtml: string; coachHtml: string },
+  input: { assessmentId: string; generatedAt: string; html: string; titles: Record<ReportAudience, string> },
   send: (event: ReportDriveEvent) => void,
 ) {
   const timer = lapTimer();
   send({ type: 'step', step: 'renderParent' });
   let pdfs: Uint8Array<ArrayBuffer>[];
   try {
-    pdfs = await context.get('renderPdf')(context.env, [input.parentHtml, input.coachHtml], (index) => {
-      if (index === 0) {
-        timer.lap('launch');
-        return;
-      }
-      timer.lap('renderParent');
-      send({ type: 'step', step: 'renderCoach' });
+    pdfs = await context.get('renderPdf')(context.env, input.html, [
+      { pages: 'parent', title: input.titles.parent },
+      { pages: 'all', title: input.titles.coach },
+    ], {
+      onLaunched: () => timer.lap('launch'),
+      onOutputStart: (index) => {
+        if (index === 0) {
+          timer.lap('layout');
+          return;
+        }
+        timer.lap('renderParent');
+        send({ type: 'step', step: 'renderCoach' });
+      },
     });
   } catch (caught) {
     logInternalError(context, caught, 'report.drive.pdf');
@@ -270,8 +280,9 @@ assessmentsRoutes.post('/:id/report/drive', async (context) => {
     return jsonError(context, 'validation', parsed.error.issues[0]?.message ?? 'レポートの内容を読み取れませんでした。', 400);
   }
   const assessmentId = context.req.param('id');
+  let titles: Record<ReportAudience, string>;
   try {
-    await assertReportSavable(context.env, assessmentId, context.get('coach').id, parsed.data.generatedAt);
+    titles = await assertReportSavable(context.env, assessmentId, context.get('coach').id, parsed.data.generatedAt);
   } catch (caught) {
     return serviceError(context, caught);
   }
@@ -279,5 +290,6 @@ assessmentsRoutes.post('/:id/report/drive', async (context) => {
   return streamJsonLines<ReportDriveEvent>(context, 'report.drive', (send) => saveReportToDrive(context, drive, {
     assessmentId,
     ...parsed.data,
+    titles,
   }, send));
 });

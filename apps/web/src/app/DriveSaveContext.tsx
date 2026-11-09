@@ -17,8 +17,8 @@ export interface DriveSaveRequest {
   label: string;
   /** 画面に表示したレポートの版。 */
   generatedAt: string;
-  /** 紙面のHTML。組み立てが重いので、実際に保存を始めるときだけ呼ぶ。 */
-  buildHtml: () => { parentHtml: string; coachHtml: string };
+  /** コーチ向け（コーチ用の紙面＋本体）のHTML。保護者向けはサーバーが同じ紙面から切り出す。組み立てが重いので、実際に保存を始めるときだけ呼ぶ。 */
+  buildHtml: () => string;
 }
 
 export interface DriveSaveTask {
@@ -102,7 +102,7 @@ export function DriveSaveProvider({ children }: { children: ReactNode }) {
         const html = request.buildHtml();
         await apiRequestLines(`/assessments/${assessmentId}/report/drive`, session, {
           method: 'POST',
-          body: JSON.stringify({ generatedAt: request.generatedAt, ...html }),
+          body: JSON.stringify({ generatedAt: request.generatedAt, html }),
         }, (line) => {
           const parsed = reportDriveEventSchema.safeParse(line);
           if (!parsed.success) return;

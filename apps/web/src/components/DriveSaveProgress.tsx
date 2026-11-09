@@ -12,11 +12,12 @@ const STEP_LABEL: Record<ReportDriveStep, string> = {
 
 /**
  * 段階ごとの所要時間の見込み（ミリ秒）。PDFの作成も Drive への送信も途中経過を返さないので、段階の間は
- * この見込みでバーを伸ばす。最初の段階は Browser Run の起動を含む。API が記録する report_drive_timing の実測で直す。
+ * この見込みでバーを伸ばす。最初の段階は Browser Run の起動と紙面の読み込み・採寸を含み、コーチ向けは書き出しだけ。
+ * 紙面の読み込みを1回にした（2026-11-09）ときの値は、それまでの実測と手元の計測の比からの見積もり。API が記録する report_drive_timing の実測で直す。
  */
 const DRIVE_STEP_EXPECTED_MS: Record<ReportDriveStep, number> = {
-  renderParent: 6000,
-  renderCoach: 4000,
+  renderParent: 4500,
+  renderCoach: 600,
   upload: 3000,
 };
 

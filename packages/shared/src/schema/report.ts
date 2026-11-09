@@ -207,16 +207,19 @@ export const reportPdfRequestSchema = z.object({
   html: reportHtmlSchema,
 });
 
-/** 保護者向けとコーチ向けを同時にGoogleドライブへ保存する。generatedAt は画面に表示したレポートの版。 */
+/**
+ * 保護者向けとコーチ向けを同時にGoogleドライブへ保存する。generatedAt は画面に表示したレポートの版。
+ * html はコーチ向け（コーチ用の紙面＋本体）。保護者向けは、サーバーが同じ紙面からコーチ用の紙面を除いたページを書き出す。
+ */
 export const reportDriveRequestSchema = z.object({
   generatedAt: z.string().datetime(),
-  parentHtml: reportHtmlSchema,
-  coachHtml: reportHtmlSchema,
+  html: reportHtmlSchema,
 });
 
 /**
  * Googleドライブへの保存の段階。保存は十数秒かかるため、サーバーは段階に入るたびに知らせ、画面は進み具合として示す。
  * PDFの作成（ヘッドレス Chrome の起動を含む）も Drive への送信も途中経過を返さないため、段階より細かくは知らせない。
+ * 紙面の読み込みと採寸は1回だけで、保護者向けの段階に含む（コーチ向けの段階は書き出しだけ）。
  */
 export const REPORT_DRIVE_STEPS = ['renderParent', 'renderCoach', 'upload'] as const;
 

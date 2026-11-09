@@ -6,7 +6,6 @@ import {
   RISK_DISCLAIMER,
   goalsByImportance,
   isNextCopmGoal,
-  COPM_MAX,
   pyramidSourceOf,
   reportFileTitle,
   reportResponseSchema,
@@ -20,11 +19,11 @@ import { ApiClientError, apiRequest, apiRequestBlob } from '../api/client';
 import { useDriveSave, type DriveSaveTask } from '../app/DriveSaveContext';
 import { useAuth } from '../auth/SupabaseAuthProvider';
 import { AppHeader } from '../components/AppHeader';
-import { AreaMenuPlan, areaMenuSheets, COACH_MENU_ANCHOR, GoalAreaTable, ObservationNotes } from '../components/CoachMenu';
+import { AreaMenuPlan, COACH_MENU_ANCHOR, GoalAreaTable, ObservationNotes } from '../components/CoachMenu';
 import { DriveSaveDoneMark, DriveSaveFailedMark, DriveSaveProgress, DriveSaveSpinner } from '../components/DriveSaveProgress';
 import { RadarChart } from '../components/RadarChart';
 import { useToast } from '../components/Toast';
-import { formatJapaneseDate, formatJapaneseDateTime, honorificLabel } from '../utils/display';
+import { formatJapaneseDate, formatJapaneseDateTime, honorificLabel, reportMultilineText } from '../utils/display';
 import { buildReportHtml, saveBlob } from '../utils/report-pdf';
 import styles from '../styles/page.module.css';
 
@@ -70,9 +69,20 @@ function TuningTag({ report, section }: { report: ParsedReport; section: TuningK
   return <span className={styles.tuningTag} title={note.note} data-print-hidden>アルゴリズム調整中：{note.label}</span>;
 }
 
-/** 保護者向けの紙面の左上のタブ。PDFだけを見ても、どの紙面の何枚目かが分かるようにする。 */
+/**
+ * 保護者向けの紙面の左上のタブ。PDFだけを見ても、どの紙面の何枚目かが分かるようにする。
+ * PDFでは紙面がページに分かれるので、番号は分けた後に振り直す（data-page-number）。
+ */
 function SheetTab({ page }: { page: number }) {
-  return <p className={styles.sheetTab}>本体（ご家庭説明用）<span>｜</span>Page {page}</p>;
+  return <p className={styles.sheetTab}>本体（ご家庭説明用）<span>｜</span>Page <span data-page-number>{page}</span></p>;
+}
+
+/**
+ * 紙面の見出しに添える「（つづき）」。PDFで紙面が次のページに分かれたときだけ、分けた側で見せる
+ * （apps/api の report-pdf-layout.ts）。
+ */
+function ContinuedMark() {
+  return <small className={styles.continuedMark} data-page-continued hidden>（つづき）</small>;
 }
 
 /**
@@ -81,8 +91,8 @@ function SheetTab({ page }: { page: number }) {
  */
 function CoachSheetHeader({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <header className={styles.coachSheetHeader}>
-      <h1>{icon}{children}</h1>
+    <header className={styles.coachSheetHeader} data-page-header>
+      <h1>{icon}{children}<ContinuedMark /></h1>
       <span>コーチ用・保護者には渡さない</span>
     </header>
   );
@@ -98,7 +108,7 @@ function SearchIcon() {
 }
 
 function ReportFooter() {
-  return <footer className={styles.reportFooter}>へやすぽアシスト</footer>;
+  return <footer className={styles.reportFooter} data-page-footer>へやすぽアシスト</footer>;
 }
 
 function deltaLabel(delta: number | undefined) {
@@ -216,10 +226,7 @@ export function ReportPage() {
       buildHtml: () => {
         const sheets = documentRef.current;
         if (!sheets) throw new Error('レポートの紙面がありません。');
-        return {
-          parentHtml: buildReportHtml(sheets, fileTitle('parent'), 'parent'),
-          coachHtml: buildReportHtml(sheets, fileTitle('coach'), 'coach'),
-        };
+        return buildReportHtml(sheets, fileTitle('coach'), 'coach');
       },
     }, session);
   }, [session, id, report, childId, fileTitle, startSave]);
@@ -281,8 +288,8 @@ export function ReportPage() {
             <div>
               <strong>レポート</strong>
               <span>{currentDrive
-                ? '先頭の2枚はコーチ用です。保護者向けPDFはその後ろの本体2枚だけで、コーチ向け（全4枚）は保護者向けと一緒にGoogleドライブへ自動で保存します。'
-                : '先頭の2枚はコーチ用です。保護者向けPDFはその後ろの本体2枚だけ、コーチ向けPDFは全4枚を含みます。'}</span>
+                ? '先頭はコーチ用の紙面です。保護者向けPDFはその後ろの本体だけで、コーチ向け（全体）は保護者向けと一緒にGoogleドライブへ自動で保存します。'
+                : '先頭はコーチ用の紙面です。保護者向けPDFはその後ろの本体だけ、コーチ向けPDFは全体を含みます。'}</span>
             </div>
             <div>
               {/* 一覧へはロゴとパンくずで戻れる。子どもページはスマホでパンくずが隠れるため、ボタンでも置く。 */}
@@ -314,50 +321,38 @@ export function ReportPage() {
           ) : null}
 
           {/* コーチ向けの紙面は先頭に置く（コーチ用レポート v14）。保護者向けPDFからは外す（data-coach-only）。
-              領域が多い回は「方針とメニューの方向性」を複数枚に分ける。 */}
-          {areaMenuSheets(report.coach.areaMenus).map(({ areas, start }, index, sheets) => (
-            <section
-              className={`sheet ${styles.coachSheet}`}
-              id={index === 0 ? COACH_MENU_ANCHOR : undefined}
-              aria-label={index === 0 ? 'コーチ向け 方針とメニューの方向性' : `コーチ向け 方針とメニューの方向性（つづき${index + 1}/${sheets.length}）`}
-              data-coach-only
-              key={start}
-            >
-              <div className={`${styles.sheetCard} ${styles.coachCard}`}>
-                <CoachSheetHeader icon={<span aria-hidden="true">◎</span>}>方針とメニューの方向性{index === 0 ? null : <small>（つづき）</small>}</CoachSheetHeader>
-                <div className={styles.coachCardBody}>
-                  {index === 0 ? (
-                    <>
-                      <h2 className={styles.areaMenuHeading}>◆ 目標ごとの優先する領域</h2>
-                      <GoalAreaTable report={report} />
-                    </>
-                  ) : null}
-                  <h2 className={styles.areaMenuHeading}>◆ 目標と課題から導き出した領域ごとのメニュー{index === 0 ? <TuningTag report={report} section="areaMenus" /> : <small>（つづき）</small>}</h2>
-                  <AreaMenuPlan report={report} areas={areas} start={start} last={index === sheets.length - 1} />
-                </div>
+              PDFでは、内容が多いと続きのページに分かれる（report-pdf-layout.ts）。 */}
+          <section className={`sheet ${styles.coachSheet}`} id={COACH_MENU_ANCHOR} aria-label="コーチ向け 方針とメニューの方向性" data-coach-only>
+            <div className={`${styles.sheetCard} ${styles.coachCard}`}>
+              <CoachSheetHeader icon={<span aria-hidden="true">◎</span>}>方針とメニューの方向性</CoachSheetHeader>
+              <div className={styles.coachCardBody} data-page-body>
+                <h2 className={styles.areaMenuHeading}>◆ 目標ごとの優先する領域</h2>
+                <GoalAreaTable report={report} />
+                <h2 className={styles.areaMenuHeading}>◆ 目標と課題から導き出した領域ごとのメニュー<TuningTag report={report} section="areaMenus" /></h2>
+                <AreaMenuPlan report={report} />
               </div>
-            </section>
-          ))}
+            </div>
+          </section>
           <section className={`sheet ${styles.coachSheet} ${styles.observationSheet}`} aria-label="コーチ向け 観察された様子・つまずき方" data-coach-only>
             <div className={`${styles.sheetCard} ${styles.coachCard}`}>
               <CoachSheetHeader icon={<SearchIcon />}>観察された様子・つまずき方</CoachSheetHeader>
-              <div className={styles.coachCardBody}>
+              <div className={styles.coachCardBody} data-page-body>
                 <ObservationNotes report={report} />
               </div>
             </div>
           </section>
           {/* ここから本体。切れ目は画面だけに出す。 */}
           <div className={styles.audienceDivider} data-print-hidden>
-            <p><strong>ここからは本体（ご家庭説明用）</strong><small>保護者向けPDFは、ここから下の2枚です</small></p>
+            <p><strong>ここからは本体（ご家庭説明用）</strong><small>保護者向けPDFは、ここから下の紙面です</small></p>
           </div>
 
           {/* Page 1：スコア（育ちマップと、種目ごとのできている力／次に高めたい力） */}
           <section className={`sheet ${styles.parentSheet}`} aria-label="レポート1ページ目">
             <SheetTab page={1} />
-            <div className={styles.sheetCard}>
-              <header className={styles.reportSheetHeader}>
+            <div className={styles.sheetCard} data-page-body>
+              <header className={styles.reportSheetHeader} data-page-header>
                 <div>
-                  <h1>{childName}のスコア</h1>
+                  <h1>{childName}のスコア<ContinuedMark /></h1>
                   <p>アセスメント日：{formatJapaneseDate(report.header.assessedOn)}{report.header.prevAssessedOn ? `（前回 ${formatJapaneseDate(report.header.prevAssessedOn)}）` : ''}</p>
                 </div>
                 {/* 年齢は保存しないため、学年から引いた目安を出す。 */}
@@ -371,7 +366,7 @@ export function ReportPage() {
                   今の到達 <strong>{levelTotal}</strong> /{levelMax}
                   <small>（実施した{report.levels.length}種目の合計）</small>
                 </p>
-                <section className={styles.abilityList} aria-labelledby="ability-title">
+                <section className={styles.abilityList} aria-labelledby="ability-title" data-page-split>
                   <h2 id="ability-title">実施した種目ごとの、できている力／次に高めたい力</h2>
                   {report.abilities.map((ability) => {
                     const level = report.levels.find((candidate) => candidate.key === ability.key);
@@ -404,7 +399,7 @@ export function ReportPage() {
               {report.engagement.length ? (
                 <>
                   <h2 className={styles.reportHeading}>取り組みの様子<TuningTag report={report} section="engagementDelta" /></h2>
-                  <p className={styles.reportNote}>運動そのものの段階とは別に、どう取り組めたかの記録です。</p>
+                  <p className={styles.reportNote} data-page-keep-next>運動そのものの段階とは別に、どう取り組めたかの記録です。</p>
                   <div className={styles.engagementBars}>
                     {report.engagement.map((axis) => (
                       <div key={axis.key}>
@@ -426,17 +421,17 @@ export function ReportPage() {
           </section>
 
           {/* Page 2：発達ピラミッドから見る、育てるべき領域 */}
-          <section className={`sheet ${styles.parentSheet} ${report.copm.length > COPM_MAX ? styles.expandedGoalsSheet : ''}`} aria-label="レポート2ページ目">
+          <section className={`sheet ${styles.parentSheet}`} aria-label="レポート2ページ目">
             <SheetTab page={2} />
-            <div className={styles.sheetCard}>
-              <header className={styles.reportSheetHeader}>
-                <h1>発達ピラミッドから見る、育てるべき領域</h1>
+            <div className={styles.sheetCard} data-page-body>
+              <header className={styles.reportSheetHeader} data-page-header>
+                <h1>発達ピラミッドから見る、育てるべき領域<ContinuedMark /></h1>
               </header>
               {report.focusAreas.length ? (
                 <section className={styles.focusAreas} aria-labelledby="focus-areas-title">
                   <h2 id="focus-areas-title" className={styles.reportHeading}>最重要にすべき領域</h2>
-                  <p className={styles.reportNote}>目標とアセスメント・お困りごとの両方に当たるものを優先して、いま取り組むと効果が大きい{report.focusAreas.length}つを選びました。下の土台にあたるものから順に並べています。</p>
-                  <ol>
+                  <p className={styles.reportNote} data-page-keep-next>目標とアセスメント・お困りごとの両方に当たるものを優先して、いま取り組むと効果が大きい{report.focusAreas.length}つを選びました。下の土台にあたるものから順に並べています。</p>
+                  <ol data-page-split>
                     {report.focusAreas.map((area, index) => (
                       <li key={area.block}>
                         <p><span className={styles.focusNumber}>{index + 1}</span><strong>{area.block}</strong><small>{area.definition}</small></p>
@@ -451,7 +446,7 @@ export function ReportPage() {
                 </section>
               ) : null}
 
-              <div className={styles.pyramidLegend}>
+              <div className={styles.pyramidLegend} data-page-keep-next>
                 {PYRAMID_LEGEND.map(({ source, label }) => <span key={source}><i className={PYRAMID_SOURCE_CLASS[source]} aria-hidden="true" />{label}</span>)}
               </div>
               <div className={styles.pyramid} aria-label="育ちのピラミッド">
@@ -489,11 +484,11 @@ export function ReportPage() {
                         </tr>
                         <tr><th>遂行度</th><th>満足度</th></tr>
                       </thead>
-                      <tbody>
+                      <tbody data-page-split>
                         {copmByImportance.map((goal, index) => (
                           <tr key={goal.id ?? index}>
                             <td>{isNextCopmGoal(goal) ? <span className={styles.nextGoalTag}>次の3か月の目標</span> : null}<strong>{goal.text}</strong></td>
-                            <td><small>{goal.memo}</small></td>
+                            <td><small className={styles.multilineText}>{reportMultilineText(goal.memo)}</small></td>
                             <td className={styles.numberCell}>{goal.importance}</td>
                             <td className={styles.numberCell}><CopmScore score={goal.performance} previous={goal.previous?.performance} delta={goal.performanceDelta} /></td>
                             <td className={styles.numberCell}><CopmScore score={goal.satisfaction} previous={goal.previous?.satisfaction} delta={goal.satisfactionDelta} /></td>
@@ -511,7 +506,7 @@ export function ReportPage() {
                   <div className={styles.levelTableWrap}>
                     <table className={`${styles.levelTable} ${styles.backgroundTable}`}>
                       <thead><tr><th>表面に見える困りごと</th><th>背景にありそうな力</th><th>優先して見る土台</th></tr></thead>
-                      <tbody>
+                      <tbody data-page-split>
                         {report.troubleBackgrounds.map((row) => (
                           <tr key={row.id}>
                             <td>
@@ -538,7 +533,6 @@ export function ReportPage() {
                   {report.risks.evidence.length ? (
                     <div className={styles.riskEvidence}>
                       <h3>測定の裏づけ</h3>
-                      {/* 種目が多くても2枚目に収まるよう、1段落にまとめる。 */}
                       <p>
                         {report.header.grade}の目安と比べて、到達が低めの種目があります：
                         {report.risks.evidence.map((item, index) => (
@@ -564,8 +558,9 @@ export function ReportPage() {
                 </section>
               ) : null}
 
-              {/* 日付は実施日から3か月・6か月後の目安。予定を決めたものではないので「ごろ」と書き、曜日は付けない。 */}
-              <section className={styles.scheduleBox} aria-labelledby="schedule-title">
+              {/* 日付は実施日から3か月・6か月後の目安。予定を決めたものではないので「ごろ」と書き、曜日は付けない。
+                  PDFでは、最後の注意書きだけが次のページに送られないよう、スケジュールと同じページに置く（data-page-keep-next）。 */}
+              <section className={styles.scheduleBox} aria-labelledby="schedule-title" data-page-keep-next>
                 <h2 id="schedule-title">次回の振り返りスケジュール</h2>
                 <div>
                   <p><strong>3か月レビュー</strong><span>{formatJapaneseDate(report.nextDue)}ごろ</span><small>現在地を再評価・目標更新</small></p>

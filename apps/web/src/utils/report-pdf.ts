@@ -18,7 +18,8 @@ function collectStyles(ownerDocument: Document) {
   return { rules, links };
 }
 
-// 保護者向けはコーチ用の紙面（data-coach-only）を外した本体の2枚、コーチ向けは先頭のコーチ用2枚と本体2枚の4枚。
+// 保護者向けはコーチ用の紙面（data-coach-only）を外した本体、コーチ向けは先頭のコーチ用の紙面と本体。
+// Googleドライブへはコーチ向けだけを送り、保護者向けはサーバーが同じ紙面からコーチ用の紙面を除いたページを書き出す。
 const REMOVED_ELEMENTS: Record<ReportAudience, string> = {
   parent: '[data-print-hidden], [data-coach-only], script',
   coach: '[data-print-hidden], script',

@@ -191,6 +191,14 @@ export function reportDriveStatus(report: ReportDriveRow, childFolderId: string 
   };
 }
 
+type ReportRow = NonNullable<Awaited<ReturnType<typeof reportRow>>>;
+
+/** 保護者向け・コーチ向けのPDFの名前（拡張子なし）。ダウンロードと同じ名前にする。 */
+function reportFileTitles(row: Pick<ReportRow, 'child' | 'assessment'>): Record<ReportAudience, string> {
+  const child = { childId: row.child.id, childName: row.child.name, honorific: row.child.honorific as Honorific, seqNo: row.assessment.seqNo };
+  return { parent: reportFileTitle(child, 'parent'), coach: reportFileTitle(child, 'coach') };
+}
+
 async function reportRow(env: Env, assessmentId: string) {
   return dbFor(env)
     .select({ report: reports, assessment: assessments, child: children })
@@ -212,8 +220,9 @@ const REPORT_UPDATED_MESSAGE = 'レポートが更新されたため、保存を
 /**
  * 保存してよいレポートかを確かめる。担当していない子どものレポートは保存させない（存在と membership はレポート取得と同じ扱い）。
  * 画面に表示した版（generatedAt）が古ければ、新しい版を古い紙面で上書きしないよう 409 にする。
+ * 保存してよければ、PDFの文書名に使う名前を返す。
  */
-export async function assertReportSavable(env: Env, assessmentId: string, coachId: string, generatedAt: string) {
+export async function assertReportSavable(env: Env, assessmentId: string, coachId: string, generatedAt: string): Promise<Record<ReportAudience, string>> {
   const assessment = await dbFor(env).select({ childId: assessments.childId }).from(assessments).where(eq(assessments.id, assessmentId)).get();
   if (!assessment) throw new AssessmentServiceError('not_found', 'アセスメントが見つかりません。');
   if (!(await requireMembership(env, assessment.childId, coachId))) {
@@ -222,6 +231,7 @@ export async function assertReportSavable(env: Env, assessmentId: string, coachI
   const row = await reportRow(env, assessmentId);
   if (!row) throw new AssessmentServiceError('not_found', 'レポートが見つかりません。');
   if (row.report.updatedAt !== generatedAt) throw new AssessmentServiceError('conflict', REPORT_UPDATED_MESSAGE);
+  return reportFileTitles(row);
 }
 
 const FILE_COLUMNS = {
@@ -262,13 +272,9 @@ export async function saveReportPdfs(
   const folderId = await ensureChildFolder(env, drive, row.child);
   // フォルダを作り直したときは記録が消されているため、そろえた後の記録を読む。
   const fileIds = await savedFileIds(env, row.report.id);
+  const titles = reportFileTitles(row);
   for (const audience of ['parent', 'coach'] as const) {
-    const name = `${reportFileTitle({
-      childId: row.child.id,
-      childName: row.child.name,
-      honorific: row.child.honorific as Honorific,
-      seqNo: row.assessment.seqNo,
-    }, audience)}.pdf`;
+    const name = `${titles[audience]}.pdf`;
     const pdf = input.pdfs[audience];
     const existingId = fileIds[audience];
     onUploadStart?.(audience);

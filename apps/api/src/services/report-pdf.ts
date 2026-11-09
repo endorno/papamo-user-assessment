@@ -1,15 +1,42 @@
-import puppeteer from '@cloudflare/puppeteer';
+import puppeteer, { type Page } from '@cloudflare/puppeteer';
 
 import type { Env } from '../env';
+import {
+  PAGE_MARGIN_MM,
+  PAGINATE_SHEETS_SCRIPT,
+  PDF_SCALE,
+  SHEET_LAYOUT_WIDTH_PX,
+  SHEET_PAGE_HEIGHT_PX,
+  type SheetPagination,
+} from './report-pdf-layout';
 
 /**
- * 渡したHTMLの順にPDFを返す。保護者向けとコーチ向けを同時に作るとき、ブラウザの起動を1回で済ませる。
- * onPageStart は各ページを作り始めるときに呼ぶ（Drive 保存の進み具合を画面に知らせるため）。
+ * 1つのHTMLから書き出すPDF。pages は書き出すページ（all：全ページ、parent：コーチ用の紙面を除いたページ）。
+ * title は PDF の文書名（ビューアのタイトルに出る）。省略時はHTMLの title のまま。
+ */
+export interface ReportPdfOutput {
+  pages: 'all' | 'parent';
+  title?: string;
+}
+
+/** 段階ごとの知らせ（Drive 保存の進み具合を画面に知らせ、所要時間を記録するため）。 */
+export interface ReportPdfProgress {
+  /** ブラウザを起動し終えたとき。 */
+  onLaunched?: () => void;
+  /** 紙面をページに分け終えた後、各PDFを書き出し始めるとき。 */
+  onOutputStart?: (index: number) => void;
+}
+
+/**
+ * 渡したHTMLを1回だけ読み込んで採寸し、outputs の順にPDFを返す。
+ * コーチ向け（コーチ用の紙面＋本体）のHTMLから、保護者向け（本体だけ）も同じ紙面のページの範囲で切り出す。
+ * 保護者向けとコーチ向けを別々に読み込むと、フォントの読み込みと採寸が2回になって遅いため（2026-11-09）。
  */
 export type ReportPdfRenderer = (
   env: Env,
-  htmls: string[],
-  onPageStart?: (index: number) => void,
+  html: string,
+  outputs: readonly ReportPdfOutput[],
+  progress?: ReportPdfProgress,
 ) => Promise<Uint8Array<ArrayBuffer>[]>;
 
 // 受け取ったHTMLから任意の宛先へ通信させないため、Webフォント（Zen Kaku Gothic New）の配信元だけを通す。
@@ -18,56 +45,9 @@ const ALLOWED_REQUEST_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.co
 // 起動からフォント読み込みまで通常は数秒で終わる。止まったときに Worker を待たせ続けない。
 const RENDER_TIMEOUT_MS = 30_000;
 
-// A4 の余白（design-mock-v2 の印刷設定に合わせる）。刷り面の大きさは CSS px（96dpi）に直して採寸に使う。
-const PAGE_MARGIN_MM = { top: 9, bottom: 9, left: 8, right: 8 };
-const A4_MM = { width: 210, height: 297 };
-const PX_PER_MM = 96 / 25.4;
-const PRINTABLE_WIDTH_PX = Math.floor((A4_MM.width - PAGE_MARGIN_MM.left - PAGE_MARGIN_MM.right) * PX_PER_MM);
-const PRINTABLE_HEIGHT_PX = Math.floor((A4_MM.height - PAGE_MARGIN_MM.top - PAGE_MARGIN_MM.bottom) * PX_PER_MM);
-
-/*
- * 1シート＝1ページを保証するため、シートごとに高さを実測して zoom で紙面に収める（design-mock-v2 の fitA4 を移植）。
- * 余白が大きく余るシートは少し拡大して紙面を埋める。
- * zoom を下げると紙面の幅が広がって折り返しが減るため、高さは zoom に比例しない（比例とみなして下げるだけだと縮めすぎる。2026-10-21）。
- * そこで、収まる範囲でいちばん大きい zoom を二分探索で探す。
- * Chrome 127 以前は zoom をかけた要素の getBoundingClientRect が拡縮前の大きさを返すため、紙面上の高さは zoom を掛けて求める。
- * ページ内のスクリプトは止めているため、ここで評価する。関数ではなく文字列で渡すのは、Worker のバンドルで付く補助関数を持ち込まないため。
- */
-const FIT_SHEETS_SCRIPT = `(() => {
-  const target = ${PRINTABLE_HEIGHT_PX} * 0.985;
-  const maxZoom = 1.1;
-  const minZoom = 0.55;
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:absolute;visibility:hidden;height:100px;zoom:0.5';
-  document.body.append(probe);
-  const rectIncludesZoom = probe.getBoundingClientRect().height < 75;
-  probe.remove();
-  for (const sheet of document.querySelectorAll('.sheet')) {
-    sheet.style.minHeight = '';
-    const fits = (zoom) => {
-      sheet.style.zoom = zoom.toFixed(3);
-      const rectHeight = sheet.getBoundingClientRect().height;
-      return (rectIncludesZoom ? rectHeight : rectHeight * zoom) <= target;
-    };
-    let zoom = minZoom;
-    if (fits(maxZoom)) {
-      zoom = maxZoom;
-    } else if (fits(minZoom)) {
-      let low = minZoom;
-      let high = maxZoom;
-      for (let attempt = 0; attempt < 12; attempt += 1) {
-        const middle = (low + high) / 2;
-        if (fits(middle)) low = middle;
-        else high = middle;
-      }
-      // 小数第3位で丸めて収まらなくならないよう、切り捨てる。
-      zoom = Math.floor(low * 1000) / 1000;
-    }
-    sheet.style.zoom = zoom.toFixed(3);
-    // 枠が紙面の下まで届くよう、残りを最低高さで埋める（min-height も zoom で拡縮される）。
-    sheet.style.minHeight = target / zoom + 'px';
-  }
-})()`;
+// 紙面を組んで（フォントの読み込みが始まって）から、使う文字のフォントがそろうのを待つ。
+// networkidle0（通信が0.5秒止まるまで待つ）より、要るフォントだけを待つほうが早く終わる。
+const WAIT_FOR_FONTS_SCRIPT = 'void document.body.getBoundingClientRect(); document.fonts.ready.then(() => true)';
 
 function isAllowedRequest(url: string) {
   if (url.startsWith('data:')) return true;
@@ -79,9 +59,34 @@ function isAllowedRequest(url: string) {
   }
 }
 
-async function renderPage(browser: Awaited<ReturnType<typeof puppeteer.launch>>, html: string) {
-  const page = await browser.newPage();
+/**
+ * ページ内で評価して結果を待つ。応答が無いときに既定の3分（protocolTimeout）待たせず、PDFの作成を失敗にする
+ * （ローカルの wrangler dev では、フォントの読み込み中にページが応答しなくなることがあった。2026-11-09）。
+ */
+async function evaluateWithin<T>(page: Page, script: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('紙面の採寸が時間内に終わりませんでした。')), RENDER_TIMEOUT_MS);
+  });
   try {
+    return await Promise.race([page.evaluate(script) as Promise<T>, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function pageRangeOf(output: ReportPdfOutput, pagination: SheetPagination) {
+  if (output.pages === 'all') return undefined;
+  if (!pagination.parentPages.length) throw new Error('保護者向けの紙面がありません。');
+  return pagination.parentPages.join(',');
+}
+
+/** 画面に表示したレポートのHTMLを、Browser Run のヘッドレス Chrome で A4 のPDFにする。 */
+export const renderReportPdf: ReportPdfRenderer = async (env, html, outputs, progress) => {
+  const browser = await puppeteer.launch(env.BROWSER);
+  progress?.onLaunched?.();
+  try {
+    const page = await browser.newPage();
     // 送られてくるのは描画済みのスナップショットなので、ページ内のスクリプトは動かさない。
     await page.setJavaScriptEnabled(false);
     await page.setRequestInterception(true);
@@ -93,39 +98,32 @@ async function renderPage(browser: Awaited<ReturnType<typeof puppeteer.launch>>,
       }
     });
     // 採寸を紙面と同じ幅・同じ印刷用スタイルで行う。
-    await page.setViewport({ width: PRINTABLE_WIDTH_PX, height: PRINTABLE_HEIGHT_PX });
+    await page.setViewport({ width: SHEET_LAYOUT_WIDTH_PX, height: Math.floor(SHEET_PAGE_HEIGHT_PX) });
     await page.emulateMediaType('print');
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: RENDER_TIMEOUT_MS });
-    // display=swap のフォントは読み込み前に代替フォントで描かれるため、揃ってから採寸する。
-    await page.evaluate('document.fonts.ready.then(() => true)');
-    await page.evaluate(FIT_SHEETS_SCRIPT);
-    const pdf = await page.pdf({
-      format: 'A4',
-      margin: {
-        top: `${PAGE_MARGIN_MM.top}mm`,
-        bottom: `${PAGE_MARGIN_MM.bottom}mm`,
-        left: `${PAGE_MARGIN_MM.left}mm`,
-        right: `${PAGE_MARGIN_MM.right}mm`,
-      },
-      printBackground: true,
-      displayHeaderFooter: false,
-      timeout: RENDER_TIMEOUT_MS,
-    });
-    return new Uint8Array(pdf);
-  } finally {
-    await page.close();
-  }
-}
+    await page.setContent(html, { waitUntil: 'load', timeout: RENDER_TIMEOUT_MS });
+    // display=swap のフォントは読み込み前に代替フォントで描かれるため、そろってから採寸する。
+    await evaluateWithin(page, WAIT_FOR_FONTS_SCRIPT);
+    const pagination = await evaluateWithin<SheetPagination>(page, PAGINATE_SHEETS_SCRIPT);
 
-/** 画面に表示したレポートのHTMLを、Browser Run のヘッドレス Chrome で A4 のPDFにする。 */
-export const renderReportPdf: ReportPdfRenderer = async (env, htmls, onPageStart) => {
-  const browser = await puppeteer.launch(env.BROWSER);
-  try {
     const pdfs: Uint8Array<ArrayBuffer>[] = [];
-    // ページごとに順に作る。並べると Browser Run の同時実行の上限とメモリに当たりやすい。
-    for (const [index, html] of htmls.entries()) {
-      onPageStart?.(index);
-      pdfs.push(await renderPage(browser, html));
+    for (const [index, output] of outputs.entries()) {
+      progress?.onOutputStart?.(index);
+      if (output.title !== undefined) await page.evaluate(`document.title = ${JSON.stringify(output.title)}`);
+      const pdf = await page.pdf({
+        format: 'A4',
+        margin: {
+          top: `${PAGE_MARGIN_MM.top}mm`,
+          bottom: `${PAGE_MARGIN_MM.bottom}mm`,
+          left: `${PAGE_MARGIN_MM.left}mm`,
+          right: `${PAGE_MARGIN_MM.right}mm`,
+        },
+        scale: PDF_SCALE,
+        pageRanges: pageRangeOf(output, pagination),
+        printBackground: true,
+        displayHeaderFooter: false,
+        timeout: RENDER_TIMEOUT_MS,
+      });
+      pdfs.push(new Uint8Array(pdf));
     }
     return pdfs;
   } finally {

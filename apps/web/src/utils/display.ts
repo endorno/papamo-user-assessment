@@ -53,3 +53,16 @@ export function formatJapaneseDateTime(isoDateTime: string) {
 export function coachInitial(displayName: string | null | undefined) {
   return displayName?.trim().charAt(0) || 'コ';
 }
+
+/**
+ * レポートの自由記入（目標のメモ・見えた動作の自由記入）で残す改行の数。
+ * 改行は読みやすさのために残すが、1文字ずつ改行されると上限の文字数でも紙面を何ページも占めるため、これを超えた分は1行につなげる。
+ */
+export const REPORT_TEXT_MAX_LINES = 8;
+
+/** レポートに出す自由記入。行ごとの前後の空白と空行を詰め、REPORT_TEXT_MAX_LINES を超えた行は最後の行に空白でつなげる。 */
+export function reportMultilineText(text: string, maxLines = REPORT_TEXT_MAX_LINES) {
+  const lines = text.split(/\r\n|\r|\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length <= maxLines) return lines.join('\n');
+  return [...lines.slice(0, maxLines - 1), lines.slice(maxLines - 1).join(' ')].join('\n');
+}

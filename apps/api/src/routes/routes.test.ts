@@ -361,11 +361,11 @@ describe('API ルート結合', () => {
 
   it('レポートのHTMLをPDFにして返し、担当外・未完了・生成失敗を分けて返す', async () => {
     const pdfBytes = new Uint8Array(new TextEncoder().encode('%PDF-1.7 test'));
-    const renderedHtml: string[] = [];
+    const rendered: { html: string; pages: string[] }[] = [];
     const owner = await createTestClient({
-      renderPdf: async (_env, htmls) => {
-        renderedHtml.push(...htmls);
-        return htmls.map(() => pdfBytes);
+      renderPdf: async (_env, html, outputs) => {
+        rendered.push({ html, pages: outputs.map((output) => output.pages) });
+        return outputs.map(() => pdfBytes);
       },
     });
     const stranger = await createTestClient();
@@ -383,7 +383,8 @@ describe('API ルート結合', () => {
     expect(pdfResponse.headers.get('Content-Type')).toBe('application/pdf');
     expect(pdfResponse.headers.get('Cache-Control')).toBe('no-store');
     expect(new Uint8Array(await pdfResponse.arrayBuffer())).toEqual(pdfBytes);
-    expect(renderedHtml).toEqual([html]);
+    // ダウンロードは送られた紙面（保護者向け）の全ページを書き出す。
+    expect(rendered).toEqual([{ html, pages: ['all'] }]);
 
     const emptyResponse = await request(owner, `/assessments/${assessment.id}/report/pdf`, {
       method: 'POST',
@@ -419,7 +420,7 @@ describe('API ルート結合', () => {
       body: JSON.stringify({ html }),
     });
     expect(draftPdfResponse.status).toBe(404);
-    expect(renderedHtml).toHaveLength(1);
+    expect(rendered).toHaveLength(1);
 
     const failing = await createTestClient({
       renderPdf: async () => {

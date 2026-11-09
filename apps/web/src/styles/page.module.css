@@ -1560,6 +1560,7 @@
 /*
  * 紙面（.sheet）は、左上のタブ（.sheetTab）と枠のあるカード（.sheetCard）を縦に重ねる（v10）。
  * PDF生成時はサーバーが .sheet に最低高さを付けるので、カードを伸ばして枠を紙面の下まで届かせる。
+ * 空白のない長い英数字（URL など）でも表や枠からはみ出さないよう、必要なところでは語の途中でも折り返す。
  */
 .reportPage :global(.sheet) {
   position: relative;
@@ -1567,6 +1568,19 @@
   min-height: 257mm;
   flex-direction: column;
   margin-top: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* PDFで紙面が次のページに分かれたとき、分けた側の見出しに添える（report-pdf-layout.ts）。 */
+.continuedMark {
+  margin-left: 6px;
+  font-size: 0.7em;
+  font-weight: 500;
+}
+
+/* 自由記入の改行を残す（行数は reportMultilineText で抑える）。 */
+.multilineText {
+  white-space: pre-line;
 }
 
 .sheetTab {
@@ -1991,14 +2005,40 @@
   padding: 6px 7px;
 }
 
-/* スマホ幅で列を潰さないよう、枠の中で横にずらして読ませる（コーチ向けの表と同じ）。 */
+/*
+ * スマホ幅で列を潰さないよう、枠の中で横にずらして読ませる（コーチ向けの表と同じ）。
+ * 列の幅は固定する。中身の長さで決めると、長いメモに押されて点数の列が潰れ、PDFで表がページをまたいだときに列の幅もずれるため。
+ */
 .goalTable,
 .backgroundTable {
   min-width: 540px;
+  table-layout: fixed;
 }
 
 .goalTable th {
   vertical-align: bottom;
+}
+
+/* 目標・メモ・ご家庭の重要度・現在の状態（遂行度と満足度で等分）。 */
+.goalTable thead tr:first-child th:nth-child(1) {
+  width: 31%;
+}
+
+.goalTable thead tr:first-child th:nth-child(2) {
+  width: 39%;
+}
+
+.goalTable thead tr:first-child th:nth-child(3) {
+  width: 12%;
+}
+
+/* 困りごと・背景にありそうな力・優先して見る土台。 */
+.backgroundTable th:nth-child(1) {
+  width: 54%;
+}
+
+.backgroundTable th:nth-child(2) {
+  width: 28%;
 }
 
 .nextGoalTag {
@@ -2247,9 +2287,9 @@
 }
 
 /*
- * レポートの紙面（PDF）。1シート＝A4 1ページにする。
+ * レポートの紙面（PDF）。紙面ごとに改ページする。
  * 画面用の .sheet 指定と同じ詳細度なので、それより後ろに置いて上書きする。
- * シートごとの縮小・拡大（zoom）と最低高さは、PDF生成時にサーバーが実測して付ける。
+ * 紙面がA4に収まらないときのページ分けと最低高さは、PDF生成時にサーバーが実測して付ける（report-pdf-layout.ts）。
  */
 @media print {
   .reportPage {
@@ -2873,7 +2913,7 @@
   border-top: 1px dashed var(--line);
 }
 
-.observationFree span {
+.observationFree > span:first-child {
   flex: 0 0 auto;
   padding: 0 8px;
   border-radius: 4px;
@@ -3514,65 +3554,5 @@
 @media (max-width: 640px) {
   .assessmentPage .assessmentSection {
     padding: 14px 12px;
-  }
-}
-
-/* 目標が5〜8件の回も本体2枚に収める。文字をさらに縮めず、印刷時の行間と余白を詰める。 */
-@media print {
-  .expandedGoalsSheet .sheetCard {
-    padding: 12px 20px 8px;
-    line-height: 1.4;
-  }
-
-  .expandedGoalsSheet .levelTable th,
-  .expandedGoalsSheet .levelTable td {
-    padding: 3px 7px;
-  }
-
-  .reportPage .expandedGoalsSheet .focusAreas li {
-    padding: 4px 10px;
-  }
-
-  .expandedGoalsSheet .focusAreas ol {
-    gap: 4px;
-  }
-
-  .expandedGoalsSheet .pyramidCell {
-    padding: 2px 4px;
-  }
-
-  .expandedGoalsSheet .focusAreas li p + p {
-    margin-top: 2px;
-  }
-
-  .expandedGoalsSheet .pyramidLegend {
-    margin-top: 10px;
-  }
-
-  .expandedGoalsSheet .levelTableWrap {
-    margin-top: 6px;
-  }
-
-  .reportPage .expandedGoalsSheet .reportHeading {
-    margin: 10px 0 4px;
-  }
-
-  .expandedGoalsSheet .riskCard {
-    margin-top: 10px;
-    padding: 8px 10px;
-  }
-
-  .expandedGoalsSheet .gradeOutlook {
-    margin-top: 6px;
-    padding-top: 6px;
-  }
-
-  .expandedGoalsSheet .reportNote {
-    line-height: 1.5;
-  }
-
-  .expandedGoalsSheet .scheduleBox {
-    margin-top: 8px;
-    padding: 8px 10px;
   }
 }

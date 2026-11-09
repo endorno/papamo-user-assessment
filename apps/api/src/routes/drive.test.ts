@@ -30,14 +30,16 @@ beforeAll(async () => {
   await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
 });
 
-const PARENT_HTML = '<!doctype html><html><body><section class="sheet">保護者向け</section></body></html>';
-const COACH_HTML = '<!doctype html><html><body><section class="sheet">コーチ向け</section></body></html>';
+const COACH_HTML = '<!doctype html><html><body><section class="sheet" data-coach-only>コーチ用</section><section class="sheet">本体</section></body></html>';
 
-/** HTML の中身をそのまま PDF の中身にして、どちらのPDFがどこに保存されたかを見分ける。 */
-const echoPdf: ReportPdfRenderer = async (_env, htmls, onPageStart) => htmls.map((html, index) => {
-  onPageStart?.(index);
-  return new Uint8Array(new TextEncoder().encode(html));
-});
+/** 書き出したページの範囲・文書名と HTML を PDF の中身にして、どちらのPDFがどこに保存されたかを見分ける。 */
+const echoPdf: ReportPdfRenderer = async (_env, html, outputs, progress) => {
+  progress?.onLaunched?.();
+  return outputs.map((output, index) => {
+    progress?.onOutputStart?.(index);
+    return new Uint8Array(new TextEncoder().encode(`${output.pages}|${output.title}|${html}`));
+  });
+};
 
 function driveClient(drive: FakeDrive, options: { renderPdf?: ReportPdfRenderer } = {}) {
   const connector: DriveConnector = () => drive.connection();
@@ -53,7 +55,7 @@ async function fetchReport(client: TestClient, assessmentId: string) {
 function saveToDrive(client: TestClient, assessmentId: string, generatedAt: string, executionContext?: ExecutionContext) {
   return request(client, `/assessments/${assessmentId}/report/drive`, {
     method: 'POST',
-    body: JSON.stringify({ generatedAt, parentHtml: PARENT_HTML, coachHtml: COACH_HTML }),
+    body: JSON.stringify({ generatedAt, html: COACH_HTML }),
   }, executionContext);
 }
 
@@ -121,8 +123,9 @@ describe('Googleドライブへのレポート保存', () => {
     const files = drive.live(childFolder!.id, 'pdf');
     const title = `育ちマップ_れんちゃん_${shortChildId(child.id)}_第1回`;
     expect(files.map((file) => file.name).sort()).toEqual([`${title}.pdf`, `${title}_コーチ用.pdf`]);
-    expect(new TextDecoder().decode(drive.items.get(idFromUrl(saved.coachFileUrl)!)!.content)).toBe(COACH_HTML);
-    expect(new TextDecoder().decode(drive.items.get(idFromUrl(saved.parentFileUrl)!)!.content)).toBe(PARENT_HTML);
+    // 紙面は1回だけ送り、保護者向けはコーチ用の紙面を除いたページを、文書名をそれぞれの名前にして書き出す。
+    expect(new TextDecoder().decode(drive.items.get(idFromUrl(saved.coachFileUrl)!)!.content)).toBe(`all|${title}_コーチ用|${COACH_HTML}`);
+    expect(new TextDecoder().decode(drive.items.get(idFromUrl(saved.parentFileUrl)!)!.content)).toBe(`parent|${title}|${COACH_HTML}`);
     expect(idFromUrl(saved.folderUrl)).toBe(childFolder!.id);
 
     expect((await fetchReport(owner, assessment.id)).drive).toEqual(saved);
@@ -248,7 +251,7 @@ describe('Googleドライブへのレポート保存', () => {
     expect((await saveToDrive(owner, draftId, report.generatedAt)).status).toBe(404);
     expect((await request(owner, `/assessments/${assessment.id}/report/drive`, {
       method: 'POST',
-      body: JSON.stringify({ generatedAt: report.generatedAt, parentHtml: '', coachHtml: COACH_HTML }),
+      body: JSON.stringify({ generatedAt: report.generatedAt, html: '' }),
     })).status).toBe(400);
 
     // 保存を設定していない環境では、状態は null で保存APIは404。
@@ -285,9 +288,9 @@ describe('Googleドライブへのレポート保存', () => {
     const drive = new FakeDrive();
     const target: { client?: TestClient; assessmentId?: string } = {};
     // PDFを作り終える前に、別の画面でレポートを更新したことにする。
-    const updateWhileRendering: ReportPdfRenderer = async (env, htmls, onPageStart) => {
+    const updateWhileRendering: ReportPdfRenderer = async (env, html, outputs, progress) => {
       await updateReport(target.client!, target.assessmentId!);
-      return echoPdf(env, htmls, onPageStart);
+      return echoPdf(env, html, outputs, progress);
     };
     const owner = await driveClient(drive, { renderPdf: updateWhileRendering });
     await onboard(owner);
@@ -311,9 +314,9 @@ describe('Googleドライブへのレポート保存', () => {
       releaseRender = resolve;
     });
     const owner = await driveClient(drive, {
-      renderPdf: async (env, htmls, onPageStart) => {
+      renderPdf: async (env, html, outputs, progress) => {
         await rendering;
-        return echoPdf(env, htmls, onPageStart);
+        return echoPdf(env, html, outputs, progress);
       },
     });
     await onboard(owner);
